@@ -108,7 +108,11 @@ public class Login {
 
     /** Test accounts for development. Replace or extend in SampleData later. */
     public static Login withSampleUsers() {
-        Login login = new Login();
+        return withSampleUsers(null);
+    }
+
+    public static Login withSampleUsers(AuditLog auditLog) {
+        Login login = new Login(auditLog);
         login.addUser(new SchoolNurse("N001", "Nurse Ann"), "nurse123");
         login.addUser(new NurseAssistant("A001", "Assistant Bo"), "assist123");
         login.addUser(new Administrator("AD001", "Admin Cy"), "admin123");
@@ -163,9 +167,11 @@ public class Login {
         if (auditLog == null) {
             return;
         }
-        String name = user == null ? "" : user.getName();
-        String role = user == null ? "" : user.getRole();
-        auditLog.record(java.time.LocalDateTime.now(), userId, name, role,
+        boolean knownUser = user != null && userId != null;
+        String auditUserId = knownUser ? userId : "unknown";
+        String name = knownUser ? user.getName() : "unknown";
+        String role = knownUser ? user.getRole() : "unknown";
+        auditLog.record(java.time.LocalDateTime.now(), auditUserId, name, role,
                 "login", result, "SUCCESS".equals(result));
     }
 }
