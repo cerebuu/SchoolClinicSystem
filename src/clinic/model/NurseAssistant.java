@@ -1,9 +1,16 @@
 package clinic.model;
 
 // This class is responsible for the nurse assistant with limited permissions.
-//
-// Role is ASSISTANT. Constructor: NurseAssistant(String userId, String name) and call super(...).
-// Override canAccess() to allow only recording transactions and viewing stock.
-// It must deny restocking, reports, and user management.
 public class NurseAssistant extends User {
+
+    public NurseAssistant(String userId, String name) {
+        super(userId, name, ASSISTANT);
+    }
+
+    // Only recording transactions and viewing stock.
+    // Restocking, reports, and user management are denied.
+    @Override
+    public boolean canAccess(String feature) {
+        return isOneOf(feature, RECORD_TRANSACTION, DISPENSE, VIEW_STOCK);
+    }
 }
