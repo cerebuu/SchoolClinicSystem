@@ -1,0 +1,8 @@
+[
+  {
+    "label": "Run JavaFX App",
+    "command": "mkdir -Force bin; javac --module-path \"C:\\Users\\Floyd\\Documents\\JavaFX\\javafx-sdk-21.0.12\\lib\" --add-modules javafx.controls,javafx.fxml -d bin (Get-ChildItem -Recurse -Filter *.java src | ForEach-Object { $_.FullName }); java --module-path \"C:\\Users\\Floyd\\Documents\\JavaFX\\javafx-sdk-21.0.12\\lib\" --add-modules javafx.controls,javafx.fxml -cp bin clinic.app.GUI",
+    "use_short_circuit": true,
+    "allow_concurrent_runs": false
+  }
+]
