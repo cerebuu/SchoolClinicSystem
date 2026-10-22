@@ -1,9 +1,5 @@
 package clinic.core;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -23,8 +19,9 @@ public class Login {
     private final Map<String, Long> lockedUntil = new HashMap<>();
     private final AuditLog auditLog;
     private final Supplier<Long> clock;
-    private final SecureRandom random = new SecureRandom();
     private User currentUser;
+    private long sessionVersion;
+    private final java.util.Set<String> inactive = new java.util.HashSet<>();
 
     public Login() {
         this(null, System::currentTimeMillis);
@@ -51,12 +48,17 @@ public class Login {
         if (user == null || password == null || password.isEmpty()) {
             throw new IllegalArgumentException("User and password are required.");
         }
+        if (!users.isEmpty()) requireAdmin();
+        else if (!(user instanceof Administrator)) throw new SecurityException("Create an administrator first.");
         if (users.containsKey(user.getUserId())) {
             throw new IllegalArgumentException("User ID already exists: " + user.getUserId());
         }
+        clinic.util.Validation.required(user.getUserId(), "User ID");
+        clinic.util.Validation.required(user.getName(), "Name");
         String userId = user.getUserId();
+        String hashed = PasswordHasher.hash(password);
         users.put(userId, user);
-        passwords.put(userId, hashPassword(password));
+        passwords.put(userId, hashed);
     }
 
     /** Returns the user if the ID and password match, otherwise empty. */
@@ -77,7 +79,7 @@ public class Login {
             lockedUntil.remove(normalizedId);
             failedAttempts.remove(normalizedId);
         }
-        if (user == null || !matches(password, passwords.get(normalizedId))) {
+        if (user == null || inactive.contains(normalizedId) || !PasswordHasher.matches(password, passwords.get(normalizedId))) {
             int attempts = failedAttempts.getOrDefault(normalizedId, 0) + 1;
             failedAttempts.put(normalizedId, attempts);
             record(normalizedId, user, "FAILURE");
@@ -90,13 +92,17 @@ public class Login {
         failedAttempts.remove(normalizedId);
         lockedUntil.remove(normalizedId);
         currentUser = user;
+        sessionVersion++;
         record(normalizedId, user, "SUCCESS");
         return Optional.of(user);
     }
 
     public synchronized void logout() {
         currentUser = null;
+        sessionVersion++;
     }
+
+    public synchronized long getSessionVersion() { return sessionVersion; }
 
     public synchronized boolean isLoggedIn() {
         return currentUser != null;
@@ -113,56 +119,40 @@ public class Login {
 
     public static Login withSampleUsers(AuditLog auditLog) {
         Login login = new Login(auditLog);
+        login.addUser(new Administrator("AD001", "Admin Cy"), "admin123");
+        login.login("AD001", "admin123");
         login.addUser(new SchoolNurse("N001", "Nurse Ann"), "nurse123");
         login.addUser(new NurseAssistant("A001", "Assistant Bo"), "assist123");
-        login.addUser(new Administrator("AD001", "Admin Cy"), "admin123");
         login.addUser(new Doctor("D001", "Dr. Di", "Pediatrics"), "doctor123");
+        login.logout();
         return login;
     }
 
-    private String hashPassword(String password) {
-        byte[] salt = new byte[16];
-        random.nextBytes(salt);
-        byte[] hash = digest(salt, password);
-        return encode(salt) + ":" + encode(hash);
+    public synchronized boolean needsSetup() { return users.isEmpty(); }
+    public synchronized void bootstrapAdministrator(String id, String name, String password) {
+        if (!users.isEmpty()) throw new SecurityException("Setup is already complete.");
+        addUser(new Administrator(id, name), password);
     }
-
-    private boolean matches(String password, String stored) {
-        if (stored == null) {
-            return false;
-        }
-        String[] parts = stored.split(":", -1);
-        if (parts.length != 2) {
-            return false;
-        }
-        byte[] salt = decode(parts[0]);
-        byte[] expected = decode(parts[1]);
-        byte[] actual = digest(salt, password);
-        return MessageDigest.isEqual(expected, actual);
+    public synchronized clinic.service.PageResult<User> userPage(int page, int size, String filter) {
+        requireAdmin();
+        String query = filter.toLowerCase(java.util.Locale.ROOT);
+        return clinic.service.PageResult.select(users.values(), page, size,
+            u -> u.getUserId().toLowerCase(java.util.Locale.ROOT).contains(query)
+                || u.getName().toLowerCase(java.util.Locale.ROOT).contains(query));
     }
-
-    private byte[] digest(byte[] salt, String password) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            digest.update(salt);
-            return digest.digest(password.getBytes(StandardCharsets.UTF_8));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable.", exception);
-        }
+    public synchronized boolean isActive(String id) { requireAdmin(); return !inactive.contains(id); }
+    public synchronized void updateUser(User replacement, boolean active) {
+        requireAdmin();
+        if (!users.containsKey(replacement.getUserId())) throw new IllegalArgumentException("User not found.");
+        if (currentUser.getUserId().equals(replacement.getUserId()))
+            throw new IllegalArgumentException("Use another administrator to change your account.");
+        users.put(replacement.getUserId(), replacement);
+        if (active) inactive.remove(replacement.getUserId()); else inactive.add(replacement.getUserId());
     }
-
-    private String encode(byte[] value) {
-        return java.util.Base64.getEncoder().encodeToString(value);
+    private void requireAdmin() {
+        if (currentUser == null || !User.ADMIN.equals(currentUser.getRole()))
+            throw new SecurityException("Administrator session required.");
     }
-
-    private byte[] decode(String value) {
-        try {
-            return java.util.Base64.getDecoder().decode(value);
-        } catch (IllegalArgumentException exception) {
-            return new byte[0];
-        }
-    }
-
     private void record(String userId, User user, String result) {
         if (auditLog == null) {
             return;

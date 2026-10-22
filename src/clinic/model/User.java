@@ -26,9 +26,9 @@ public class User {
     private String role;
 
     public User(String userId, String name, String role) {
-        this.userId = userId;
-        this.name = name;
-        this.role = role;
+        this.userId = clinic.util.Validation.required(userId, "User ID");
+        this.name = clinic.util.Validation.required(name, "Name");
+        this.role = clinic.util.Validation.required(role, "Role");
     }
 
     public String getUserId() {

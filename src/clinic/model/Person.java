@@ -1,10 +1,23 @@
 package clinic.model;
-
-// This class is responsible for common information shared by all people (ID, name, contact).
-//
-// Attributes (private): id, name, contactInfo (all String).
-// Constructor: Person(String id, String name, String contactInfo).
-// Getters: getId(), getName(), getContactInfo().
-// Setter: setContactInfo(String) only. The ID must never change.
+import clinic.util.Validation;
 public class Person {
+    private final String id, name;
+    private String contactInfo;
+    public Person(String id, String name, String contactInfo) {
+        this.id=Validation.required(id, "ID");
+        this.name=Validation.required(name, "Name");
+        setContactInfo(contactInfo);
+    }
+    public String getId() {
+        return id;
+    }
+    public String getName() {
+        return name;
+    }
+    public String getContactInfo() {
+        return contactInfo;
+    }
+    public void setContactInfo(String value) {
+        contactInfo=Validation.required(value, "Contact");
+    }
 }

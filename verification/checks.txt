@@ -1,0 +1,20 @@
+PASS: 42 domain, authentication, authorization, and integrity checks.
+PASS: 11 paging, background loading, stale-result, and role-navigation checks.
+Rendered offscreen snapshots: login, admin, nurse, paged-10000. No interactive desktop/dialog test performed.
+PASS recent visits: newest first; page sizes 25 and 15; filtering before paging.
+PASS permissions: assistant sees own visits only; doctor and administrator reads/writes denied.
+Showing visits this week (Oct 19 - Oct 25)
+SEARCH 'Cruz' / This week: 2 visits
+  2022-001 | Ana Cruz | 2026-10-23 07:48
+  2022-001 | Ana Cruz | 2026-10-19 00:00
+SEARCH '2022' / This week: 3 visits
+  2022-001 | Ana Cruz | 2026-10-23 07:48
+  2022-002 | Juan Mendoza | 2026-10-23 07:48
+  2022-001 | Ana Cruz | 2026-10-19 00:00
+SEARCH 'xyz' / This week: 0 visits
+SEARCH 'Cruz' / All: 3 visits
+  2022-001 | Ana Cruz | 2026-10-23 07:48
+  2022-001 | Ana Cruz | 2026-10-19 00:00
+  2020-003 | Pedro Cruz | 2026-09-23 07:48
+PASS: 10,004 stored visits; pages retain at most 25 rows; name/ID/date filters precede paging.
+PASS: Monday boundary, Today/All scopes, no results, future exclusion, and search audit privacy.

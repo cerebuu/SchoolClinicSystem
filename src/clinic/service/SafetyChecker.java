@@ -1,11 +1,11 @@
 package clinic.service;
-
-// This class is responsible for checking patient allergies before dispensing.
-//
-// Methods: checkAllergy(Patient patient, String medicineName) returns true if there is a conflict.
-// checkInteraction(String medicineName, List<String> currentMedicines) can be a simple placeholder.
-// generateWarning(Patient patient, String medicineName) returns the warning text.
-// Use a simple Map<String, List<String>> of medicine to allergen, for example Amoxicillin to Penicillin.
-// It only warns. The nurse must confirm before dispensing.
+import clinic.model.Patient;
 public class SafetyChecker {
+    // This is the project's limited allergy rule, not a clinical interaction database.
+    public boolean checkAllergy(Patient patient, String medicine) {
+        return patient.hasAllergy(medicine)||("Amoxicillin".equalsIgnoreCase(medicine)&&patient.hasAllergy("Penicillin"));
+    }
+    public String generateWarning(Patient patient, String medicine) {
+        return checkAllergy(patient, medicine)?"Recorded allergy conflicts with the selected medicine.":"";
+    }
 }
