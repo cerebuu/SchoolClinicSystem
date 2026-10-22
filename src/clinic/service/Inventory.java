@@ -1,10 +1,70 @@
 package clinic.service;
-
-// This class is responsible for managing medicine stock, expiry, and restocking.
-//
-// Holds all Medicine objects in a List<Medicine>.
-// Methods: addMedicine(Medicine), restockMedicine(String name, int quantity, LocalDate expiry), getStock(String name) returns the total across batches, getLowStock(int threshold), getExpiringWithin(int days).
-// Method: dispense(String name, int qty) takes from the earliest-expiring batch first.
-// Stock must never go negative. Throw IllegalArgumentException if there is not enough.
+import java.time.LocalDate;
+import java.util.*;
+import clinic.model.Medicine;
+import clinic.util.Validation;
 public class Inventory {
+    private final List<Medicine> batches=new ArrayList<>();
+    public synchronized void addMedicine(Medicine m) {
+        Objects.requireNonNull(m);
+        if(m.isExpired())throw new IllegalArgumentException("Expired batches cannot be added.");
+        Math.addExact(getStock(m.getName()), m.getQuantity());
+        batches.add(copy(m));
+    }
+    public synchronized void restockMedicine(String name, int qty, LocalDate expiry) {
+        Validation.positive(qty);
+        if(batches.stream().noneMatch(m->m.getName().equalsIgnoreCase(name)))throw new IllegalArgumentException("Medicine not found.");
+        addMedicine(new Medicine(name, qty, expiry, LocalDate.now(), "Restock"));
+    }
+    public synchronized int getStock(String name) {
+        return batches.stream().filter(m->m.getName().equalsIgnoreCase(name)&&!m.isExpired()).mapToInt(Medicine::getQuantity).reduce(0, Math::addExact);
+    }
+    private Medicine copy(Medicine medicine) {
+        return new Medicine(medicine.getName(), medicine.getQuantity(), medicine.getExpirationDate(), medicine.getBatchDate(), medicine.getRemarks());
+    }
+    private Map<String, Integer> stockTotals() {
+        Map<String, Integer> totals = new HashMap<>();
+        for (Medicine medicine : batches) {
+            if (!medicine.isExpired()) totals.merge(medicine.getName().toLowerCase(Locale.ROOT), medicine.getQuantity(), Math::addExact);
+        }
+        return totals;
+    }
+    public synchronized List<Medicine> getLowStock(int threshold) {
+        Map<String, Integer> totals = stockTotals();
+        return batches.stream().filter(m -> totals.getOrDefault(m.getName().toLowerCase(Locale.ROOT), 0) <= threshold).map(this::copy).toList();
+    }
+    public synchronized List<Medicine> getExpiringWithin(int days) {
+        if(days<0)throw new IllegalArgumentException("Days must be nonnegative.");
+        return batches.stream().filter(m->!m.getExpirationDate().isAfter(LocalDate.now().plusDays(days))).map(this::copy).toList();
+    }
+    public synchronized LocalDate dispense(String name, int qty) {
+        Validation.positive(qty);
+        if(qty>getStock(name))throw new IllegalArgumentException("Insufficient unexpired stock.");
+        int remaining=qty;
+        LocalDate earliest=null;
+        for(Medicine m:batches.stream().filter(m->m.getName().equalsIgnoreCase(name)&&!m.isExpired()&&m.getQuantity()>0).sorted(Comparator.comparing(Medicine::getExpirationDate)).toList()) {
+            if(earliest==null)earliest=m.getExpirationDate();
+            int take=Math.min(remaining, m.getQuantity());
+            m.reduceQuantity(take);
+            remaining-=take;
+            if(remaining==0)break;
+        }
+        return earliest;
+    }
+    public synchronized PageResult<Medicine> page(int page, int size, String query) {
+        String q=query.toLowerCase(Locale.ROOT);
+        PageResult<Medicine> result=PageResult.select(batches, page, size, m->m.getName().toLowerCase(Locale.ROOT).contains(q));
+        return new PageResult<>(result.rows().stream().map(m->new Medicine(m.getName(), m.getQuantity(), m.getExpirationDate(), m.getBatchDate(), m.getRemarks())).toList(), result.total());
+    }
+    public synchronized void collectAlerts(java.util.function.Consumer<clinic.model.Alert> consumer) {
+        Map<String, Integer> totals = stockTotals();
+        Set<String> seen = new HashSet<>();
+        for(Medicine m:batches) {
+            if(totals.getOrDefault(m.getName().toLowerCase(Locale.ROOT), 0)<=10 && seen.add(m.getName().toLowerCase(Locale.ROOT)))consumer.accept(new clinic.model.Alert("LOW_STOCK", m.getName()));
+            if(!m.getExpirationDate().isAfter(LocalDate.now().plusDays(30)))consumer.accept(new clinic.model.Alert("EXPIRING", m.getName()));
+        }
+    }
+    public synchronized List<Medicine> batches() {
+        return batches.stream().map(this::copy).toList();
+    }
 }
