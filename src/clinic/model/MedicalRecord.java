@@ -1,12 +1,46 @@
 package clinic.model;
-
-// This class is responsible for one clinic visit: symptoms, concern, remarks, date and time.
-//
-// Attributes (private): recordId, patientId, reason, assessment, medicationGiven, staffId (String), symptoms (List<String>), visitDateTime (LocalDateTime).
-// Constructor takes all attributes except the date, which is set with LocalDateTime.now().
-// Getters only. Saved records are not edited.
-// Change the class line to: public class MedicalRecord implements Formattable.
-// Then write toReport() and use DateUtil.format(...) for the date.
-// Symptoms come from a controlled list so PatternDetector can match them.
-public class MedicalRecord {
+import java.time.LocalDateTime;
+import java.util.List;
+import clinic.util.*;
+public class MedicalRecord implements Formattable {
+    private final String recordId, patientId, reason, assessment, medicationGiven, staffId;
+    private final List<String> symptoms;
+    private final LocalDateTime visitDateTime=LocalDateTime.now();
+    public MedicalRecord(String id, String patient, List<String> symptoms, String reason, String assessment, String medicine, String staff) {
+        recordId=Validation.required(id, "Record ID");
+        patientId=Validation.required(patient, "Patient ID");
+        this.symptoms=List.copyOf(symptoms);
+        if(symptoms.isEmpty())throw new IllegalArgumentException("Symptoms are required.");
+        this.reason=Validation.required(reason, "Reason");
+        this.assessment=assessment;
+        medicationGiven=medicine;
+        staffId=Validation.required(staff, "Staff ID");
+    }
+    public String getRecordId() {
+        return recordId;
+    }
+    public String getPatientId() {
+        return patientId;
+    }
+    public String getReason() {
+        return reason;
+    }
+    public String getAssessment() {
+        return assessment;
+    }
+    public String getMedicationGiven() {
+        return medicationGiven;
+    }
+    public String getStaffId() {
+        return staffId;
+    }
+    public List<String> getSymptoms() {
+        return symptoms;
+    }
+    public LocalDateTime getVisitDateTime() {
+        return visitDateTime;
+    }
+    public String toReport() {
+        return recordId+" | "+patientId+" | "+DateUtil.format(visitDateTime)+"\nSymptoms: "+String.join(", ", symptoms)+"\nConcern: "+reason+"\nRemarks: "+assessment;
+    }
 }

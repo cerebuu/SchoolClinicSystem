@@ -48,6 +48,16 @@ public class AuditLog {
         entries.clear();
     }
 
+    public synchronized PageResult<AuditEntry> page(int page, int size, String query) {
+        String[] tokens = query.toLowerCase(java.util.Locale.ROOT).trim().split("\\s+");
+        return PageResult.select(entries, page, size, e -> {
+            for (String token : tokens) {
+                if (token.equals("denied")) { if (e.isAllowed()) return false; }
+                else if (!(e.getUserId()+" "+e.getTimestamp()+" "+e.getAction()).toLowerCase(java.util.Locale.ROOT).contains(token)) return false;
+            }
+            return true;
+        });
+    }
     private boolean same(String first, String second) {
         if (first == null) {
             return second == null;

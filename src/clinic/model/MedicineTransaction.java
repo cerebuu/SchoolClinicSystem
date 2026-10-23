@@ -1,11 +1,45 @@
 package clinic.model;
-
-// This class is responsible for recording each medicine released to a patient.
-//
-// Attributes (private): transactionId, medicineName, patientId, staffId, remarks (String), quantity (int), dateTime (LocalDateTime), expirationDate (LocalDate).
-// Constructor takes all attributes except dateTime, which is set with LocalDateTime.now().
-// Getters only.
-// Change the class line to: public class MedicineTransaction implements Formattable.
-// Then write toReport() as a medication report using DateUtil.format(...).
-public class MedicineTransaction {
+import java.time.*;
+import clinic.util.Validation;
+public class MedicineTransaction implements Formattable {
+    private final String transactionId, medicineName, patientId, staffId, remarks;
+    private final int quantity;
+    private final LocalDate expirationDate;
+    private final LocalDateTime dateTime=LocalDateTime.now();
+    public MedicineTransaction(String id, String medicine, String patient, String staff, int quantity, LocalDate expiry, String remarks) {
+        transactionId=Validation.required(id, "Transaction ID");
+        medicineName=Validation.required(medicine, "Medicine");
+        patientId=Validation.required(patient, "Patient ID");
+        staffId=Validation.required(staff, "Staff ID");
+        this.quantity=Validation.positive(quantity);
+        expirationDate=expiry;
+        this.remarks=remarks;
+    }
+    public String getTransactionId() {
+        return transactionId;
+    }
+    public String getMedicineName() {
+        return medicineName;
+    }
+    public String getPatientId() {
+        return patientId;
+    }
+    public String getStaffId() {
+        return staffId;
+    }
+    public int getQuantity() {
+        return quantity;
+    }
+    public LocalDateTime getDateTime() {
+        return dateTime;
+    }
+    public LocalDate getExpirationDate() {
+        return expirationDate;
+    }
+    public String getRemarks() {
+        return remarks;
+    }
+    public String toReport() {
+        return transactionId+" | "+patientId+" | "+medicineName+" | "+quantity+" | "+dateTime;
+    }
 }

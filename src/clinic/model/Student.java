@@ -1,10 +1,21 @@
 package clinic.model;
-
-// This class is responsible for student patients (course, year level, section).
-//
-// Attributes (private): course (String), yearLevel (int), section (String).
-// Constructor: Student(String id, String name, String contactInfo, String course, int yearLevel, String section) and call super(id, name, contactInfo, STUDENT).
-// Getters for all attributes.
-// PatternDetector uses the section to group visits.
+import clinic.util.Validation;
 public class Student extends Patient {
+    private final String course, section;
+    private final int yearLevel;
+    public Student(String id, String name, String contact, String course, int year, String section) {
+        super(id, name, contact, STUDENT);
+        this.course=Validation.required(course, "Course");
+        this.section=Validation.required(section, "Section");
+        yearLevel=Validation.positive(year);
+    }
+    public String getCourse() {
+        return course;
+    }
+    public String getSection() {
+        return section;
+    }
+    public int getYearLevel() {
+        return yearLevel;
+    }
 }
