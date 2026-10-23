@@ -3,13 +3,28 @@ import clinic.core.ClinicSystem;
 import clinic.model.*;
 import java.time.*;
 import java.util.*;
-public final class InMemoryClinicSystem implements ClinicSystem {
+public final class InMemoryClinicSystem implements ClinicData {
     private final Map<String, Patient> patients=new LinkedHashMap<>();
     private final List<MedicalRecord> records=new ArrayList<>();
     private final Map<String, MedicineTransaction> transactions=new LinkedHashMap<>();
     private final Map<String, NotificationLog> notifications=new LinkedHashMap<>();
     private final Inventory inventory=new Inventory();
     private final SafetyChecker safety=new SafetyChecker();
+    public InMemoryClinicSystem() {}
+    /** Rehydrates a transaction-local domain aggregate; never used as durable storage. */
+    public InMemoryClinicSystem(State state) {
+        state.patients().forEach(p -> patients.put(p.getId(), p.copy()));
+        records.addAll(state.records());
+        state.transactions().forEach(t -> transactions.put(t.getTransactionId(), t));
+        state.notifications().forEach(n -> notifications.put(n.getNotificationId(), n.copy()));
+        inventory.restoreBatches(state.batches());
+    }
+    public synchronized State snapshot() {
+        return new State(patients.values().stream().map(Patient::copy).toList(), List.copyOf(records),
+            List.copyOf(transactions.values()), notifications.values().stream().map(NotificationLog::copy).toList(), inventory.batches());
+    }
+    public record State(List<Patient> patients, List<MedicalRecord> records,
+        List<MedicineTransaction> transactions, List<NotificationLog> notifications, List<Medicine> batches) {}
     private String id() {
         return UUID.randomUUID().toString();
     }
@@ -43,11 +58,18 @@ public final class InMemoryClinicSystem implements ClinicSystem {
         return warning.isEmpty()?List.of():List.of(warning);
     }
     public synchronized MedicineTransaction dispenseMedicine(String patient, String medicine, int quantity, String staff, boolean override) {
+        return dispenseMedicine(patient, medicine, quantity, staff,
+            override ? "Safety override confirmed" : "");
+    }
+    public synchronized MedicineTransaction dispenseMedicine(String patient, String medicine, int quantity, String staff, String overrideReason) {
+        String reason = overrideReason == null ? "" : overrideReason.trim();
+        boolean override = !reason.isEmpty();
+        if (override && reason.length() < 10) throw new IllegalArgumentException("Enter an override reason of at least 10 characters.");
         patient(patient);
         clinic.util.Validation.required(staff, "Staff");
         if(!checkSafety(patient, medicine).isEmpty()&&!override)throw new IllegalStateException("Safety confirmation is required.");
         LocalDate expiry=inventory.dispense(medicine, quantity);
-        MedicineTransaction t=new MedicineTransaction(id(), medicine, patient, staff, quantity, expiry, override?"Safety override":"");
+        MedicineTransaction t=new MedicineTransaction(id(), medicine, patient, staff, quantity, expiry, override?"Safety override: " + reason:"");
         transactions.put(t.getTransactionId(), t);
         return t;
     }
@@ -113,18 +135,20 @@ public final class InMemoryClinicSystem implements ClinicSystem {
         patient(patient);
         MedicineTransaction t=transactions.get(transaction);
         if(t==null||!t.getPatientId().equals(patient))throw new IllegalArgumentException("Transaction does not belong to patient.");
-        NotificationLog n=new NotificationLog(id(), patient, transaction, reason, LocalDateTime.now());
+        NotificationLog n=new NotificationLog(id(), patient, transaction, reason, LocalDateTime.now(),
+            patient(patient).getName(), t.getMedicineName(),
+            GuardianMessageTemplates.MessageType.MEDICINE_GIVEN, "the school clinic");
         notifications.put(n.getNotificationId(), n);
-        return n;
+        return n.copy();
     }
     public synchronized void updateNotificationStatus(String id, NotificationStatus status) {
         NotificationLog n=notifications.get(id);
-        if(n==null||status!=NotificationStatus.SENT)throw new IllegalArgumentException("Select a pending notification to mark sent.");
+        if(n==null||status!=NotificationStatus.SENT||n.getStatus()!=NotificationStatus.PENDING)throw new IllegalArgumentException("Select a pending notification to mark sent.");
         n.markSent();
     }
     public synchronized List<NotificationLog> getNotifications(String patient) {
         patient(patient);
-        return notifications.values().stream().filter(n->n.getPatientId().equals(patient)).toList();
+        return notifications.values().stream().filter(n->n.getPatientId().equals(patient)).map(NotificationLog::copy).toList();
     }
     // Bounded query gateway: scans stored data but copies only the requested page.
     public synchronized PageResult<Patient> patientPage(int page, int size, String filter) {
@@ -156,9 +180,11 @@ public final class InMemoryClinicSystem implements ClinicSystem {
         return VisitSearch.page(records, patients, page, size, nameOrId, staffId, fromInclusive, toInclusive);
     }
     public synchronized PageResult<NotificationLog> notificationPage(int page, int size, String filter) {
-        return PageResult.select(notifications.values(), page, size, n->matches(n.getPatientId(), filter));
+        PageResult<NotificationLog> result = PageResult.select(notifications.values(), page, size, n->matches(n.getPatientId(), filter));
+        return new PageResult<>(result.rows().stream().map(NotificationLog::copy).toList(), result.total());
     }
     public synchronized PageResult<Alert> alertPage(int page, int size, String query) {
+        if (page < 0 || size < 1) throw new IllegalArgumentException("Invalid page.");
         List<Alert> selected=new ArrayList<>();
         int[] total= {
             0

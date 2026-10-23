@@ -15,11 +15,11 @@ public final class CampusBadge extends JLabel {
         setForeground(Theme.BRAND_DARK);
         setBorder(javax.swing.BorderFactory.createEmptyBorder(6, 10, 6, 10));
         setOpaque(false);
-        getAccessibleContext().setAccessibleName("Campus: " + campus);
+        getAccessibleContext().setAccessibleName(campus);
     }
 
     public static CampusBadge sample() {
-        return new CampusBadge(Theme.SAMPLE_CAMPUS);
+        return new CampusBadge("Clinic records");
     }
 
     @Override
@@ -28,10 +28,10 @@ public final class CampusBadge extends JLabel {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setColor(new Color(Theme.BRAND_TINT.getRed(), Theme.BRAND_TINT.getGreen(),
                 Theme.BRAND_TINT.getBlue(), 255));
-        g.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), Theme.RADIUS_PILL, Theme.RADIUS_PILL));
+        g.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), getHeight(), getHeight()));
         g.setColor(Theme.BRAND_BORDER);
         g.draw(new RoundRectangle2D.Float(0, 0, getWidth() - 1, getHeight() - 1,
-                Theme.RADIUS_PILL, Theme.RADIUS_PILL));
+                getHeight(), getHeight()));
         g.dispose();
         super.paintComponent(graphics);
     }

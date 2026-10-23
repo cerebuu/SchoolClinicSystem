@@ -23,7 +23,7 @@ public class Card extends JPanel {
         g.fill(new RoundRectangle2D.Float(2, 3, getWidth() - 4, getHeight() - 5, arc, arc));
         g.setColor(Theme.WHITE);
         g.fill(new RoundRectangle2D.Float(1, 0, getWidth() - 3, getHeight() - 4, arc, arc));
-        g.setColor(Theme.BRAND_BORDER);
+        g.setColor(Theme.LINE);
         g.draw(new RoundRectangle2D.Float(1, 0, getWidth() - 3, getHeight() - 4, arc, arc));
         g.dispose();
         super.paintComponent(graphics);

@@ -7,7 +7,7 @@ import clinic.model.MedicalRecord;
 import java.awt.BorderLayout;
 public final class ReportsPanel extends BasePanel {
     public ReportsPanel(ApplicationContext app) {
-        super("Reports", clinic.app.Theme.SAMPLE_CAMPUS);
+        super("Reports", "Clinic records");
         PagedTablePanel<MedicalRecord> table=new PagedTablePanel<>(new ConsultationsTableModel(), app::records);
         add(table, BorderLayout.CENTER);
         action("Generate selected report", true, ()-> {

@@ -7,12 +7,11 @@ import java.awt.BorderLayout;
 
 public final class ConsultationsPanel extends BasePanel {
     public ConsultationsPanel(ApplicationContext app) {
-        super("Consultations", clinic.app.Theme.SAMPLE_CAMPUS);
-        PagedTablePanel<MedicalRecord> table = app.current().canAccess(User.RECORDS)
-            ? new PagedTablePanel<>(new ConsultationsTableModel(), app::records) : null;
-        if (table != null) add(table, BorderLayout.CENTER);
-        else add(new EmptyState("No consultation access",
-            "Record a consultation using an authorized clinic account."), BorderLayout.CENTER);
+        super("Consultations", "Clinic records");
+        PagedTablePanel<MedicalRecord> table = new PagedTablePanel<>(new ConsultationsTableModel(),
+            app.current().canAccess(User.RECORDS) ? app::records : app::recentVisits,
+            "Patient ID / reason");
+        add(table, BorderLayout.CENTER);
         if (app.current().canAccess(User.RECORD_TRANSACTION)) {
             action("Record visit", true, () -> NewConsultationForm.open(this, app, () -> {
                 if (table != null) table.reload();

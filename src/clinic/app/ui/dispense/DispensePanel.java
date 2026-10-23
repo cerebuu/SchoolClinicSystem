@@ -10,7 +10,7 @@ public final class DispensePanel extends BasePanel {
     private final JButton submit;
     private final JLabel validation = new JLabel(" ");
     public DispensePanel(ApplicationContext app) {
-        super("Dispense medicine", Theme.SAMPLE_CAMPUS);
+        super("Dispense medicine", "Clinic records");
         JPanel form=new JPanel();
         form.setOpaque(false);
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
@@ -69,7 +69,7 @@ public final class DispensePanel extends BasePanel {
         validation.setForeground(Theme.MUTED);
         validation.setText("Checking medicine safety…");
         AsyncLoader.load(() -> clinic.checkSafety(p, m), warnings -> {
-            boolean overrideConfirmed = false;
+            String overrideReason = "";
             if (!warnings.isEmpty()) {
                 validation.setText("Review the safety warning before continuing.");
                 WarningOverridePopup.Result decision = WarningOverridePopup.show(this, p, m, warnings);
@@ -78,9 +78,9 @@ public final class DispensePanel extends BasePanel {
                     validation.setText("Dispensing cancelled.");
                     return;
                 }
-                overrideConfirmed = true;
+                overrideReason = decision.reason();
             }
-            final boolean confirmed = overrideConfirmed;
+            final String confirmed = overrideReason;
             validation.setText("Dispensing…");
             AsyncLoader.load(() -> clinic.dispenseMedicine(p, m, qty, staffId, confirmed), transaction -> {
                 submit.setEnabled(true);

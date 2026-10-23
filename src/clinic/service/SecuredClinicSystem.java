@@ -64,6 +64,16 @@ public final class SecuredClinicSystem implements ClinicSystem {
     }
 
     @Override
+    public MedicineTransaction dispenseMedicine(String patientId, String medicineName, int quantity,
+            String staffId, String overrideReason) {
+        verifyStaff(staffId);
+        MedicineTransaction result = call("dispenseMedicine", () -> delegate.dispenseMedicine(
+            patientId, medicineName, quantity, staffId, overrideReason));
+        if (overrideReason != null && !overrideReason.isBlank()) audit("safetyOverride", "Confirmed by signed-in staff", true);
+        return result;
+    }
+
+    @Override
     public void restockMedicine(String name, int quantity, LocalDate expiry) {
         run("restockMedicine", () -> delegate.restockMedicine(name, quantity, expiry));
     }

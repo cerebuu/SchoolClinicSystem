@@ -37,6 +37,10 @@ public interface ClinicSystem {
                                          int quantity, String staffId,
                                          boolean overrideConfirmed);
 
+    /** Retains a documented override reason with the transaction, outside the general audit log. */
+    MedicineTransaction dispenseMedicine(String patientId, String medicineName,
+                                         int quantity, String staffId, String overrideReason);
+
     // ---------- 4. Inventory ----------
     void addMedicine(String name, int quantity, LocalDate expiry, String remarks);
 

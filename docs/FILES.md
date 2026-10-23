@@ -104,3 +104,12 @@ Files in the completed working-tree change, including the earlier SCMS refactor 
 | [verification/login.png](../verification/login.png) | Captured verification output or offscreen UI snapshot. |
 | [verification/nurse.png](../verification/nurse.png) | Captured verification output or offscreen UI snapshot. |
 | [verification/paged-10000.png](../verification/paged-10000.png) | Captured verification output or offscreen UI snapshot. |
+
+## October 24 audit additions
+
+- `Run.cmd`: normal compile-and-launch entry point.
+- `tools/verify-desktop.cmd`: native Swing integration checks.
+- `tests/DesktopChecks.java`: isolated setup, login, clinic/admin dialogs, cancellation, refresh, resize, and shutdown coverage.
+- `verification/desktop-checks.txt`: captured native test output.
+- `verification/desktop-*.png`: native-window rendering evidence.
+- See `IMPLEMENTATION.md` for the current changes and verification limits; earlier manifest entries describe the inherited implementation.

@@ -34,15 +34,16 @@ public final class PagedTablePanel<T> extends Card {
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setDefaultRenderer(Object.class, new ZebraRenderer());
         table.setDefaultRenderer(Number.class, new ZebraRenderer());
-        JPanel controls=new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel controls=new JPanel(new BorderLayout(Theme.GAP, Theme.GAP));
+        controls.setOpaque(false);
         JLabel label = new JLabel(filterLabel);
         label.setLabelFor(search);
         Theme.field(search);
-        controls.add(label);
-        controls.add(search);
+        controls.add(label, BorderLayout.WEST);
+        controls.add(search, BorderLayout.CENTER);
         JButton refresh=Theme.button("Refresh", false);
         refresh.getAccessibleContext().setAccessibleName("Refresh table");
-        controls.add(refresh);
+        controls.add(refresh, BorderLayout.EAST);
         if (showSearchControls) add(controls, BorderLayout.NORTH);
         scroll=new JScrollPane(table, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS,
             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
@@ -52,13 +53,17 @@ public final class PagedTablePanel<T> extends Card {
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         scroll.getHorizontalScrollBar().setUnitIncrement(16);
         scroll.setColumnHeaderView(table.getTableHeader());
-        scroll.setBorder(BorderFactory.createLineBorder(Theme.BRAND_BORDER));
+        scroll.setBorder(BorderFactory.createLineBorder(Theme.LINE));
         add(scroll, BorderLayout.CENTER);
-        JPanel footer=new JPanel(new FlowLayout(FlowLayout.LEFT));
-        footer.add(prev);
-        footer.add(next);
+        JPanel footer=new JPanel(new BorderLayout(Theme.GAP, 0));
+        footer.setOpaque(false);
+        JPanel paging=new JPanel(new FlowLayout(FlowLayout.LEFT, Theme.SPACE_2, 0));
+        paging.setOpaque(false);
+        paging.add(prev);
+        paging.add(next);
+        footer.add(paging, BorderLayout.WEST);
         state.setForeground(Theme.MUTED);
-        footer.add(state);
+        footer.add(state, BorderLayout.CENTER);
         add(footer, BorderLayout.SOUTH);
         prev.addActionListener(e->setPage(page-1));
         next.addActionListener(e->setPage(page+1));
@@ -104,17 +109,19 @@ public final class PagedTablePanel<T> extends Card {
         return total;
     }
     public T selected() {
+        if (!table.isEnabled()) return null;
         int r=table.getSelectedRow();
         return r<0?null:model.row(table.convertRowIndexToModel(r));
     }
     public void reload() {
-        if(worker!=null)worker.cancel(true);
+        if(worker!=null)worker.cancel(false);
         int version=++generation, p=page;
         String q=search.getText().trim();
         state.setText("Loading...");
         prev.setEnabled(false);
         next.setEnabled(false);
         table.setEnabled(false);
+        table.clearSelection();
         scroll.setViewportView(table);
         scroll.setColumnHeaderView(table.getTableHeader());
         worker=AsyncLoader.load(()->source.fetch(p, PAGE_SIZE, q), result-> {
@@ -132,7 +139,7 @@ public final class PagedTablePanel<T> extends Card {
                 String message = emptyMessage == null
                     ? (q.isEmpty() ? emptyText : "No matching records")
                     : emptyMessage.apply(q);
-                state.setText(message);
+                state.setText("0 records");
                 scroll.setColumnHeaderView(null);
                 scroll.setViewportView(new EmptyState(message, q.isEmpty()
                     ? "Records will appear here when they are available."
@@ -146,6 +153,7 @@ public final class PagedTablePanel<T> extends Card {
             next.setEnabled(page<last);
         }, err-> {
             if(version==generation) {
+                total=0;
                 model.replace(new clinic.service.PageResult<>(java.util.List.of(), 0));
                 state.setText("Unable to load records. Use Refresh to retry.");
                 scroll.setColumnHeaderView(null);
@@ -158,7 +166,7 @@ public final class PagedTablePanel<T> extends Card {
     public void removeNotify() {
         generation++;
         debounce.stop();
-        if(worker!=null)worker.cancel(true);
+        if(worker!=null)worker.cancel(false);
         super.removeNotify();
     }
     public void addNotify() {

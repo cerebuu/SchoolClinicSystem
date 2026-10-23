@@ -12,8 +12,9 @@ import java.time.LocalDateTime;
 import javax.swing.*;
 
 public final class DashboardPanel extends BasePanel {
+    private int generation;
     public DashboardPanel(ApplicationContext app) {
-        super("Clinic dashboard", Theme.SAMPLE_CAMPUS);
+        super("Clinic dashboard", "Clinic records");
         boolean canRecord = app.current().canAccess(User.RECORD_TRANSACTION);
         KpiCard patients = new KpiCard("Registered patients:", "—", "Loading clinic totals");
         KpiCard visits = new KpiCard("Consultations today", "—", "Today");
@@ -32,6 +33,7 @@ public final class DashboardPanel extends BasePanel {
             "This account does not have permission to view clinic totals."), BorderLayout.CENTER);
         add(content, BorderLayout.CENTER);
         if (canRecord) {
+            onRefresh(() -> load(app, patients, visits, lowStock, expiring, metrics, loading));
             action("Refresh", () -> load(app, patients, visits, lowStock, expiring, metrics, loading));
             load(app, patients, visits, lowStock, expiring, metrics, loading);
         }
@@ -39,6 +41,7 @@ public final class DashboardPanel extends BasePanel {
 
     private void load(ApplicationContext app, KpiCard patients, KpiCard visits,
                       KpiCard lowStock, KpiCard expiring, JPanel metrics, JLabel loading) {
+        int request = ++generation;
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime dayStart = LocalDate.now().atStartOfDay();
         AsyncLoader.load(() -> {
@@ -50,6 +53,7 @@ public final class DashboardPanel extends BasePanel {
                 ? app.clinic().getExpiringWithin(30).size() : -1;
             return new int[] {patientTotal, todaysVisits, lowStockTotal, expiringTotal};
         }, values -> {
+            if (request != generation) return;
             patients.setValue(Integer.toString(values[0]));
             patients.setCaption("All registered records");
             visits.setValue(Integer.toString(values[1]));
@@ -68,6 +72,7 @@ public final class DashboardPanel extends BasePanel {
             metrics.revalidate();
             metrics.repaint();
         }, error -> {
+            if (request != generation) return;
             patients.setValue("—");
             visits.setValue("—");
             lowStock.setValue("—");

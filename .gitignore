@@ -31,3 +31,9 @@ out/
 !.vscode/settings.json
 !.vscode/launch.json
 bin/
+data/
+verification/*-db-*/
+*.mv.db
+*.trace.db
+*.key
+*.application.lock

@@ -52,7 +52,7 @@ public final class StatusChip extends JLabel {
         Graphics2D g = (Graphics2D) graphics.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setColor(selected ? Theme.BRAND_TINT : tint);
-        g.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), Theme.RADIUS_PILL, Theme.RADIUS_PILL));
+        g.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), getHeight(), getHeight()));
         g.dispose();
         super.paintComponent(graphics);
     }

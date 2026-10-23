@@ -9,6 +9,7 @@ import javax.swing.SwingUtilities;
 
 /** Application composition root; normal startup never seeds sample credentials. */
 public class GUI extends JFrame {
+    private final ApplicationContext app;
     public GUI() {
         this(false);
     }
@@ -18,12 +19,27 @@ public class GUI extends JFrame {
     }
 
     public GUI(boolean demo, Class<? extends User> requiredRole) {
+        this(demo?new ApplicationContext(true):ApplicationContext.production(), demo, requiredRole);
+    }
+    public GUI(ApplicationContext app, boolean demo, Class<? extends User> requiredRole) {
         super(windowTitle(demo, requiredRole));
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        this.app=app;
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosing(java.awt.event.WindowEvent event) {
+                if (clinic.app.ui.common.popup.MessagePopup.confirm(GUI.this,
+                        app.isPersistent()?"Close the clinic application? Saved records will remain available next time."
+                            :"Close the demo/test application? All session data will be lost.")) dispose();
+            }
+        });
         setMinimumSize(new Dimension(1100, 700));
         setSize(1280, 800);
         setLocationRelativeTo(null);
-        new Router(this, new ApplicationContext(demo), requiredRole).login();
+        new Router(this, app, requiredRole).login();
+    }
+    @Override public void dispose() {
+        try { app.close(); super.dispose(); }
+        catch (RuntimeException failure) { clinic.app.ui.common.popup.MessagePopup.error(this,failure); }
     }
 
     public static void main(String[] args) {
@@ -32,9 +48,15 @@ public class GUI extends JFrame {
 
     public static void launch(String[] args, Class<? extends User> requiredRole) {
         boolean demo = java.util.Arrays.asList(args).contains("--demo");
+        final ApplicationContext context;
+        try { context=demo?new ApplicationContext(true):ApplicationContext.production(); }
+        catch (RuntimeException failure) {
+            SwingUtilities.invokeLater(() -> clinic.app.ui.common.popup.MessagePopup.error(null,failure));
+            return;
+        }
         SwingUtilities.invokeLater(() -> {
             Theme.install();
-            new GUI(demo, requiredRole).setVisible(true);
+            new GUI(context, demo, requiredRole).setVisible(true);
         });
     }
 

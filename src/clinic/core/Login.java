@@ -22,6 +22,18 @@ public class Login {
     private User currentUser;
     private long sessionVersion;
     private final java.util.Set<String> inactive = new java.util.HashSet<>();
+    private clinic.persistence.AccountRepository repository;
+    public Login(AuditLog audit, clinic.persistence.AccountRepository repository) {
+        this(audit, System::currentTimeMillis);
+        this.repository = repository;
+        for (var account : repository.load()) {
+            users.put(account.user().getUserId(), account.user());
+            passwords.put(account.user().getUserId(), account.hash());
+            if (!account.active()) inactive.add(account.user().getUserId());
+            if(account.failures()>0) failedAttempts.put(account.user().getUserId(),account.failures());
+            if(account.lockedUntil()>0) lockedUntil.put(account.user().getUserId(),account.lockedUntil());
+        }
+    }
 
     public Login() {
         this(null, System::currentTimeMillis);
@@ -45,7 +57,7 @@ public class Login {
 
     /** Register a user with a password. Throws if the ID is already taken. */
     public synchronized void addUser(User user, String password) {
-        if (user == null || password == null || password.isEmpty()) {
+        if (user == null || password == null || password.isBlank()) {
             throw new IllegalArgumentException("User and password are required.");
         }
         if (!users.isEmpty()) requireAdmin();
@@ -57,12 +69,16 @@ public class Login {
         clinic.util.Validation.required(user.getName(), "Name");
         String userId = user.getUserId();
         String hashed = PasswordHasher.hash(password);
+        if (repository != null) repository.insert(user, hashed);
         users.put(userId, user);
         passwords.put(userId, hashed);
     }
 
     /** Returns the user if the ID and password match, otherwise empty. */
     public synchronized Optional<User> login(String userId, String password) {
+        // A failed reauthentication must never retain a previous privileged session.
+        currentUser = null;
+        sessionVersion++;
         if (userId == null || password == null) {
             record(null, null, "FAILURE");
             return Optional.empty();
@@ -81,6 +97,7 @@ public class Login {
         }
         if (user == null || inactive.contains(normalizedId) || !PasswordHasher.matches(password, passwords.get(normalizedId))) {
             int attempts = failedAttempts.getOrDefault(normalizedId, 0) + 1;
+            if(repository!=null && user!=null) repository.attempts(normalizedId, attempts, attempts>=MAX_FAILED_ATTEMPTS?now+LOCK_MILLIS:0);
             failedAttempts.put(normalizedId, attempts);
             record(normalizedId, user, "FAILURE");
             if (attempts >= MAX_FAILED_ATTEMPTS) {
@@ -89,11 +106,12 @@ public class Login {
             }
             return Optional.empty();
         }
+        if(repository!=null) repository.attempts(normalizedId,0,0);
         failedAttempts.remove(normalizedId);
         lockedUntil.remove(normalizedId);
+        record(normalizedId, user, "SUCCESS");
         currentUser = user;
         sessionVersion++;
-        record(normalizedId, user, "SUCCESS");
         return Optional.of(user);
     }
 
@@ -146,6 +164,7 @@ public class Login {
         if (!users.containsKey(replacement.getUserId())) throw new IllegalArgumentException("User not found.");
         if (currentUser.getUserId().equals(replacement.getUserId()))
             throw new IllegalArgumentException("Use another administrator to change your account.");
+        if (repository != null) repository.update(replacement, active);
         users.put(replacement.getUserId(), replacement);
         if (active) inactive.remove(replacement.getUserId()); else inactive.add(replacement.getUserId());
     }

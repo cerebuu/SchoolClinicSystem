@@ -5,8 +5,12 @@ public class MedicineTransaction implements Formattable {
     private final String transactionId, medicineName, patientId, staffId, remarks;
     private final int quantity;
     private final LocalDate expirationDate;
-    private final LocalDateTime dateTime=LocalDateTime.now();
+    private final LocalDateTime dateTime;
     public MedicineTransaction(String id, String medicine, String patient, String staff, int quantity, LocalDate expiry, String remarks) {
+        this(id, medicine, patient, staff, quantity, expiry, remarks, LocalDateTime.now());
+    }
+    public MedicineTransaction(String id, String medicine, String patient, String staff, int quantity, LocalDate expiry, String remarks, LocalDateTime time) {
+        dateTime=java.util.Objects.requireNonNull(time);
         transactionId=Validation.required(id, "Transaction ID");
         medicineName=Validation.required(medicine, "Medicine");
         patientId=Validation.required(patient, "Patient ID");
@@ -40,6 +44,6 @@ public class MedicineTransaction implements Formattable {
         return remarks;
     }
     public String toReport() {
-        return transactionId+" | "+patientId+" | "+medicineName+" | "+quantity+" | "+dateTime;
+        return transactionId+" | "+patientId+" | "+medicineName+" | "+quantity+" | "+dateTime+"\nRemarks: "+remarks;
     }
 }

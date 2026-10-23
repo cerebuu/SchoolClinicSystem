@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.util.List;
 public final class InventoryPanel extends BasePanel {
     public InventoryPanel(ApplicationContext app) {
-        super("Medicine inventory", clinic.app.Theme.SAMPLE_CAMPUS);
+        super("Medicine inventory", "Clinic records");
         PagedTablePanel<Medicine> table=new PagedTablePanel<>(new InventoryTableModel(), app::medicines);
         add(table, BorderLayout.CENTER);
         if(app.current().canAccess(User.RESTOCK)) {

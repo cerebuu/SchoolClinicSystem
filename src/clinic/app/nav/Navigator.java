@@ -28,14 +28,15 @@ public final class Navigator extends JPanel {
         brand.setBorder(BorderFactory.createEmptyBorder(0, 4, 10, 0));
         brand.setAlignmentX(Component.LEFT_ALIGNMENT);
         sidebar.add(brand);
-        JLabel workspace = new JLabel(superadmin ? "Superadmin" : "Clinic workspace");
+        JLabel workspace = new JLabel(superadmin ? "Superadmin" :
+            User.NURSE.equals(user.getRole()) ? "Nursing operations" : "Clinic workspace");
         workspace.setFont(Theme.font(Theme.TYPE_CAPTION, java.awt.Font.BOLD));
         workspace.setForeground(Theme.MUTED);
         workspace.setBorder(BorderFactory.createEmptyBorder(0, 4, 16, 0));
         workspace.setAlignmentX(Component.LEFT_ALIGNMENT);
         sidebar.add(workspace);
         if (!superadmin) {
-            CampusBadge campus = CampusBadge.sample();
+            CampusBadge campus = new CampusBadge("Clinic records");
             campus.setAlignmentX(Component.LEFT_ALIGNMENT);
             sidebar.add(campus);
             sidebar.add(Box.createVerticalStrut(Theme.SPACE_4));
@@ -73,7 +74,12 @@ public final class Navigator extends JPanel {
         signOut.setMaximumSize(new Dimension(Integer.MAX_VALUE, Theme.CONTROL_HEIGHT));
         signOut.addActionListener(e->logout.run());
         sidebar.add(signOut);
-        add(sidebar, BorderLayout.WEST);
+        JScrollPane sidebarScroll = new JScrollPane(sidebar,
+            ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        sidebarScroll.setBorder(BorderFactory.createEmptyBorder());
+        sidebarScroll.setPreferredSize(new Dimension(248, 0));
+        sidebarScroll.getVerticalScrollBar().setUnitIncrement(16);
+        add(sidebarScroll, BorderLayout.WEST);
         pages.setBackground(Theme.SUBTLE);
         add(pages, BorderLayout.CENTER);
         if(!allowed.isEmpty())open(allowed.keySet().iterator().next());
@@ -81,12 +87,14 @@ public final class Navigator extends JPanel {
     public void open(String label) {
         NavItem item=allowed.get(label);
         if(item==null)throw new SecurityException("Navigation is not permitted.");
-        if(!loaded.containsKey(label)) {
+        boolean cached = loaded.containsKey(label);
+        if(!cached) {
             JPanel panel=item.factory().get();
             loaded.put(label, panel);
             pages.add(panel, label);
         }
         navigation.forEach((name, button) -> button.setActive(name.equals(label)));
         layout.show(pages, label);
+        if (cached && loaded.get(label) instanceof clinic.app.ui.common.BasePanel panel) panel.refreshPage();
     }
 }

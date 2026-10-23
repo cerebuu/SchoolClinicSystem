@@ -13,14 +13,14 @@ public class RecordFormatter {
 
     private static final String LINE = "========================================";
 
-    /** Formats one clinic visit. Works once MedicalRecord implements Formattable. */
+    /** Formats one clinic visit. */
     public String formatMedicalRecord(MedicalRecord medicalRecord) {
-        return generateReport(asFormattable(medicalRecord, "MedicalRecord"));
+        return generateReport(medicalRecord);
     }
 
-    /** Formats one medicine release. Works once MedicineTransaction implements Formattable. */
+    /** Formats one medicine release. */
     public String formatTransactionRecord(MedicineTransaction transaction) {
-        return generateReport(asFormattable(transaction, "MedicineTransaction"));
+        return generateReport(transaction);
     }
 
     /** Works for any Formattable (polymorphism): header + item.toReport() + footer. */
@@ -66,15 +66,4 @@ public class RecordFormatter {
         return LINE + "\nEnd of report\n" + LINE;
     }
 
-    // TODO (after CJ merges #28 and #27): MedicalRecord and MedicineTransaction should
-    // implement Formattable, and this check can be replaced with a direct call.
-    private Formattable asFormattable(Object item, String typeName) {
-        if (item == null) {
-            throw new IllegalArgumentException("There is no " + typeName + " to format.");
-        }
-        if (!(item instanceof Formattable)) {
-            throw new IllegalStateException(typeName + " does not implement Formattable yet.");
-        }
-        return (Formattable) item;
-    }
 }

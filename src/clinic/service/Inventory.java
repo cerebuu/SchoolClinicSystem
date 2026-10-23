@@ -5,6 +5,10 @@ import clinic.model.Medicine;
 import clinic.util.Validation;
 public class Inventory {
     private final List<Medicine> batches=new ArrayList<>();
+    void restoreBatches(List<Medicine> stored) {
+        if (!batches.isEmpty()) throw new IllegalStateException("Inventory already initialized.");
+        stored.forEach(m -> batches.add(copy(m)));
+    }
     public synchronized void addMedicine(Medicine m) {
         Objects.requireNonNull(m);
         if(m.isExpired())throw new IllegalArgumentException("Expired batches cannot be added.");
@@ -30,12 +34,20 @@ public class Inventory {
         return totals;
     }
     public synchronized List<Medicine> getLowStock(int threshold) {
+        if (threshold < 0) throw new IllegalArgumentException("Threshold must be nonnegative.");
         Map<String, Integer> totals = stockTotals();
-        return batches.stream().filter(m -> totals.getOrDefault(m.getName().toLowerCase(Locale.ROOT), 0) <= threshold).map(this::copy).toList();
+        Map<String, Medicine> items = new LinkedHashMap<>();
+        for (Medicine batch : batches) {
+            String key = batch.getName().toLowerCase(Locale.ROOT);
+            int total = totals.getOrDefault(key, 0);
+            if (total <= threshold) items.putIfAbsent(key, new Medicine(batch.getName(), total,
+                batch.getExpirationDate(), batch.getBatchDate(), "Total available stock"));
+        }
+        return List.copyOf(items.values());
     }
     public synchronized List<Medicine> getExpiringWithin(int days) {
         if(days<0)throw new IllegalArgumentException("Days must be nonnegative.");
-        return batches.stream().filter(m->!m.getExpirationDate().isAfter(LocalDate.now().plusDays(days))).map(this::copy).toList();
+        return batches.stream().filter(m->m.getQuantity()>0&&!m.getExpirationDate().isAfter(LocalDate.now().plusDays(days))).map(this::copy).toList();
     }
     public synchronized LocalDate dispense(String name, int qty) {
         Validation.positive(qty);
@@ -61,7 +73,7 @@ public class Inventory {
         Set<String> seen = new HashSet<>();
         for(Medicine m:batches) {
             if(totals.getOrDefault(m.getName().toLowerCase(Locale.ROOT), 0)<=10 && seen.add(m.getName().toLowerCase(Locale.ROOT)))consumer.accept(new clinic.model.Alert("LOW_STOCK", m.getName()));
-            if(!m.getExpirationDate().isAfter(LocalDate.now().plusDays(30)))consumer.accept(new clinic.model.Alert("EXPIRING", m.getName()));
+            if(m.getQuantity()>0&&!m.getExpirationDate().isAfter(LocalDate.now().plusDays(30)))consumer.accept(new clinic.model.Alert("EXPIRING", m.getName()));
         }
     }
     public synchronized List<Medicine> batches() {

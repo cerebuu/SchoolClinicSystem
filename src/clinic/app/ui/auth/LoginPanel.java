@@ -18,7 +18,7 @@ public final class LoginPanel extends JPanel {
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
         form.setBorder(BorderFactory.createEmptyBorder(Theme.SPACE_8, Theme.SPACE_8,
             Theme.SPACE_8, Theme.SPACE_8));
-        form.setPreferredSize(new Dimension(450, 440));
+        form.setPreferredSize(new Dimension(510, app.login.needsSetup() ? 520 : 460));
         JLabel logo=new JLabel("  UIC School Clinic",
             new IconPainter("dashboard", Theme.BRAND), JLabel.LEFT);
         logo.setFont(Theme.font(Theme.TYPE_TITLE, Font.BOLD));
@@ -59,7 +59,7 @@ public final class LoginPanel extends JPanel {
         submit.setAlignmentX(Component.LEFT_ALIGNMENT);
         submit.setMaximumSize(new Dimension(Integer.MAX_VALUE, Theme.CONTROL_HEIGHT));
         form.add(submit);
-        JLabel state=new JLabel("Data is retained for this application session only.");
+        JLabel state=new JLabel(app.storageDescription());
         state.setFont(Theme.font(Theme.TYPE_CAPTION, Font.PLAIN));
         state.setForeground(Theme.MUTED);
         state.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -94,7 +94,7 @@ public final class LoginPanel extends JPanel {
             password.setText("");
             AsyncLoader.load(()->app.login.login(userId, secret), result-> {
                 submit.setEnabled(true);
-                state.setText("Data is retained for this application session only.");
+                state.setText(app.storageDescription());
                 if(result.isPresent()) {
                     attempts=0;
                     authenticated.run();
@@ -102,7 +102,7 @@ public final class LoginPanel extends JPanel {
                 else {
                     attempts++;
                     error.setText(attempts>=3
-                        ? "Sign-in may be restricted. Wait one minute before retrying."
+                        ? "Sign-in failed. Wait one minute before retrying."
                         : "Invalid user ID or password.");
                 }
             }, e-> {

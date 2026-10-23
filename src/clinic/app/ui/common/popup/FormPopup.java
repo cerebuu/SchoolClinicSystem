@@ -100,12 +100,13 @@ public final class FormPopup {
                 cancel.setEnabled(true);
                 dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
                 error.setForeground(Theme.DANGER);
-                error.setText(failure.getMessage() == null
-                    ? "The operation could not be completed. Please retry."
-                    : failure.getMessage());
+                error.setText(MessagePopup.errorText(failure));
             });
         });
         cancel.addActionListener(e->dialog.dispose());
+        dialog.getRootPane().registerKeyboardAction(e -> {
+            if (cancel.isEnabled()) dialog.dispose();
+        }, KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
         JScrollPane content=new JScrollPane(form);
         content.setBorder(javax.swing.BorderFactory.createEmptyBorder());
         content.getVerticalScrollBar().setUnitIncrement(16);

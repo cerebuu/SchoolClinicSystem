@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import javax.swing.*;
 public class BasePanel extends JPanel {
+    private Runnable refreshAction = () -> {};
     protected final JPanel actions=new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT));
     public BasePanel(String title) {
         this(title, null);
@@ -13,6 +14,8 @@ public class BasePanel extends JPanel {
         setBackground(Theme.SUBTLE);
         setBorder(Theme.padding());
         JPanel top=new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        actions.setOpaque(false);
         Component badge = campusLabel == null ? null : new CampusBadge(campusLabel);
         top.add(new PageHeader(title, null, badge), BorderLayout.NORTH);
         top.add(actions, BorderLayout.CENTER);
@@ -26,5 +29,16 @@ public class BasePanel extends JPanel {
         b.addActionListener(e->run.run());
         actions.add(b);
         return b;
+    }
+    protected final void onRefresh(Runnable refresh) { refreshAction = refresh; }
+    public final void refreshPage() {
+        refreshAction.run();
+        refreshTables(this);
+    }
+    private static void refreshTables(java.awt.Container parent) {
+        for (Component child : parent.getComponents()) {
+            if (child instanceof PagedTablePanel<?> table) table.reload();
+            else if (child instanceof java.awt.Container container) refreshTables(container);
+        }
     }
 }

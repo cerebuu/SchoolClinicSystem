@@ -13,11 +13,11 @@ public final class EmptyState extends JPanel {
         JPanel content = new JPanel();
         content.setOpaque(false);
         content.setLayout(new javax.swing.BoxLayout(content, javax.swing.BoxLayout.Y_AXIS));
-        JLabel heading = new JLabel(title, JLabel.CENTER);
+        JLabel heading = new JLabel(wrap(title), JLabel.CENTER);
         heading.setFont(Theme.font(Theme.TYPE_TITLE, Font.BOLD));
         heading.setForeground(Theme.INK);
         heading.setAlignmentX(CENTER_ALIGNMENT);
-        JLabel detail = new JLabel(hint, JLabel.CENTER);
+        JLabel detail = new JLabel(wrap(hint), JLabel.CENTER);
         detail.setFont(Theme.font(Theme.TYPE_BODY, Font.PLAIN));
         detail.setForeground(Theme.MUTED);
         detail.setAlignmentX(CENTER_ALIGNMENT);
@@ -25,5 +25,10 @@ public final class EmptyState extends JPanel {
         content.add(javax.swing.Box.createVerticalStrut(Theme.SPACE_2));
         content.add(detail);
         add(content);
+    }
+    private static String wrap(String text) {
+        return "<html><div style='width:360px;text-align:center'>"
+            + text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            + "</div></html>";
     }
 }

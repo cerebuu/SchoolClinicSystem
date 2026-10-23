@@ -21,7 +21,7 @@ public final class Theme {
     public static final Color BRAND_BORDER = new Color(0xF8C9DB);
     public static final Color INK = new Color(0x1F2933);
     public static final Color MUTED = new Color(0x6B7280);
-    public static final Color LINE = new Color(0xECEEF1);
+    public static final Color LINE = new Color(0xDEE3E9);
     public static final Color SUBTLE = new Color(0xF7F8FA);
     public static final Color DANGER = new Color(0xC92A2A);
     public static final Color DANGER_TINT = new Color(0xFDEDED);
@@ -81,10 +81,16 @@ public final class Theme {
         UIManager.put("Table.font", font(13, Font.PLAIN));
         UIManager.put("TableHeader.font", font(13, Font.BOLD));
         UIManager.put("Table.rowHeight", 38);
+        UIManager.put("ComboBox.background", WHITE);
+        UIManager.put("ComboBox.selectionBackground", BRAND_TINT);
+        UIManager.put("ComboBox.selectionForeground", INK);
+        UIManager.put("Button.select", BRAND_DARK);
+        UIManager.put("Button.disabledText", MUTED);
+        UIManager.put("ScrollBar.width", 12);
     }
 
     public static Font font(int size, int style) {
-        return new Font("Inter", style, size);
+        return new Font("Segoe UI", style, size);
     }
 
     public static JButton button(String text, boolean primary) {
@@ -117,6 +123,7 @@ public final class Theme {
         });
         button.addMouseListener(new MouseAdapter() {
             private void animate(boolean entered) {
+                if (!button.isEnabled()) return;
                 hovering[0] = entered;
                 startedAt[0] = System.nanoTime();
                 timer.restart();
@@ -138,13 +145,13 @@ public final class Theme {
         field.setFont(font(14, Font.PLAIN));
         field.setPreferredSize(new java.awt.Dimension(Math.max(180, field.getPreferredSize().width), FIELD_HEIGHT));
         field.setMinimumSize(new java.awt.Dimension(0, FIELD_HEIGHT));
-        field.setBorder(fieldBorder(BRAND_BORDER));
+        field.setBorder(fieldBorder(LINE));
         field.addFocusListener(new FocusAdapter() {
             @Override public void focusGained(FocusEvent event) {
                 field.setBorder(fieldBorder(FOCUS));
             }
             @Override public void focusLost(FocusEvent event) {
-                field.setBorder(fieldBorder(BRAND_BORDER));
+                field.setBorder(fieldBorder(LINE));
             }
         });
     }
@@ -166,7 +173,7 @@ public final class Theme {
     public static void table(JTable table) {
         table.setFont(font(13, Font.PLAIN));
         table.setForeground(INK);
-        table.setGridColor(new Color(0xF6E9EF));
+        table.setGridColor(LINE);
         table.setRowHeight(44);
         table.setShowVerticalLines(false);
         table.setShowHorizontalLines(true);

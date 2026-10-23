@@ -2,6 +2,7 @@ package clinic.app.nav;
 
 import clinic.app.ApplicationContext;
 import clinic.app.ui.consultations.ConsultationsPanel;
+import clinic.app.ui.assistant.AiNurseAssistantPanel;
 import clinic.app.ui.dashboard.NurseDashboardPanel;
 import clinic.app.ui.dispense.DispensePanel;
 import clinic.app.ui.inventory.InventoryPanel;
@@ -29,6 +30,7 @@ public final class NurseShell extends JPanel {
 
         add(new Navigator(List.of(
             new NavItem("Nurse dashboard", true, () -> new NurseDashboardPanel(app)),
+            new NavItem("AI Nurse Assistant", true, () -> new AiNurseAssistantPanel(app)),
             new NavItem("Patients", true, () -> new PatientsPanel(app)),
             new NavItem("Consultations", true, () -> new ConsultationsPanel(app)),
             new NavItem("Dispense medicine", true, () -> new DispensePanel(app)),

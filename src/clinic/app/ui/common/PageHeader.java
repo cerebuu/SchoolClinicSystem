@@ -14,12 +14,15 @@ public final class PageHeader extends JPanel {
         JLabel heading = new JLabel(title);
         heading.setFont(Theme.font(Theme.TYPE_PAGE, Font.BOLD));
         heading.setForeground(Theme.INK);
-        add(heading, BorderLayout.NORTH);
+        JPanel text = new JPanel(new BorderLayout(0, Theme.SPACE_2));
+        text.setOpaque(false);
+        text.add(heading, BorderLayout.NORTH);
+        add(text, BorderLayout.CENTER);
         if (subtitle != null && !subtitle.isBlank()) {
             JLabel description = new JLabel(subtitle);
             description.setFont(Theme.font(Theme.TYPE_BODY, Font.PLAIN));
             description.setForeground(Theme.MUTED);
-            add(description, BorderLayout.CENTER);
+            text.add(description, BorderLayout.CENTER);
         }
         if (accessory != null) add(accessory, BorderLayout.EAST);
     }
