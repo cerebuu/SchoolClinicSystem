@@ -36,10 +36,10 @@ public final class WarningOverridePopup {
         content.setBackground(Theme.WHITE);
 
         JLabel header = new JLabel("Safety warning", UIManager.getIcon("OptionPane.warningIcon"), JLabel.LEFT);
-        header.setOpaque(true);
-        header.setBackground(Theme.DANGER);
-        header.setForeground(Theme.WHITE);
-        header.setBorder(Theme.padding());
+        header.setOpaque(false);
+        header.setForeground(Theme.DANGER);
+        header.setBorder(javax.swing.BorderFactory.createEmptyBorder(
+            Theme.SPACE_2, Theme.SPACE_2, Theme.SPACE_2, Theme.SPACE_2));
         header.setFont(Theme.font(18, Font.BOLD));
         content.add(header, BorderLayout.NORTH);
 
@@ -48,6 +48,8 @@ public final class WarningOverridePopup {
         JTextArea context = new JTextArea("Patient ID: " + patientId + "\nMedicine: " + medicine);
         context.setEditable(false);
         context.setFont(Theme.font(14, Font.PLAIN));
+        context.setBackground(Theme.WHITE);
+        context.setBorder(javax.swing.BorderFactory.createEmptyBorder(4, 4, 4, 4));
         details.add(context, BorderLayout.NORTH);
         JTextArea warningText = new JTextArea(String.join("\n", List.copyOf(warnings)), 5, 48);
         warningText.setEditable(false);
@@ -55,6 +57,8 @@ public final class WarningOverridePopup {
         warningText.setWrapStyleWord(true);
         warningText.setForeground(Theme.DANGER);
         warningText.setFont(Theme.font(14, Font.PLAIN));
+        warningText.setBackground(Theme.WHITE);
+        warningText.setBorder(javax.swing.BorderFactory.createEmptyBorder(8, 8, 8, 8));
         details.add(new JScrollPane(warningText), BorderLayout.CENTER);
         JTextField reason = new JTextField(36);
         reason.setName("Override reason");
@@ -68,13 +72,8 @@ public final class WarningOverridePopup {
         details.add(reasonPanel, BorderLayout.SOUTH);
         content.add(details, BorderLayout.CENTER);
 
-        JButton cancel = new JButton("Cancel");
-        JButton override = new JButton("Override with reason");
-        for (JButton button : new JButton[]{cancel, override}) {
-            button.setFont(Theme.font(14, Font.BOLD));
-            button.setForeground(Theme.DANGER);
-            button.setBackground(Theme.WHITE);
-        }
+        JButton cancel = Theme.button("Cancel", false);
+        JButton override = Theme.button("Override with reason", true);
         override.setEnabled(false);
         reason.getDocument().addDocumentListener(new DocumentListener() {
             private void validateReason() { override.setEnabled(reason.getText().trim().length() >= 10); }

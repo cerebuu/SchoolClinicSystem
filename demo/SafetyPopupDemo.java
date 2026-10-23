@@ -10,7 +10,8 @@ import javax.swing.*;
 
 /** Runs the real dispense panel with modal dialogs; automatically cancels, overrides, then dispenses safely. */
 public final class SafetyPopupDemo {
-    private final ApplicationContext app = new ApplicationContext(true);
+    private final clinic.service.AuditLog audit = new clinic.service.AuditLog();
+    private final ApplicationContext app = new ApplicationContext(true, audit);
     private JFrame frame;
     private DispensePanel panel;
     private Timer timer;
@@ -35,7 +36,7 @@ public final class SafetyPopupDemo {
         clinic.registerPatient(new Student("DEMO-SAFE", "Confidential Safe Patient", "demo", "CS", 1, "B"));
         clinic.addAllergy("DEMO-CONFLICT", "Penicillin");
         clinic.addMedicine("Amoxicillin", 20, LocalDate.now().plusDays(60), "Demo only");
-        auditStart = app.audit.getAll().size();
+        auditStart = audit.getAll().size();
     }
 
     private void open() {
@@ -106,7 +107,7 @@ public final class SafetyPopupDemo {
         } else if (stage == 6 && dialog == null) {
             timer.stop();
             System.out.println("PASS safe dispense: no warning popup; stock is 16; override count remains one.");
-            List<AuditEntry> entries = app.audit.getAll().subList(auditStart, app.audit.getAll().size());
+            List<AuditEntry> entries = audit.getAll().subList(auditStart, audit.getAll().size());
             for (AuditEntry entry : entries) {
                 String text = entry.toString();
                 require(!text.contains("Confidential") && !text.contains("Penicillin")
@@ -126,7 +127,7 @@ public final class SafetyPopupDemo {
     }
     private JButton submit() { return button(panel, "Check safety and dispense"); }
     private long overrideCount() {
-        return app.audit.getAll().stream().filter(e -> e.getAction().equals("safetyOverride")).count();
+        return audit.getAll().stream().filter(e -> e.getAction().equals("safetyOverride")).count();
     }
     private static JDialog visibleDialog() {
         for (Window window : Window.getWindows())

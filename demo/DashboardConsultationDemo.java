@@ -7,7 +7,8 @@ import javax.swing.*;
 
 /** Drives real dashboard/FormPopup/MessagePopup components, without a duplicate form. */
 public final class DashboardConsultationDemo {
-    private final ApplicationContext app = new ApplicationContext(true);
+    private final clinic.service.AuditLog audit = new clinic.service.AuditLog();
+    private final ApplicationContext app = new ApplicationContext(true, audit);
     private JFrame frame;
     private DashboardPanel dashboard;
     private Timer timer;
@@ -87,7 +88,7 @@ public final class DashboardConsultationDemo {
             require(app.visitCount() == 1, "One consultation persisted");
             require(table(dashboard).getValueAt(0, 4).equals("Dashboard consultation demo"), "Table refreshed with saved visit");
             require(table(dashboard).getValueAt(0, 5).toString().matches("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}"), "Formatted date");
-            require(app.audit.getAll().stream().anyMatch(e -> e.getAction().equals("recordVisit") && e.isAllowed()), "Secured recordVisit audited");
+            require(audit.getAll().stream().anyMatch(e -> e.getAction().equals("recordVisit") && e.isAllowed()), "Secured recordVisit audited");
             System.out.println("PASS save: secured visit audited; recent table refreshed to one row with formatted date.");
             app.login.logout();
             for (String[] account : new String[][]{{"D001", "doctor123"}, {"AD001", "admin123"}}) {

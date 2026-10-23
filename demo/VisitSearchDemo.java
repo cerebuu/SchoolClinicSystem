@@ -76,11 +76,12 @@ public final class VisitSearchDemo {
             new DatedDemoVisit("END", "2022-001", now, "End"),
             new DatedDemoVisit("FUTURE", "2022-001", now.plusNanos(1), "Future"));
         require(VisitSearch.page(bounds, patients, 0, 25, "Cruz", null, monday, now).total() == 2, "Inclusive start/end; future excluded");
-        ApplicationContext app = new ApplicationContext(true);
+        clinic.service.AuditLog audit = new clinic.service.AuditLog();
+        ApplicationContext app = new ApplicationContext(true, audit);
         app.login.login("N001", "nurse123");
         app.recentVisits(0, 25, "PrivateSearchCruz", monday, now);
-        require(app.audit.getAll().stream().noneMatch(e -> e.getDetails().contains("PrivateSearchCruz")), "Search privacy");
-        require(app.audit.getAll().stream().anyMatch(e -> e.getDetails().equals("visit search performed")), "Generic search audit");
+        require(audit.getAll().stream().noneMatch(e -> e.getDetails().contains("PrivateSearchCruz")), "Search privacy");
+        require(audit.getAll().stream().anyMatch(e -> e.getDetails().equals("visit search performed")), "Generic search audit");
         System.out.println("PASS: 10,004 stored visits; pages retain at most 25 rows; name/ID/date filters precede paging.");
         System.out.println("PASS: Monday boundary, Today/All scopes, no results, future exclusion, and search audit privacy.");
     }

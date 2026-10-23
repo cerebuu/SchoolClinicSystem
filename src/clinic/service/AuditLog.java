@@ -8,21 +8,24 @@ import java.util.List;
 public class AuditLog {
 
     private final List<AuditEntry> entries = new ArrayList<AuditEntry>();
+    private final clinic.persistence.AdminRepository repository;
+    public AuditLog() { repository=null; }
+    public AuditLog(clinic.persistence.AdminRepository repository) { this.repository=repository; }
 
     public synchronized void record(LocalDateTime timestamp, String userId,
                                     String userName, String role, String action,
                                     String details, boolean allowed) {
-        entries.add(new AuditEntry(timestamp, userId, userName, role, action,
-                details, allowed));
+        AuditEntry entry = new AuditEntry(timestamp, userId, userName, role, action, details, allowed);
+        if (repository != null) repository.append(entry); else entries.add(entry);
     }
 
     public synchronized List<AuditEntry> getAll() {
-        return new ArrayList<AuditEntry>(entries);
+        return repository == null ? new ArrayList<AuditEntry>(entries) : repository.audit();
     }
 
     public synchronized List<AuditEntry> getForUser(String userId) {
         List<AuditEntry> result = new ArrayList<AuditEntry>();
-        for (AuditEntry entry : entries) {
+        for (AuditEntry entry : getAll()) {
             if (same(userId, entry.getUserId())) {
                 result.add(entry);
             }
@@ -32,7 +35,7 @@ public class AuditLog {
 
     public synchronized List<AuditEntry> getDenied() {
         List<AuditEntry> result = new ArrayList<AuditEntry>();
-        for (AuditEntry entry : entries) {
+        for (AuditEntry entry : getAll()) {
             if (!entry.isAllowed()) {
                 result.add(entry);
             }
@@ -41,16 +44,17 @@ public class AuditLog {
     }
 
     public synchronized int size() {
-        return entries.size();
+        return getAll().size();
     }
 
     public synchronized void clear() {
+        if (repository != null) throw new UnsupportedOperationException("Persistent audit history cannot be cleared.");
         entries.clear();
     }
 
     public synchronized PageResult<AuditEntry> page(int page, int size, String query) {
         String[] tokens = query.toLowerCase(java.util.Locale.ROOT).trim().split("\\s+");
-        return PageResult.select(entries, page, size, e -> {
+        return PageResult.select(getAll(), page, size, e -> {
             for (String token : tokens) {
                 if (token.equals("denied")) { if (e.isAllowed()) return false; }
                 else if (!(e.getUserId()+" "+e.getTimestamp()+" "+e.getAction()).toLowerCase(java.util.Locale.ROOT).contains(token)) return false;

@@ -62,6 +62,14 @@ public class NotificationLog {
         status = NotificationStatus.SENT;
     }
 
+    /** Detached snapshot: status changes must go through the authorized service. */
+    public NotificationLog copy() {
+        NotificationLog result = new NotificationLog(notificationId, patientId, transactionId,
+            reason, dateTime, patientName, medicineName, messageType, clinicContact);
+        result.status = status;
+        return result;
+    }
+
     public NotificationStatus getStatus() {
         return status;
     }

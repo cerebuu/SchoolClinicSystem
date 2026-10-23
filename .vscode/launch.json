@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Run UIC Clinic UI (Demo)",
+      "request": "launch",
+      "mainClass": "clinic.app.GUI",
+      "args": [
+        "--demo"
+      ],
+      "projectName": "SchoolClinicSystem"
+    }
+  ]
+}

@@ -73,7 +73,14 @@ public final class DomainChecks {
         check(clinic.getVisitHistory("p").size()==1, "record saved");
         check(clinic.generateReport(record).contains("Concern"), "report formatting");
         NotificationLog notification=clinic.createGuardianNotification("p", tx.getTransactionId(), "Visit");
+        check(notification.toMessage().contains("Private Patient") && notification.toMessage().contains("Amoxicillin"), "guardian message uses patient and medicine");
+        notification.markSent();
+        check(clinic.getNotifications("p").get(0).getStatus()==NotificationStatus.PENDING, "created notification is detached");
+        clinic.getNotifications("p").get(0).markSent();
+        store.notificationPage(0, 25, "").rows().get(0).markSent();
+        check(clinic.getNotifications("p").get(0).getStatus()==NotificationStatus.PENDING, "notification reads cannot bypass authorized update");
         clinic.updateNotificationStatus(notification.getNotificationId(), NotificationStatus.SENT);
+        rejects(IllegalArgumentException.class, ()->clinic.updateNotificationStatus(notification.getNotificationId(), NotificationStatus.SENT), "sent notification cannot be sent twice");
         check(clinic.getNotifications("p").get(0).getStatus()==NotificationStatus.SENT, "notification marked sent");
         rejects(IllegalArgumentException.class, ()->clinic.createGuardianNotification("p", "unknown", "Visit"), "unknown transaction rejected");
         ClinicSystem assistant=new SecuredClinicSystem(store, new NurseAssistant("a", "Assistant"), audit);
@@ -105,6 +112,17 @@ public final class DomainChecks {
         Login sample=Login.withSampleUsers(new AuditLog());
         check(!sample.isLoggedIn(), "demo starts logged out");
         check(sample.login("AD001", "admin123").isPresent(), "demo admin available");
+        check(clinic.getLowStock().size()==1 && clinic.getLowStock().get(0).getQuantity()==4, "low stock counts medicines and aggregates batches");
+        check(clinic.getExpiringWithin(30).size()==1, "empty batches excluded from expiry alerts");
+        rejects(IllegalArgumentException.class, ()->clinic.recordVisit("p", List.of(" "), "Concern", "", "n"), "blank symptoms rejected by domain");
+        check(clinic.getVisitHistory("p").size()==1, "invalid visit leaves history unchanged");
+        rejects(SecurityException.class, ()->app.admin.summary(), "admin summary denies nurse");
+        check(sample.login("AD001", "bad").isEmpty() && !sample.isLoggedIn(), "failed reauthentication clears privileged session");
+        rejects(IllegalArgumentException.class, ()->clinic.dispenseMedicine("p", "Amoxicillin", 1, "n", "short"), "short override reason rejected");
+        check(clinic.getStock("Amoxicillin")==4, "invalid reason leaves stock unchanged");
+        MedicineTransaction documented = clinic.dispenseMedicine("p", "Amoxicillin", 1, "n", "Documented test override");
+        check(documented.getRemarks().contains("Documented test override"), "override reason retained in transaction");
+        check(audit.getAll().stream().noneMatch(e->e.getDetails().contains("Documented test override")), "override reason excluded from general audit");
         System.out.println("PASS: "+checks+" domain, authentication, authorization, and integrity checks.");
     }
 }

@@ -18,6 +18,16 @@ public final class UiChecks {
         if(!ok)throw new AssertionError(label);
         checks++;
     }
+    private static void rejects(Class<? extends Throwable> type, Runnable action, String label) {
+        try {
+            action.run();
+        } catch (Throwable error) {
+            if (!type.isInstance(error)) throw new AssertionError(label, error);
+            checks++;
+            return;
+        }
+        throw new AssertionError(label);
+    }
     private static void onEdt(Runnable action)throws Exception {
         SwingUtilities.invokeAndWait(action);
     }
@@ -60,6 +70,16 @@ public final class UiChecks {
             if(c instanceof Container ct)result.addAll(buttons(ct));
         }
         return result;
+    }
+    private static boolean clickButton(Container root, String text) {
+        for(Component c:root.getComponents()) {
+            if(c instanceof JButton button && text.equals(button.getText())) {
+                button.doClick();
+                return true;
+            }
+            if(c instanceof Container child && clickButton(child, text)) return true;
+        }
+        return false;
     }
     private static String labels(Container root) {
         StringBuilder result = new StringBuilder();
@@ -112,36 +132,98 @@ public final class UiChecks {
         waitFor(()->staleModel.getRowCount()==1&&staleModel.row(0)==2);
         release.countDown();
         onEdt(()->check(staleModel.row(0)==2, "stale query cannot replace latest page"));
+        AtomicBoolean fail = new AtomicBoolean();
+        AtomicReference<PagedTablePanel<Integer>> retry = new AtomicReference<>();
+        DummyTableModel retryModel = new DummyTableModel();
+        onEdt(() -> retry.set(new PagedTablePanel<>(retryModel, (p, s, q) -> {
+            if (fail.get()) throw new IllegalStateException("Test load failure");
+            return new PageResult<>(List.of(7), 1);
+        })));
+        waitFor(() -> retry.get().totalCount() == 1);
+        fail.set(true);
+        onEdt(() -> retry.get().reload());
+        waitFor(() -> labels(retry.get()).contains("Unable to load records"));
+        onEdt(() -> check(retry.get().totalCount() == 0 && retryModel.getRowCount() == 0
+            && retry.get().selected() == null, "failed load clears count, rows, and selection"));
+        fail.set(false);
+        onEdt(() -> retry.get().reload());
+        waitFor(() -> retry.get().totalCount() == 1);
+        onEdt(() -> check(retryModel.row(0) == 7, "failed table load can be retried"));
         ApplicationContext app=new ApplicationContext(true);
         AtomicReference<JPanel> screen=new AtomicReference<>();
         onEdt(()->screen.set(new clinic.app.ui.auth.LoginPanel(app, ()-> {
         })));
         snapshot(screen.get(), "login");
         app.login.login("AD001", "admin123");
-        onEdt(()->screen.set(new AdminShell(app, ()-> {
+        onEdt(()->screen.set(new SuperadminShell(app, ()-> {
         })));
         onEdt(()-> {
             Set<String> nav=buttons(screen.get());
             check(nav.contains("Users")&&nav.contains("Campuses")&&!nav.contains("Dispense medicine"), "admin navigation separated");
         });
-        waitFor(() -> labels(screen.get()).contains("User accounts:"));
+        waitFor(() -> labels(screen.get()).contains("System-wide totals."));
         snapshot(screen.get(), "admin");
+        onEdt(()-> {
+            check(screen.get() instanceof SuperadminShell, "administrator receives Superadmin workspace");
+            check(Router.createWorkspace(app, ()-> {}) instanceof SuperadminShell,
+                "login router selects Superadmin workspace");
+            rejects(SecurityException.class, () ->
+                Router.createWorkspace(app, ()-> {}, clinic.model.SchoolNurse.class),
+                "nurse launcher rejects administrator account");
+            rejects(SecurityException.class, () -> new NurseShell(app, ()-> {
+            }), "administrator cannot open nurse workspace");
+        });
+        onEdt(()->check(clickButton(screen.get(), "Users"), "users page navigation"));
+        waitFor(()->!labels(screen.get()).contains("Loading..."));
+        snapshot(screen.get(), "users");
+        for (String destination : List.of("Campuses", "Audit log", "Settings")) {
+            onEdt(() -> check(clickButton(screen.get(), destination), "admin navigation: " + destination));
+            waitFor(() -> !labels(screen.get()).contains("Loading..."));
+            snapshot(screen.get(), "admin-" + destination.toLowerCase().replace(' ', '-'));
+        }
         app.login.logout();
         app.login.login("N001", "nurse123");
-        onEdt(()->screen.set(new MainShell(app, ()-> {
+        onEdt(()->screen.set(new NurseShell(app, ()-> {
         })));
         onEdt(()-> {
             Set<String> nav=buttons(screen.get());
-            check(nav.contains("Dispense medicine")&&nav.contains("Reports")&&!nav.contains("Users"), "nurse navigation");
+            check(nav.contains("Dispense medicine")&&nav.contains("Reports")&&nav.contains("AI Nurse Assistant")&&!nav.contains("Users"), "nurse navigation");
+            check(nav.contains("Nurse dashboard"), "nurse has dedicated dashboard navigation");
+            check(screen.get() instanceof NurseShell, "nurse receives dedicated workspace");
+            check(Router.createWorkspace(app, ()-> {}) instanceof NurseShell,
+                "login router selects nurse workspace");
+            rejects(SecurityException.class, () ->
+                Router.createWorkspace(app, ()-> {}, clinic.model.Administrator.class),
+                "Superadmin launcher rejects nurse account");
+            rejects(SecurityException.class, () -> new SuperadminShell(app, ()-> {
+            }), "nurse cannot open Superadmin workspace");
+            rejects(SecurityException.class, () -> new MainShell(app, ()-> {
+            }), "nurse cannot open the generic clinic workspace");
         });
-        waitFor(() -> labels(screen.get()).contains("Registered patients:"));
+        waitFor(() -> labels(screen.get()).contains("Clinic operations for"));
         snapshot(screen.get(), "nurse");
+        onEdt(()->check(clickButton(screen.get(), "AI Nurse Assistant"), "AI assistant navigation"));
+        waitFor(()->labels(screen.get()).contains("AI Nurse Assistant"));
+        snapshot(screen.get(), "nurse-ai-assistant");
+        onEdt(()->check(clickButton(screen.get(), "Patients"), "patients page navigation"));
+        waitFor(()->!labels(screen.get()).contains("Loading..."));
+        snapshot(screen.get(), "patients");
+        onEdt(()->check(clickButton(screen.get(), "Inventory"), "inventory page navigation"));
+        waitFor(()->!labels(screen.get()).contains("Loading..."));
+        snapshot(screen.get(), "inventory");
+        for (String destination : List.of("Consultations", "Dispense medicine", "Notifications", "Reports", "Settings")) {
+            onEdt(() -> check(clickButton(screen.get(), destination), "nurse navigation: " + destination));
+            waitFor(() -> !labels(screen.get()).contains("Loading..."));
+            snapshot(screen.get(), "nurse-" + destination.toLowerCase().replace(' ', '-'));
+        }
         app.login.logout();
         app.login.login("A001", "assist123");
         onEdt(()-> {
             MainShell shell=new MainShell(app, ()-> {
             });
             check(!buttons(shell).contains("Reports"), "assistant reports hidden");
+            rejects(SecurityException.class, () -> new NurseShell(app, ()-> {
+            }), "assistant cannot open nurse workspace");
         });
         app.login.logout();
         app.login.login("D001", "doctor123");
@@ -150,8 +232,11 @@ public final class UiChecks {
             });
             Set<String> nav=buttons(shell);
             check(nav.contains("Reports")&&!nav.contains("Patients")&&!nav.contains("Inventory"), "doctor report-only navigation");
+            screen.set(shell);
         });
+        waitFor(()->!labels(screen.get()).contains("Loading..."));
+        snapshot(screen.get(), "doctor");
         System.out.println("PASS: "+checks+" paging, background loading, stale-result, and role-navigation checks.");
-        System.out.println("Rendered offscreen snapshots: login, admin, nurse, paged-10000. No interactive desktop/dialog test performed.");
+        System.out.println("Rendered offscreen snapshots: login, nurse, doctor, patients, inventory, admin, users, paged-10000. No interactive desktop/dialog test performed.");
     }
 }
