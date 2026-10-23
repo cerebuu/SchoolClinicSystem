@@ -7,10 +7,10 @@ import java.awt.BorderLayout;
 import java.util.List;
 public final class NotificationsPanel extends BasePanel {
     public NotificationsPanel(ApplicationContext app) {
-        super("Guardian notifications");
+        super("Guardian notifications", clinic.app.Theme.SAMPLE_CAMPUS);
         PagedTablePanel<NotificationLog> table=new PagedTablePanel<>(new NotificationsTableModel(), app::notifications);
         add(table, BorderLayout.CENTER);
-        action("Create notification", ()->FormPopup.show(this, "Create guardian notification", List.of(FormField.text("Patient ID"), FormField.text("Transaction ID"), FormField.text("Reason")), v->app.clinic().createGuardianNotification(v.get("Patient ID"), v.get("Transaction ID"), v.get("Reason")), table::reload));
+        action("Create notification", true, ()->FormPopup.show(this, "Create guardian notification", List.of(FormField.text("Patient ID"), FormField.text("Transaction ID"), FormField.text("Reason")), v->app.clinic().createGuardianNotification(v.get("Patient ID"), v.get("Transaction ID"), v.get("Reason")), table::reload));
         action("View message", ()-> {
             NotificationLog n=table.selected();
             if(n==null) {

@@ -11,12 +11,12 @@ import java.time.LocalDateTime;
 import javax.swing.*;
 
 /** Local visit search is independent of any global toolbar and is evaluated before paging. */
-public final class RecentVisitsPanel extends JPanel {
+public final class RecentVisitsPanel extends Card {
     private volatile VisitPeriod period = VisitPeriod.THIS_WEEK;
 
     public RecentVisitsPanel(ApplicationContext app, Runnable saved) {
-        super(new BorderLayout(Theme.GAP, Theme.GAP));
-        Theme.surface(this);
+        super();
+        setLayout(new BorderLayout(Theme.GAP, Theme.GAP));
         JPanel header = new JPanel(new BorderLayout(Theme.GAP, Theme.GAP));
         JPanel titleRow = new JPanel(new BorderLayout(Theme.GAP, Theme.GAP));
         JLabel title = new JLabel("Recent Clinic Visits");

@@ -7,10 +7,10 @@ import clinic.model.MedicalRecord;
 import java.awt.BorderLayout;
 public final class ReportsPanel extends BasePanel {
     public ReportsPanel(ApplicationContext app) {
-        super("Reports");
+        super("Reports", clinic.app.Theme.SAMPLE_CAMPUS);
         PagedTablePanel<MedicalRecord> table=new PagedTablePanel<>(new ConsultationsTableModel(), app::records);
         add(table, BorderLayout.CENTER);
-        action("Generate selected report", ()-> {
+        action("Generate selected report", true, ()-> {
             MedicalRecord r=table.selected();
             if(r==null) {
                 MessagePopup.warning(this, "Select a record.");

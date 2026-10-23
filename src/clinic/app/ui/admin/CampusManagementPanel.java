@@ -13,7 +13,7 @@ public final class CampusManagementPanel extends BasePanel {
         this.app=app;
         table=new PagedTablePanel<>(new CampusesTableModel(), app.admin::campuses);
         add(table, BorderLayout.CENTER);
-        action("Add campus", ()->form(null));
+        action("Add campus", true, ()->form(null));
         action("Edit campus", ()-> {
             Campus c=table.selected();
             if(c==null) {

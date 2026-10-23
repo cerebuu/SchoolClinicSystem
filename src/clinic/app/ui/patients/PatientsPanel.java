@@ -8,10 +8,10 @@ import java.util.List;
 public final class PatientsPanel extends BasePanel {
     private final PagedTablePanel<Patient> table;
     public PatientsPanel(ApplicationContext app) {
-        super("Patients");
+        super("Patients", clinic.app.Theme.SAMPLE_CAMPUS);
         table=new PagedTablePanel<>(new PatientsTableModel(), app::patients, "Section / Position");
         add(table, BorderLayout.CENTER);
-        action("Register patient", ()->FormPopup.show(this, "Register patient", List.of(FormField.text("ID"), FormField.text("Name"), FormField.text("Contact"), FormField.choice("Type", Patient.STUDENT, Patient.EMPLOYEE), FormField.text("Course / Department"), FormField.text("Section / Position"), FormField.value("Year level", "1")), v-> {
+        action("Register patient", true, ()->FormPopup.show(this, "Register patient", List.of(FormField.text("ID"), FormField.text("Name"), FormField.text("Contact"), FormField.choice("Type", Patient.STUDENT, Patient.EMPLOYEE), FormField.text("Course / Department"), FormField.text("Section / Position"), FormField.value("Year level", "1")), v-> {
             Patient p=Patient.STUDENT.equals(v.get("Type"))?new Student(v.get("ID"), v.get("Name"), v.get("Contact"), v.get("Course / Department"), Integer.parseInt(v.get("Year level")), v.get("Section / Position")):new Employee(v.get("ID"), v.get("Name"), v.get("Contact"), v.get("Course / Department"), v.get("Section / Position"));
             app.clinic().registerPatient(p);
         }, table::reload));

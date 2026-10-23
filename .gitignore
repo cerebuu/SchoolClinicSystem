@@ -27,4 +27,7 @@ replay_pid*
 *.iml
 out/
 .vscode/
+!.vscode/
+!.vscode/settings.json
+!.vscode/launch.json
 bin/

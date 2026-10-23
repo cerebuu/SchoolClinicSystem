@@ -11,6 +11,18 @@ public final class ApplicationContext {
     public ApplicationContext(boolean demo) {
         login=demo?Login.withSampleUsers(audit):new Login(audit);
         admin=new AdminService(login, audit);
+        if (demo) seedSampleCampuses();
+    }
+    private void seedSampleCampuses() {
+        login.login("AD001", "admin123").orElseThrow(
+            () -> new IllegalStateException("Demo administrator account is unavailable."));
+        try {
+            admin.saveCampus(new Campus("C1", "Campus 1 (sample)"), false);
+            admin.saveCampus(new Campus("C2", "Campus 2 (sample)"), false);
+            admin.saveCampus(new Campus("C3", "Campus 3 (sample)"), false);
+        } finally {
+            login.logout();
+        }
     }
     public User current() {
         return login.getCurrentUser().orElseThrow(()->new SecurityException("Sign in required."));

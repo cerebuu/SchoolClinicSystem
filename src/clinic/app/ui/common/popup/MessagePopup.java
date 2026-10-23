@@ -1,4 +1,5 @@
 package clinic.app.ui.common.popup;
+import clinic.app.Theme;
 import javax.swing.*;
 import java.awt.Component;
 public final class MessagePopup {
@@ -9,6 +10,9 @@ public final class MessagePopup {
         text.setEditable(false);
         text.setLineWrap(true);
         text.setWrapStyleWord(true);
+        text.setFont(Theme.font(Theme.TYPE_BODY, java.awt.Font.PLAIN));
+        text.setBackground(Theme.WHITE);
+        text.setBorder(javax.swing.BorderFactory.createEmptyBorder(8, 8, 8, 8));
         JOptionPane.showMessageDialog(owner, new JScrollPane(text), "School clinic", JOptionPane.INFORMATION_MESSAGE);
     }
     public static void error(Component owner, Throwable error) {

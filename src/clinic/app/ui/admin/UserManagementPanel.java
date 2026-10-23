@@ -14,7 +14,7 @@ public final class UserManagementPanel extends BasePanel {
         this.app=app;
         table=new PagedTablePanel<>(new UsersTableModel(), app.admin::users);
         add(table, BorderLayout.CENTER);
-        action("Add user", ()->form(null));
+        action("Add user", true, ()->form(null));
         action("Edit user / role", ()-> {
             User u=table.selected();
             if(u==null) {

@@ -8,11 +8,11 @@ import java.time.LocalDate;
 import java.util.List;
 public final class InventoryPanel extends BasePanel {
     public InventoryPanel(ApplicationContext app) {
-        super("Medicine inventory");
+        super("Medicine inventory", clinic.app.Theme.SAMPLE_CAMPUS);
         PagedTablePanel<Medicine> table=new PagedTablePanel<>(new InventoryTableModel(), app::medicines);
         add(table, BorderLayout.CENTER);
         if(app.current().canAccess(User.RESTOCK)) {
-            action("Add medicine", ()->FormPopup.show(this, "Add medicine batch", List.of(FormField.text("Medicine"), FormField.text("Quantity"), FormField.text("Expiry (YYYY-MM-DD)"), FormField.optional("Remarks")), v->app.clinic().addMedicine(v.get("Medicine"), Integer.parseInt(v.get("Quantity")), LocalDate.parse(v.get("Expiry (YYYY-MM-DD)")), v.get("Remarks")), table::reload));
+            action("Add medicine", true, ()->FormPopup.show(this, "Add medicine batch", List.of(FormField.text("Medicine"), FormField.text("Quantity"), FormField.text("Expiry (YYYY-MM-DD)"), FormField.optional("Remarks")), v->app.clinic().addMedicine(v.get("Medicine"), Integer.parseInt(v.get("Quantity")), LocalDate.parse(v.get("Expiry (YYYY-MM-DD)")), v.get("Remarks")), table::reload));
             action("Restock", ()-> {
                 Medicine m=table.selected();
                 if(m==null) {

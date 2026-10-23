@@ -1,22 +1,28 @@
 package clinic.app.ui.common;
 import clinic.app.Theme;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import javax.swing.*;
 public class BasePanel extends JPanel {
     protected final JPanel actions=new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT));
     public BasePanel(String title) {
+        this(title, null);
+    }
+    public BasePanel(String title, String campusLabel) {
         super(new BorderLayout(Theme.GAP, Theme.GAP));
         setBackground(Theme.SUBTLE);
         setBorder(Theme.padding());
         JPanel top=new JPanel(new BorderLayout());
-        JLabel heading=new JLabel(title);
-        heading.setFont(Theme.font(22, java.awt.Font.BOLD));
-        top.add(heading, BorderLayout.NORTH);
+        Component badge = campusLabel == null ? null : new CampusBadge(campusLabel);
+        top.add(new PageHeader(title, null, badge), BorderLayout.NORTH);
         top.add(actions, BorderLayout.CENTER);
         add(top, BorderLayout.NORTH);
     }
     protected JButton action(String label, Runnable run) {
-        JButton b=Theme.button(label, false);
+        return action(label, false, run);
+    }
+    protected JButton action(String label, boolean primary, Runnable run) {
+        JButton b=Theme.button(label, primary);
         b.addActionListener(e->run.run());
         actions.add(b);
         return b;

@@ -12,7 +12,16 @@ javac -d out @sources
 java -cp out clinic.app.Main
 ```
 
-Normal startup opens login and offers first-run administrator setup. Create an administrator, sign in, add staff accounts and campuses, then sign out and sign in with a staff account. Nurse workflows include patient registration, consultations, inventory, dispensing, notifications, and reports. Doctors receive report access; assistants cannot restock or generate reports.
+To start a specific role's interface, run its dedicated launcher instead:
+
+```powershell
+java -cp out clinic.app.SuperadminGUI
+java -cp out clinic.app.NurseGUI
+```
+
+Both launchers show the shared sign-in screen and require an account of the selected role; they do not create or bypass authentication. Add `--demo` to either command to use the sample accounts (`AD001` / `admin123` for Superadmin and `N001` / `nurse123` for Nurse).
+
+Normal startup opens login and offers first-run administrator setup. Create an administrator, sign in, add staff accounts and campuses, then sign out and sign in with a staff account. Login routes administrators to a separate Superadmin workspace for account and campus management, system summaries, and the audit log. School nurses receive their own clinic-operations dashboard for patients, consultations, inventory, dispensing, notifications, and reports. Assistants and doctors use their permission-limited clinic workspace. The underlying service layer enforces role access independently of navigation.
 
 **Data is held in memory and is lost when the process exits.** This repository did not contain a database, schema, or concrete clinic data service. This implementation provides actual session-scoped operations; it does not simulate persistence or external message delivery.
 
