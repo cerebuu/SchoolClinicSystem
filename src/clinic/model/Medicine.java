@@ -1,45 +1,55 @@
 package clinic.model;
 import java.time.LocalDate;
-import clinic.util.Validation;
+
 public class Medicine {
-    private final String name, remarks;
-    private final LocalDate expirationDate, batchDate;
-    private int quantity;
-    public Medicine(String name, int quantity, LocalDate expiry, LocalDate batch, String remarks) {
-        this.name=Validation.required(name, "Medicine");
-        if(quantity<0||expiry==null||batch==null)throw new IllegalArgumentException("Valid stock and dates required.");
-        this.quantity=quantity;
-        expirationDate=expiry;
-        batchDate=batch;
-        this.remarks=remarks==null?"":remarks;
+
+    /*
+    Notes:
+    
+    example code
+    LocalDate parsedDate = LocalDate.parse("2026-10-31");
+    System.out.println(parsedDate); // Outputs: 2026-10-31
+     */
+
+    public String medicineName;
+    public int quantity;
+    public LocalDate expirationDate;
+    public String remarks;
+    public LocalDate batchDate;
+    public int medId;
+    //needs to have hard coded connection to inventory
+
+    public Medicine(String medicineName, int quantity, String expirationDate, String batchDate,
+            String remarks, int medId) {
+        this.medicineName = medicineName;
+        this.quantity = quantity;
+        this.remarks = remarks;
+        this.medId = medId;
+
+        LocalDate parsedExpDate = LocalDate.parse(expirationDate);
+        this.expirationDate = parsedExpDate;
+
+        LocalDate parsedBatDate = LocalDate.parse(batchDate);
+        this.batchDate = parsedBatDate;
     }
-    public String getName() {
-        return name;
+
+    public String getMedicineName() {
+        return medicineName;
     }
-    public String getRemarks() {
-        return remarks;
-    }
+
     public int getQuantity() {
         return quantity;
     }
+
     public LocalDate getExpirationDate() {
         return expirationDate;
     }
+
+    public String getRemarks() {
+        return remarks;
+    }
+
     public LocalDate getBatchDate() {
         return batchDate;
-    }
-    public void reduceQuantity(int n) {
-        Validation.positive(n);
-        if(n>quantity)throw new IllegalArgumentException("Insufficient stock.");
-        quantity-=n;
-    }
-    public void addQuantity(int n) {
-        quantity=Math.addExact(quantity, Validation.positive(n));
-    }
-    public boolean isExpired() {
-        return expirationDate.isBefore(LocalDate.now());
-    }
-    public boolean isLowStock(int threshold) {
-        return quantity<=threshold;
     }
 }

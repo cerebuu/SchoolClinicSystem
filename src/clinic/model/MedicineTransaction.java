@@ -1,45 +1,60 @@
 package clinic.model;
-import java.time.*;
-import clinic.util.Validation;
-public class MedicineTransaction implements Formattable {
-    private final String transactionId, medicineName, patientId, staffId, remarks;
-    private final int quantity;
-    private final LocalDate expirationDate;
-    private final LocalDateTime dateTime=LocalDateTime.now();
-    public MedicineTransaction(String id, String medicine, String patient, String staff, int quantity, LocalDate expiry, String remarks) {
-        transactionId=Validation.required(id, "Transaction ID");
-        medicineName=Validation.required(medicine, "Medicine");
-        patientId=Validation.required(patient, "Patient ID");
-        staffId=Validation.required(staff, "Staff ID");
-        this.quantity=Validation.positive(quantity);
-        expirationDate=expiry;
-        this.remarks=remarks;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+
+public class MedicineTransaction {
+
+    /*
+    Note:
+    
+    needs to have association with medicine
+    medT 1 to 1* med-done
+    
+    needs to have assosciation with patient
+    medT 0* to 1 patient
+    
+    needs DAO
+    
+    needs get methods-done
+    */
+    
+    public int transactionID;//to be assigned after it gets add to the database
+    public int quantityGiven;
+    public String distributor; //will be the user
+    public LocalDate transDate;//will immedietly be LocalDateTime.now();
+
+    private List<Medicine> medicines;
+
+    public MedicineTransaction(int quantityGiven, String distributor) {
+        this.quantityGiven = quantityGiven;
+        this.distributor = distributor;
+        this.medicines = new ArrayList<>();
+        this.transDate = LocalDate.now();
     }
-    public String getTransactionId() {
-        return transactionId;
+
+    public MedicineTransaction(Medicine med) {//adds a med
+        medicines.add(med);
     }
-    public String getMedicineName() {
-        return medicineName;
+
+    //will be used in the DAO
+    public void setTransactionID(int transactionID) {
+        this.transactionID = transactionID;
     }
-    public String getPatientId() {
-        return patientId;
+    
+    public int getTransactionID() {
+        return transactionID;
     }
-    public String getStaffId() {
-        return staffId;
+
+    public int getQuantityGiven() {
+        return quantityGiven;
     }
-    public int getQuantity() {
-        return quantity;
+
+    public String getDistributor() {
+        return distributor;
     }
-    public LocalDateTime getDateTime() {
-        return dateTime;
-    }
-    public LocalDate getExpirationDate() {
-        return expirationDate;
-    }
-    public String getRemarks() {
-        return remarks;
-    }
-    public String toReport() {
-        return transactionId+" | "+patientId+" | "+medicineName+" | "+quantity+" | "+dateTime;
+
+    public LocalDate getTransDate() {
+        return transDate;
     }
 }

@@ -1,4 +1,16 @@
 package clinic.service;
+
+
+
+
+
+/*
+change/remove this class kay nag himo ko ug inventory class sa taas
+ */
+
+
+
+
 import java.time.LocalDate;
 import java.util.*;
 import clinic.model.Medicine;
