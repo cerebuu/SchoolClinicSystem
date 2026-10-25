@@ -43,7 +43,9 @@ public final class PersistenceChecks {
             rejects(SecurityException.class,()->app.admin.audit(0,25,""),"nurse cannot read audit");
             rejects(SecurityException.class,()->new clinic.app.ui.admin.SuperadminShell(app,()->{}),"nurse cannot open administrator shell");
             retained=app.clinic();
-            retained.registerPatient(new Student("p'1","O'Connor <student>","contact","BSCS",2,"A"));
+            Student patient=new Student("p'1","O'Connor <student>","contact","BSCS",2,"A");
+            patient.setGuardianContact("guardian-contact");
+            retained.registerPatient(patient);
             retained.registerPatient(new Employee("e1","Employee","contact","School","Teacher"));
             retained.addAllergy("p'1","Penicillin");
             rejects(IllegalArgumentException.class,()->retained.registerPatient(new Student("p'1","Duplicate","contact","CS",1,"A")),"duplicate patient");

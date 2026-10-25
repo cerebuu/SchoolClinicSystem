@@ -22,6 +22,7 @@ public class NotificationLog {
     private final String medicineName;
     private final GuardianMessageTemplates.MessageType messageType;
     private final String clinicContact;
+    private final String recipientLabel, recipientContact;
 
     public NotificationLog(String notificationId, String patientId, String transactionId,
                            String reason, LocalDateTime dateTime) {
@@ -34,6 +35,12 @@ public class NotificationLog {
                            String medicineName,
                            GuardianMessageTemplates.MessageType messageType,
                            String clinicContact) {
+        this(notificationId,patientId,transactionId,reason,dateTime,patientName,medicineName,messageType,clinicContact,null,null);
+    }
+
+    public NotificationLog(String notificationId,String patientId,String transactionId,String reason,
+            LocalDateTime dateTime,String patientName,String medicineName,
+            GuardianMessageTemplates.MessageType messageType,String clinicContact,String recipientLabel,String recipientContact) {
         require(notificationId, "notification ID");
         require(patientId, "patient ID");
         require(transactionId, "transaction ID");
@@ -56,6 +63,8 @@ public class NotificationLog {
         this.medicineName = medicineName;
         this.messageType = messageType;
         this.clinicContact = clinicContact;
+        this.recipientLabel = recipientLabel;
+        this.recipientContact = recipientContact;
     }
 
     public void markSent() {
@@ -65,7 +74,7 @@ public class NotificationLog {
     /** Detached snapshot: status changes must go through the authorized service. */
     public NotificationLog copy() {
         NotificationLog result = new NotificationLog(notificationId, patientId, transactionId,
-            reason, dateTime, patientName, medicineName, messageType, clinicContact);
+            reason, dateTime, patientName, medicineName, messageType, clinicContact, recipientLabel, recipientContact);
         result.status = status;
         return result;
     }
@@ -75,13 +84,15 @@ public class NotificationLog {
     }
 
     public String toMessage() {
-        return GuardianMessageTemplates.create(messageType, patientName, reason,
+        return (recipientContact==null?"":recipientLabel+": "+recipientContact+"\n")+GuardianMessageTemplates.create(messageType, patientName, reason,
                 medicineName, dateTime, clinicContact);
     }
 
     public String getNotificationId() {
         return notificationId;
     }
+    public String getRecipientLabel() { return recipientLabel; }
+    public String getRecipientContact() { return recipientContact; }
 
     public String getPatientId() {
         return patientId;

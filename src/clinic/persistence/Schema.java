@@ -12,7 +12,7 @@ final class Schema {
             try (ResultSet r = s.executeQuery("SELECT version FROM schema_version WHERE id=1")) {
                 if (r.next()) {
                     version=r.getInt(1);
-                    if (version < 1 || version > 2) throw new SQLException("Unsupported database schema version.");
+                    if (version < 1 || version > 3) throw new SQLException("Unsupported database schema version.");
                 }
             }
             if(version==0) {
@@ -24,6 +24,13 @@ final class Schema {
                 s.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS failed_attempts INT NOT NULL DEFAULT 0 CHECK(failed_attempts>=0)");
                 s.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS locked_until BIGINT NOT NULL DEFAULT 0");
                 s.executeUpdate("UPDATE schema_version SET version=2 WHERE id=1");
+                version=2;
+            }
+            if(version==2) {
+                s.execute("ALTER TABLE patients ADD COLUMN IF NOT EXISTS guardian_contact VARCHAR(500)");
+                s.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS recipient_label VARCHAR(100)");
+                s.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS recipient_contact VARCHAR(500)");
+                s.executeUpdate("UPDATE schema_version SET version=3 WHERE id=1");
             }
         }
     }

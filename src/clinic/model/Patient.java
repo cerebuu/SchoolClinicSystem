@@ -4,6 +4,7 @@ import clinic.util.Validation;
 public class Patient extends Person {
     public static final String STUDENT="STUDENT", EMPLOYEE="EMPLOYEE";
     private final String patientType;
+    private String guardianContact;
     private final List<String> allergies=new ArrayList<>(), medicalHistory=new ArrayList<>();
     public Patient(String id, String name, String contact, String type) {
         super(id, name, contact);
@@ -20,12 +21,15 @@ public class Patient extends Person {
             result = new Patient(getId(), getName(), getContactInfo(), patientType);
         }
         getAllergies().forEach(result::addAllergy);
+        result.setGuardianContact(getGuardianContact());
         getMedicalHistory().forEach(result::addHistory);
         return result;
     }
     public String getPatientType() {
         return patientType;
     }
+    public synchronized String getGuardianContact() { return guardianContact; }
+    public synchronized void setGuardianContact(String value) { guardianContact = value; }
     public synchronized void addAllergy(String value) {
         String a=Validation.required(value, "Allergy");
         if(!hasAllergy(a))allergies.add(a);

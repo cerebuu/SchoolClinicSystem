@@ -40,14 +40,15 @@ public class Inventory {
         for (Medicine batch : batches) {
             String key = batch.getName().toLowerCase(Locale.ROOT);
             int total = totals.getOrDefault(key, 0);
-            if (total <= threshold) items.putIfAbsent(key, new Medicine(batch.getName(), total,
-                batch.getExpirationDate(), batch.getBatchDate(), "Total available stock"));
+            Medicine available=new Medicine(batch.getName(),total,batch.getExpirationDate(),batch.getBatchDate(),"Total available stock");
+            if (available.isLowStock(threshold)) items.putIfAbsent(key,available);
         }
         return List.copyOf(items.values());
     }
     public synchronized List<Medicine> getExpiringWithin(int days) {
         if(days<0)throw new IllegalArgumentException("Days must be nonnegative.");
-        return batches.stream().filter(m->m.getQuantity()>0&&!m.getExpirationDate().isAfter(LocalDate.now().plusDays(days))).map(this::copy).toList();
+        return batches.stream().filter(m->m.getQuantity()>0&&!m.isExpired()&&!m.getExpirationDate().isAfter(LocalDate.now().plusDays(days)))
+            .sorted(Comparator.comparing(Medicine::getExpirationDate)).map(this::copy).toList();
     }
     public synchronized LocalDate dispense(String name, int qty) {
         Validation.positive(qty);
@@ -69,12 +70,12 @@ public class Inventory {
         return new PageResult<>(result.rows().stream().map(m->new Medicine(m.getName(), m.getQuantity(), m.getExpirationDate(), m.getBatchDate(), m.getRemarks())).toList(), result.total());
     }
     public synchronized void collectAlerts(java.util.function.Consumer<clinic.model.Alert> consumer) {
-        Map<String, Integer> totals = stockTotals();
-        Set<String> seen = new HashSet<>();
-        for(Medicine m:batches) {
-            if(totals.getOrDefault(m.getName().toLowerCase(Locale.ROOT), 0)<=10 && seen.add(m.getName().toLowerCase(Locale.ROOT)))consumer.accept(new clinic.model.Alert("LOW_STOCK", m.getName()));
-            if(m.getQuantity()>0&&!m.getExpirationDate().isAfter(LocalDate.now().plusDays(30)))consumer.accept(new clinic.model.Alert("EXPIRING", m.getName()));
-        }
+        getLowStock(FeatureRules.LOW_STOCK_THRESHOLD).forEach(m->consumer.accept(new clinic.model.Alert("LOW_STOCK",
+            m.getName()+": "+m.getQuantity()+" usable units; threshold <= "+FeatureRules.LOW_STOCK_THRESHOLD)));
+        getExpiringWithin(FeatureRules.EXPIRY_DAYS).forEach(m->consumer.accept(new clinic.model.Alert("EXPIRING",
+            m.getName()+": "+m.getQuantity()+" units expire "+m.getExpirationDate()+"; within "+FeatureRules.EXPIRY_DAYS+" days")));
+        batches.stream().filter(m->m.isExpired()&&m.getQuantity()>0).forEach(m->consumer.accept(new clinic.model.Alert("EXPIRED",
+            m.getName()+": "+m.getQuantity()+" unusable units expired "+m.getExpirationDate())));
     }
     public synchronized List<Medicine> batches() {
         return batches.stream().map(this::copy).toList();
