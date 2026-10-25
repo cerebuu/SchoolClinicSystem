@@ -50,7 +50,9 @@ public final class DomainChecks {
         InMemoryClinicSystem store=new InMemoryClinicSystem();
         SchoolNurse nurse=new SchoolNurse("n", "Nurse");
         ClinicSystem clinic=new SecuredClinicSystem(store, nurse, audit);
-        clinic.registerPatient(new Student("p", "Private Patient", "contact", "BSCS", 1, "A"));
+        Student patient=new Student("p", "Private Patient", "contact", "BSCS", 1, "A");
+        patient.setGuardianContact("guardian-contact");
+        clinic.registerPatient(patient);
         rejects(IllegalArgumentException.class, ()->clinic.registerPatient(new Student("p", "Duplicate", "contact", "BSCS", 1, "A")), "duplicate patient rejected");
         clinic.findPatient("p").orElseThrow().addAllergy("Detached mutation");
         check(!clinic.findPatient("p").orElseThrow().hasAllergy("Detached mutation"), "read profiles are detached");

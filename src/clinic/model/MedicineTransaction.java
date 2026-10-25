@@ -44,6 +44,6 @@ public class MedicineTransaction implements Formattable {
         return remarks;
     }
     public String toReport() {
-        return transactionId+" | "+patientId+" | "+medicineName+" | "+quantity+" | "+dateTime+"\nRemarks: "+remarks;
+        return transactionId+" | "+patientId+" | "+medicineName+" | "+quantity+" | "+clinic.util.DateUtil.format(dateTime)+"\nRemarks: "+remarks;
     }
 }

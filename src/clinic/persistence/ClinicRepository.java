@@ -25,6 +25,8 @@ public final class ClinicRepository {
                 default -> throw new IllegalStateException();
             };
             return database.transaction(connection -> {
+                if(method.getName().equals("dispensableMedicinePage"))return DispenseRepository.medicines(connection,(int)args[0],(int)args[1],(String)args[2]);
+                if(method.getName().equals("transactionPage"))return DispenseRepository.transactions(connection,(int)args[0],(int)args[1],(String)args[2],(LocalDateTime)args[3],(LocalDateTime)args[4]);
                 // Frequent dashboard lookups must not materialize unrelated clinical history.
                 if(method.getName().equals("patientCount")) return count(connection,"SELECT COUNT(*) FROM patients");
                 if(method.getName().equals("recordCount")) return count(connection,"SELECT COUNT(*) FROM visits");
@@ -57,6 +59,7 @@ public final class ClinicRepository {
             : new Employee(id,name,contact,r.getString("course_department"),r.getString("section_position"));
         for(String allergy:Sql.query(c,"SELECT allergy FROM allergies WHERE patient_id=? ORDER BY allergy", x -> x.getString(1),id)) p.addAllergy(allergy);
         for(String history:Sql.query(c,"SELECT detail FROM patient_history WHERE patient_id=? ORDER BY ordinal", x -> x.getString(1),id)) p.addHistory(history);
+        p.setGuardianContact(r.getString("guardian_contact"));
         return p;
     }
 
@@ -77,7 +80,7 @@ public final class ClinicRepository {
             """,r -> {
                 NotificationLog n=new NotificationLog(r.getString("id"),r.getString("patient_id"),r.getString("transaction_id"),
                     r.getString("reason"),r.getObject("created_at",LocalDateTime.class),r.getString("patient_name"),r.getString("medicine"),
-                    GuardianMessageTemplates.MessageType.MEDICINE_GIVEN,"the school clinic");
+                    GuardianMessageTemplates.MessageType.MEDICINE_GIVEN,"the school clinic",r.getString("recipient_label"),r.getString("recipient_contact"));
                 if(NotificationStatus.SENT.name().equals(r.getString("status"))) n.markSent();
                 return n;
             });
@@ -91,9 +94,9 @@ public final class ClinicRepository {
             Patient old=oldPatients.get(p.getId());
             if(old==null) {
                 if (!(p instanceof Student) && !(p instanceof Employee)) throw new IllegalArgumentException("Choose a student or employee patient type.");
-                Sql.update(c,"INSERT INTO patients VALUES(?,?,?,?,?,?,?)",p.getId(),p.getName(),p.getContactInfo(),p.getPatientType(),
+                Sql.update(c,"INSERT INTO patients(id,name,contact,patient_type,course_department,section_position,year_level,guardian_contact) VALUES(?,?,?,?,?,?,?,?)",p.getId(),p.getName(),p.getContactInfo(),p.getPatientType(),
                     p instanceof Student s?s.getCourse():((Employee)p).getDepartment(),
-                    p instanceof Student s?s.getSection():((Employee)p).getPosition(),p instanceof Student s?s.getYearLevel():null);
+                    p instanceof Student s?s.getSection():((Employee)p).getPosition(),p instanceof Student s?s.getYearLevel():null,p.getGuardianContact());
                 for(int i=0;i<p.getMedicalHistory().size();i++) Sql.update(c,"INSERT INTO patient_history VALUES(?,?,?)",p.getId(),i,p.getMedicalHistory().get(i));
             }
             for(String allergy:p.getAllergies()) if(old==null||!old.hasAllergy(allergy))
@@ -122,8 +125,8 @@ public final class ClinicRepository {
         before.notifications().forEach(n -> statuses.put(n.getNotificationId(),n.getStatus()));
         for(NotificationLog n:after.notifications()) {
             if(!statuses.containsKey(n.getNotificationId()))
-                Sql.update(c,"INSERT INTO notifications(id,patient_id,transaction_id,reason,created_at,status) VALUES(?,?,?,?,?,?)",
-                    n.getNotificationId(),n.getPatientId(),n.getTransactionId(),n.getReason(),n.getDateTime(),n.getStatus().name());
+                Sql.update(c,"INSERT INTO notifications(id,patient_id,transaction_id,reason,created_at,status,recipient_label,recipient_contact) VALUES(?,?,?,?,?,?,?,?)",
+                    n.getNotificationId(),n.getPatientId(),n.getTransactionId(),n.getReason(),n.getDateTime(),n.getStatus().name(),n.getRecipientLabel(),n.getRecipientContact());
             else if(statuses.get(n.getNotificationId())!=n.getStatus())
                 Sql.update(c,"UPDATE notifications SET status=? WHERE id=?",n.getStatus().name(),n.getNotificationId());
         }

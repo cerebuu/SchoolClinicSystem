@@ -1,7 +1,9 @@
 package clinic.service;
 import java.util.*;
 import java.util.function.Predicate;
-public record PageResult<T>(List<T> rows, int total) {
+public record PageResult<T>(List<T> rows, int total, int page, int size) {
+    /** Compatibility constructor for existing table sources. */
+    public PageResult(List<T> rows,int total) { this(rows,total,0,rows.size()); }
     public PageResult {
         rows=List.copyOf(rows);
     }
@@ -17,6 +19,6 @@ public record PageResult<T>(List<T> rows, int total) {
                 count++;
             }
         }
-        return new PageResult<>(rows, count);
+        return new PageResult<>(rows, count, page, size);
     }
 }

@@ -33,22 +33,22 @@ public final class GuardianMessageTemplates {
         String date = DateUtil.format(dateTime);
         if (type == MessageType.CLINIC_VISIT) {
             return "School Clinic: " + patientName + " visited the clinic on "
-                    + date + " for " + reason + ". Contact: " + clinicContact;
+                    + date + ". Contact: " + clinicContact;
         }
         if (type == MessageType.MEDICINE_GIVEN) {
             return "School Clinic: " + patientName + " was given " + medicineName
-                    + " on " + date + " for " + reason + ". Contact: " + clinicContact;
+                    + " on " + date + ". Contact: " + clinicContact;
         }
         if (type == MessageType.SENT_HOME) {
             return "School Clinic: " + patientName + " was sent home on "
-                    + date + " because of " + reason + ". Contact: " + clinicContact;
+                    + date + ". Contact: " + clinicContact;
         }
         if (type == MessageType.FOLLOW_UP_NEEDED) {
-            return "School Clinic: " + patientName + " needs follow-up after "
-                    + reason + " on " + date + ". Contact: " + clinicContact;
+            return "School Clinic: " + patientName + " needs follow-up after the clinic visit on "
+                    + date + ". Contact: " + clinicContact;
         }
         return "URGENT: Please contact the school clinic about " + patientName
-                + " immediately regarding " + reason + ". Contact: " + clinicContact;
+                + " immediately. Contact: " + clinicContact;
     }
 
     public static String clinicVisit(String patientName, String reason,

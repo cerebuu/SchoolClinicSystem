@@ -115,6 +115,16 @@ public final class ApplicationContext implements AutoCloseable {
             return store.medicinePage(page, size, q);
         }
     }
+    public PageResult<Medicine> dispensableMedicines(int page,int size,String query) {
+        synchronized(login){require(User.DISPENSE);return store.dispensableMedicinePage(page,size,query);}
+    }
+    public PageResult<MedicineTransaction> transactions(int page,int size,String query,
+            java.time.LocalDateTime from,java.time.LocalDateTime to) {
+        synchronized(login){require(User.DISPENSE);return store.transactionPage(page,size,query,from,to);}
+    }
+    public DispenseWorkflow dispenseSession() {
+        synchronized(login){require(User.DISPENSE);return new DispenseWorkflow(clinic(),current(),audit);}
+    }
     public PageResult<MedicalRecord> records(int page, int size, String q) {
         synchronized (login) {
             requireAny(User.RECORDS, User.VIEW_REPORTS);

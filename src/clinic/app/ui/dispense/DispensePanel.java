@@ -1,103 +1,60 @@
 package clinic.app.ui.dispense;
+
 import clinic.app.ApplicationContext;
 import clinic.app.Theme;
-import clinic.app.ui.common.*;
-import clinic.app.ui.common.popup.*;
+import clinic.app.ui.common.Card;
+import clinic.app.ui.common.AsyncLoader;
+import clinic.app.ui.common.popup.MessagePopup;
+import clinic.app.ui.common.popup.WarningOverridePopup;
+import clinic.service.*;
 import java.awt.*;
+import java.util.List;
 import javax.swing.*;
-public final class DispensePanel extends BasePanel {
-    private final JTextField patient=new JTextField(24), medicine=new JTextField(24), quantity=new JTextField("1", 24);
+
+public final class DispensePanel extends clinic.app.ui.common.BasePanel {
+    private final PatientLookupField patient;
+    private final DispenseItemsPanel items;
+    private final TransactionHistoryPanel history;
     private final JButton submit;
-    private final JLabel validation = new JLabel(" ");
+    private final JLabel state=new JLabel(" ");
+    private final ApplicationContext app;
     public DispensePanel(ApplicationContext app) {
-        super("Dispense medicine", "Clinic records");
-        JPanel form=new JPanel();
-        form.setOpaque(false);
-        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        field(form, "Patient ID", patient);
-        field(form, "Medicine", medicine);
-        field(form, "Quantity", quantity);
-        validation.setFont(Theme.font(Theme.TYPE_BODY, java.awt.Font.BOLD));
-        validation.setForeground(Theme.DANGER);
-        form.add(validation);
-        JPanel body=new JPanel(new BorderLayout(Theme.GAP, Theme.GAP));
-        body.setOpaque(false);
-        Card card = new Card();
-        card.setLayout(new BorderLayout());
-        card.add(form, BorderLayout.NORTH);
-        body.add(card, BorderLayout.NORTH);
-        add(body, BorderLayout.CENTER);
-        submit=action("Check safety and dispense", true, ()->dispense(app));
+        super("Dispense medicine","Clinic records");this.app=app;
+        patient=new PatientLookupField(app);items=new DispenseItemsPanel(app);history=new TransactionHistoryPanel(app);
+        Card form=new Card();form.setLayout(new BoxLayout(form,BoxLayout.Y_AXIS));
+        form.add(label("Patient ID"));form.add(patient);form.add(Box.createVerticalStrut(Theme.SPACE_3));
+        form.add(label("Dispense items"));form.add(items);form.add(Box.createVerticalStrut(Theme.SPACE_2));
+        state.setForeground(Theme.DANGER);form.add(state);
+        JPanel content=new JPanel(new BorderLayout(Theme.GAP,Theme.GAP));content.setOpaque(false);
+        content.add(form,BorderLayout.NORTH);content.add(history,BorderLayout.CENTER);add(content,BorderLayout.CENTER);
+        submit=action("Check safety and dispense",true,()->dispense());
+        onRefresh(()->{items.refresh();history.refresh();});
     }
-    private void field(JPanel p, String name, JTextField f) {
-        f.setName(name);
-        JLabel l=new JLabel(name);
-        l.setLabelFor(f);
-        l.setFont(Theme.font(Theme.TYPE_BODY, java.awt.Font.BOLD));
-        l.setAlignmentX(Component.LEFT_ALIGNMENT);
-        Theme.field(f);
-        f.setMaximumSize(new Dimension(Integer.MAX_VALUE, Theme.FIELD_HEIGHT));
-        f.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.add(l);
-        p.add(Box.createVerticalStrut(Theme.SPACE_1));
-        p.add(f);
-        p.add(Box.createVerticalStrut(Theme.SPACE_3));
-    }
-    private void dispense(ApplicationContext app) {
-        String p=patient.getText().trim(), m=medicine.getText().trim();
-        int qty;
-        try {
-            clinic.util.Validation.required(p, "Patient ID");
-            clinic.util.Validation.required(m, "Medicine");
-            qty=clinic.util.Validation.positive(Integer.parseInt(quantity.getText().trim()));
-        }
-        catch(RuntimeException ex) {
-            validation.setText("Enter patient ID, medicine, and a positive whole quantity.");
-            return;
-        }
-        validation.setText(" ");
-        final clinic.core.ClinicSystem clinic;
-        final String staffId;
-        try {
-            clinic = app.clinic();
-            staffId = app.current().getUserId();
-        } catch (RuntimeException error) {
-            MessagePopup.error(this, error);
-            return;
-        }
-        submit.setEnabled(false);
-        validation.setForeground(Theme.MUTED);
-        validation.setText("Checking medicine safety…");
-        AsyncLoader.load(() -> clinic.checkSafety(p, m), warnings -> {
-            String overrideReason = "";
-            if (!warnings.isEmpty()) {
-                validation.setText("Review the safety warning before continuing.");
-                WarningOverridePopup.Result decision = WarningOverridePopup.show(this, p, m, warnings);
-                if (decision.outcome() == WarningOverridePopup.Outcome.CANCELLED) {
-                    submit.setEnabled(true);
-                    validation.setText("Dispensing cancelled.");
-                    return;
-                }
-                overrideReason = decision.reason();
+    private JLabel label(String text){JLabel l=new JLabel(text);l.setFont(Theme.font(Theme.TYPE_BODY,Font.BOLD));return l;}
+    private void dispense() {
+        final String patientId;final List<DispenseItem> requested;final DispenseWorkflow workflow;
+        try {patientId=patient.patientId();requested=items.items();workflow=app.dispenseSession();}
+        catch(RuntimeException error){MessagePopup.error(this,error);return;}
+        submit.setEnabled(false);state.setForeground(Theme.MUTED);state.setText("Checking safety and stock...");
+        AsyncLoader.load(()->workflow.check(patientId,requested),warnings->{
+            String reason="";
+            if(!warnings.isEmpty()) {
+                WarningOverridePopup.Result choice=WarningOverridePopup.show(this,patientId,"Selected dispense items",warnings);
+                if(choice.outcome()==WarningOverridePopup.Outcome.CANCELLED){finish("Dispensing cancelled.",Theme.WARNING);return;}
+                reason=choice.reason();
             }
-            final String confirmed = overrideReason;
-            validation.setText("Dispensing…");
-            AsyncLoader.load(() -> clinic.dispenseMedicine(p, m, qty, staffId, confirmed), transaction -> {
-                submit.setEnabled(true);
-                validation.setForeground(Theme.SUCCESS);
-                validation.setText("Medicine dispensed successfully.");
-                MessagePopup.info(this, "Dispensed. Transaction ID: " + transaction.getTransactionId());
-            }, error -> {
-                submit.setEnabled(true);
-                validation.setForeground(Theme.DANGER);
-                validation.setText("Unable to dispense. Review the error and retry.");
-                MessagePopup.error(this, error);
-            });
-        }, error -> {
-            submit.setEnabled(true);
-            validation.setForeground(Theme.DANGER);
-            validation.setText("Unable to check medicine safety.");
-            MessagePopup.error(this, error);
-        });
+            String overrideReason=reason;state.setText("Dispensing...");
+            AsyncLoader.load(()->workflow.dispense(patientId,requested,overrideReason),result->{
+                submit.setEnabled(true);items.refresh();
+                if(result.successful()) {
+                    state.setForeground(Theme.SUCCESS);state.setText("Medicine dispensed successfully.");
+                    items.clear();patient.clear();history.refresh();MessagePopup.info(this,result.report());
+                } else {
+                    state.setForeground(Theme.DANGER);state.setText("Some items were not dispensed.");
+                    history.refresh();MessagePopup.error(this,new IllegalStateException(result.report()));
+                }
+            },error->{finish(MessagePopup.errorText(error),Theme.DANGER);MessagePopup.error(this,error);});
+        },error->{finish(MessagePopup.errorText(error),Theme.DANGER);MessagePopup.error(this,error);});
     }
+    private void finish(String text,Color color){submit.setEnabled(true);state.setForeground(color);state.setText(text);}
 }

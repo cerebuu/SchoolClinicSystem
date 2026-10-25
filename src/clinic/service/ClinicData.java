@@ -6,6 +6,9 @@ import java.time.LocalDateTime;
 
 /** Internal query contract shared by the memory fixture and durable repository adapter. */
 public interface ClinicData extends ClinicSystem {
+    PageResult<Medicine> dispensableMedicinePage(int page,int size,String query);
+    PageResult<MedicineTransaction> transactionPage(int page,int size,String query,
+        LocalDateTime fromInclusive,LocalDateTime toExclusive);
     PageResult<Patient> patientPage(int page, int size, String filter);
     PageResult<Medicine> medicinePage(int page, int size, String filter);
     PageResult<MedicalRecord> recordPage(int page, int size, String filter);

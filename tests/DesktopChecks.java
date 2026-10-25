@@ -57,6 +57,13 @@ public final class DesktopChecks {
         return result.get();
     }
     private static void fill(Container parent, String name, String value) {
+        var multi=components(parent).stream().filter(c->c instanceof clinic.app.ui.common.popup.MultiSelectField m
+            &&name.equals(m.getAccessibleContext().getAccessibleName())).findFirst();
+        if(multi.isPresent()) {
+            components((Container)multi.get()).stream().filter(c->c instanceof JCheckBox box&&value.equals(box.getText()))
+                .map(c->(JCheckBox)c).findFirst().orElseThrow().doClick();
+            return;
+        }
         Component input = components(parent).stream().filter(c -> (c instanceof JTextField || c instanceof JComboBox<?>) && c instanceof JComponent j
             && (name.equals(j.getName()) || name.equals(j.getAccessibleContext().getAccessibleName())))
             .findFirst().orElseThrow(() -> new AssertionError("Missing input: " + name));
@@ -68,6 +75,27 @@ public final class DesktopChecks {
         edt(() -> values.forEach((name, value) -> fill(dialog, name, value)));
         click(dialog, "Save");
         waitFor(() -> !dialog.isShowing());
+    }
+    private static void findPatient(String id) throws Exception {
+        edt(() -> fill(frame,"Patient ID",id));click(frame,"Find patient");
+        waitFor(() -> components(frame).stream().anyMatch(c->c instanceof JLabel l&&l.getText().startsWith("Confirmed: "+id+" | ")));
+    }
+    private static void selectMedicine(String name) throws Exception {
+        waitFor(() -> components(frame).stream().filter(c->c instanceof JComboBox<?> combo
+            &&"Medicine".equals(combo.getAccessibleContext().getAccessibleName())).map(c->(JComboBox<?>)c)
+            .anyMatch(combo->{for(int i=0;i<combo.getItemCount();i++)if(combo.getItemAt(i) instanceof Medicine m&&m.getName().equals(name))return true;return false;}));
+        edt(() -> {
+            JComboBox<?> combo=components(frame).stream().filter(c->c instanceof JComboBox<?> x
+                &&"Medicine".equals(x.getAccessibleContext().getAccessibleName())).map(c->(JComboBox<?>)c).findFirst().orElseThrow();
+            for(int i=0;i<combo.getItemCount();i++)if(combo.getItemAt(i) instanceof Medicine m&&m.getName().equals(name)) {
+                combo.setSelectedItem(m);return;
+            }
+            throw new AssertionError("Medicine not loaded: "+name);
+        });
+    }
+    private static void setQuantity(int value) throws Exception {
+        edt(() -> components(frame).stream().filter(c->c instanceof JSpinner s
+            &&"Quantity".equals(s.getAccessibleContext().getAccessibleName())).map(c->(JSpinner)c).findFirst().orElseThrow().setValue(value));
     }
     private static void dismissInfo() throws Exception {
         JDialog info = awaitDialog("School clinic");
@@ -144,9 +172,10 @@ public final class DesktopChecks {
             waitFor(() -> components(registration).stream().anyMatch(c -> c instanceof JLabel label && "ID is required.".equals(label.getText())));
             check(app.patientCount() == 0, "required fields prevent registration");
             form("Register patient", Map.of("ID", "p1", "Name", "Test Patient", "Contact", "Test contact", "Type", Patient.STUDENT,
-                "Course / Department", "BSCS", "Section / Position", "A", "Year level", "1"));
+                "Course / Department", "BSCS", "Section / Position", "A", "Year level", "1", "Guardian contact", "Test guardian"));
             row();
             check(app.patientCount() == 1, "patient registration and refresh");
+            check("Test guardian".equals(app.clinic().findPatient("p1").orElseThrow().getGuardianContact()), "registration saves separate guardian contact");
             click(frame, "Add allergy");
             JDialog allergy = awaitDialog("Add allergy");
             click(allergy, "Cancel");
@@ -163,7 +192,9 @@ public final class DesktopChecks {
             form("Add medicine batch", Map.of("Medicine", "Test medicine", "Quantity", "10", "Expiry (YYYY-MM-DD)", LocalDate.now().plusDays(90).toString()));
             row();
             click(frame, "Dispense medicine");
-            edt(() -> { fill(frame, "Patient ID", "p1"); fill(frame, "Medicine", "Test medicine"); fill(frame, "Quantity", "2"); });
+            findPatient("p1");
+            selectMedicine("Test medicine");
+            setQuantity(2);
             click(frame, "Check safety and dispense");
             dismissInfo();
             check(app.clinic().getStock("Test medicine") == 8, "dispensing changes stock");
@@ -180,6 +211,9 @@ public final class DesktopChecks {
             check(true, "notification creation, preview, and confirmed status update");
             app.clinic().addAllergy("p1", "Test medicine");
             click(frame, "Dispense medicine");
+            findPatient("p1");
+            selectMedicine("Test medicine");
+            setQuantity(2);
             click(frame, "Check safety and dispense");
             JDialog warning = awaitDialog("Safety warning");
             edt(() -> check(!button(warning, "Override with reason").isEnabled(), "override requires a reason"));
