@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-25",
+  "pdf": "C:\\Users\\zai\\Documents\\SchoolClinicSystem\\docs\\SCMS_Final_Project_Documentation.pdf",
+  "pages": 31,
+  "sections": [
+    [
+      "Document Guide and Verification Basis",
+      2
+    ],
+    [
+      "1. Software Purpose",
+      3
+    ],
+    [
+      "2. Objectives, Features, and Modules",
+      4
+    ],
+    [
+      "3. Technology Used",
+      6
+    ],
+    [
+      "4. User Manual",
+      7
+    ],
+    [
+      "5. Technical Manual",
+      12
+    ],
+    [
+      "6. Project Development Phases",
+      15
+    ],
+    [
+      "7. Limitations and Future Development",
+      16
+    ],
+    [
+      "Appendix",
+      17
+    ],
+    [
+      "Comments/Grading",
+      25
+    ],
+    [
+      "Test Cases",
+      26
+    ]
+  ],
+  "testCases": 77,
+  "statuses": {
+    "Pass": 68,
+    "Not Tested": 9
+  },
+  "execution": {
+    "domain": 56,
+    "ui": 36,
+    "persistence": 49,
+    "native": 19,
+    "visitSearch": "passed"
+  },
+  "liveAiVerified": false
+}

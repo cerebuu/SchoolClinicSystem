@@ -71,6 +71,10 @@ public final class NurseDashboardPanel extends BasePanel {
         }, error -> {
             if (request != generation) return;
             status.setText("Unable to load clinic summary. Use Refresh to retry.");
+            patients.setValue("Unavailable");
+            consultations.setValue("Unavailable");
+            lowStock.setValue("Unavailable");
+            expiring.setValue("Unavailable");
             if (isShowing()) MessagePopup.error(this, error);
         });
     }

@@ -3,6 +3,13 @@
   "configurations": [
     {
       "type": "java",
+      "name": "Main",
+      "request": "launch",
+      "mainClass": "clinic.app.Main",
+      "projectName": "SchoolClinicSystem"
+    },
+    {
+      "type": "java",
       "name": "Run UIC Clinic UI (Demo)",
       "request": "launch",
       "mainClass": "clinic.app.GUI",

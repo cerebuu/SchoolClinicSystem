@@ -60,6 +60,20 @@ public final class ApplicationContext implements AutoCloseable {
     public User current() {
         return login.getCurrentUser().orElseThrow(()->new SecurityException("Sign in required."));
     }
+    /** Captures one nurse session; checks do not hold the login lock during network I/O. */
+    public Runnable nurseSessionGuard() {
+        synchronized (login) {
+            User owner = current();
+            if (!(owner instanceof SchoolNurse)) throw new SecurityException("Nurse access required.");
+            long version = login.getSessionVersion();
+            return () -> {
+                synchronized (login) {
+                    if (login.getSessionVersion() != version || current() != owner)
+                        throw new SecurityException("Session expired. Sign in again.");
+                }
+            };
+        }
+    }
     public void require(String feature) {
         requireAny(feature);
     }

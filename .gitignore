@@ -37,3 +37,8 @@ verification/*-db-*/
 *.trace.db
 *.key
 *.application.lock
+.documentation-tools/
+out-check/
+out-demo/
+out-inspection/
+out-run/
