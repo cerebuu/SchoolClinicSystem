@@ -29,12 +29,18 @@ public final class AiNurseAssistantPanel extends BasePanel {
     private final JScrollPane conversation;
     private final JTextArea input = new JTextArea(3, 1);
     private final JCheckBox privacy = new JCheckBox("I confirm this contains no student identifiers, records, or credentials.");
-    private final JLabel status = new JLabel("Use general, non-identifying questions only.");
+    private final JTextArea status = new JTextArea("Use general, non-identifying questions only.", 3, 1);
+    private final ApplicationContext app;
+    private final Runnable sessionGuard;
+    private javax.swing.SwingWorker<String, Void> request;
+    private int generation;
     private JButton send;
     private boolean pending;
 
     public AiNurseAssistantPanel(ApplicationContext app) {
         super("AI Nurse Assistant", "Clinic records");
+        this.app = app;
+        this.sessionGuard = app.nurseSessionGuard();
         if (!(app.current() instanceof SchoolNurse)) throw new SecurityException("AI Nurse Assistant access denied.");
         messages.setLayout(new BoxLayout(messages, BoxLayout.Y_AXIS));
         messages.setBackground(Theme.SUBTLE);
@@ -46,6 +52,10 @@ public final class AiNurseAssistantPanel extends BasePanel {
         add(conversation, BorderLayout.CENTER);
         addComposer();
         action("Clear conversation", () -> clear());
+        action("Cancel request", () -> cancelRequest());
+        addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & java.awt.event.HierarchyEvent.SHOWING_CHANGED) != 0 && !isShowing()) cancelRequest();
+        });
         addAssistant("I can help with SCMS navigation, general clinic administration, or a non-identifying draft. I cannot access records, diagnose, prescribe, or take actions in SCMS.\n\nTry: “How do I record a consultation?”");
     }
 
@@ -56,6 +66,8 @@ public final class AiNurseAssistantPanel extends BasePanel {
         input.setLineWrap(true); input.setWrapStyleWord(true); input.setFont(Theme.font(Theme.TYPE_BODY, Font.PLAIN));
         input.setToolTipText("Ask a non-identifying question. Enter sends; Shift+Enter adds a new line.");
         input.getInputMap().put(javax.swing.KeyStroke.getKeyStroke("ENTER"), "send-ai-message");
+        input.getInputMap().put(javax.swing.KeyStroke.getKeyStroke("shift ENTER"), "insert-break");
+        input.getAccessibleContext().setAccessibleName("Assistant question");
         input.getActionMap().put("send-ai-message", new javax.swing.AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { submit(); } });
         composer.add(new JScrollPane(input), BorderLayout.CENTER);
         send = Theme.button("Send", true);
@@ -68,6 +80,8 @@ public final class AiNurseAssistantPanel extends BasePanel {
         privacy.setAlignmentX(Component.LEFT_ALIGNMENT);
         privacyLine.add(privacy);
         status.setForeground(Theme.MUTED); status.setFont(Theme.font(Theme.TYPE_CAPTION, Font.PLAIN));
+        status.setEditable(false); status.setLineWrap(true); status.setWrapStyleWord(true); status.setOpaque(false);
+        status.getAccessibleContext().setAccessibleName("Assistant status");
         status.setAlignmentX(Component.LEFT_ALIGNMENT);
         status.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         status.setBorder(BorderFactory.createEmptyBorder(Theme.SPACE_1, 2, 0, 2));
@@ -78,7 +92,7 @@ public final class AiNurseAssistantPanel extends BasePanel {
     }
 
     private void clear() {
-        if (pending) return;
+        cancelRequest();
         messages.removeAll();
         addAssistant("Conversation cleared. Do not include student names, IDs, contact details, records, or credentials.");
         input.setText("");
@@ -92,18 +106,35 @@ public final class AiNurseAssistantPanel extends BasePanel {
         if (question.isEmpty()) { showError("Enter a question for the assistant."); return; }
         if (!privacy.isSelected()) { showError("Confirm that the message contains no identifying or sensitive record information."); return; }
         final GeminiAiService service;
-        try { service = GeminiAiService.fromEnvironment(); }
-        catch (AiServiceException error) { showError(error.getMessage()); return; }
+        try { sessionGuard.run(); service = GeminiAiService.fromEnvironment(app); }
+        catch (AiServiceException | SecurityException error) { showError(error.getMessage()); return; }
         pending = true; send.setEnabled(false); input.setEnabled(false); privacy.setEnabled(false);
         status.setForeground(Theme.MUTED); status.setText("AI is thinking…");
-        addNurse(question); input.setText("");
-        AsyncLoader.load(() -> service.ask(question), answer -> {
+        final int current = ++generation;
+        request = AsyncLoader.load(() -> service.ask(question), answer -> {
+            if (current != generation) return;
             pending = false; send.setEnabled(true); input.setEnabled(true); privacy.setEnabled(true);
-            status.setForeground(Theme.SUCCESS); status.setText("Review AI drafts before use."); addAssistant(answer);
+            try { sessionGuard.run(); } catch (SecurityException expired) { showError(expired.getMessage()); return; }
+            addNurse(question); input.setText(""); privacy.setSelected(false);
+            status.setForeground(Theme.SUCCESS); status.setText("Review AI drafts before use."); addAssistant("Draft for nurse review\n\n" + answer);
         }, error -> {
+            if (current != generation) return;
             pending = false; send.setEnabled(true); input.setEnabled(true); privacy.setEnabled(true);
-            showError(error.getMessage() == null ? "The AI request failed. Please try again." : error.getMessage());
+            showError(error instanceof AiServiceException || error instanceof SecurityException
+                ? error.getMessage() : "The AI request failed. Your question is retained; use Send to retry.");
         });
+    }
+    private void cancelRequest() {
+        generation++;
+        if (request != null) { request.cancel(true); request = null; }
+        if (pending) status.setText("Request cancelled. Your question is retained.");
+        pending = false;
+        if (send != null) send.setEnabled(true);
+        input.setEnabled(true); privacy.setEnabled(true);
+    }
+    @Override public void removeNotify() {
+        cancelRequest(); messages.removeAll(); input.setText(""); privacy.setSelected(false);
+        super.removeNotify();
     }
     private void showError(String message) { status.setForeground(Theme.DANGER); status.setText(message); }
     private void addAssistant(String text) { addMessage("AI Nurse Assistant", text, Theme.BRAND_TINT, Theme.BRAND_DARK); }
@@ -124,6 +155,7 @@ public final class AiNurseAssistantPanel extends BasePanel {
         bubble.setAlignmentX(Component.LEFT_ALIGNMENT);
         bubble.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         messages.add(bubble); messages.add(Box.createVerticalStrut(Theme.SPACE_2));
+        while (messages.getComponentCount() > 40) { messages.remove(0); messages.remove(0); }
         messages.revalidate(); messages.repaint();
         javax.swing.SwingUtilities.invokeLater(() -> conversation.getVerticalScrollBar().setValue(conversation.getVerticalScrollBar().getMaximum()));
     }

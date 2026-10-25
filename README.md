@@ -16,14 +16,14 @@ Or compile and launch manually:
 ```powershell
 $sources = @(Get-ChildItem src -Recurse -Filter *.java | ForEach-Object FullName)
 javac -encoding UTF-8 -d out @sources
-java -cp out clinic.app.Main
+java -cp "out;lib/*" clinic.app.Main
 ```
 
 To start a specific role's interface, run its dedicated launcher instead:
 
 ```powershell
-java -cp out clinic.app.SuperadminGUI
-java -cp out clinic.app.NurseGUI
+java -cp "out;lib/*" clinic.app.SuperadminGUI
+java -cp "out;lib/*" clinic.app.NurseGUI
 ```
 
 Both launchers show the shared sign-in screen and require an account of the selected role; they do not create or bypass authentication. Add `--demo` to either command to use the sample accounts (`AD001` / `admin123` for Superadmin and `N001` / `nurse123` for Nurse).
@@ -63,7 +63,7 @@ application. In PowerShell for the current terminal session:
 
 ```powershell
 $env:GEMINI_API_KEY = "your-key"
-# Optional: $env:GEMINI_MODEL = "gemini-2.5-flash"
+# Optional: set GEMINI_MODEL to an available text model in your provider project.
 cmd /c Run.cmd
 ```
 
@@ -74,6 +74,24 @@ contact information, medical records, passwords, or other sensitive data. An
 environment variable is suitable for local development only; a production
 distributed desktop app should call an authorized server-side proxy rather
 than ship a shared provider key.
+
+The source default is `gemini-3.1-flash-lite`; its availability is not guaranteed
+for every provider account. `NurseDemo.cmd` respects `GEMINI_MODEL` and recompiles
+before opening the sample nurse login (`N001` / `nurse123`). Never paste a key in
+chat or commit it. Live Gemini success is not established by the offline checks.
+
+AI requests check the captured nurse session before and after network work.
+Cancel, leaving the page, and closing the panel invalidate pending results.
+Failed requests retain input for manual retry; no automatic retries are made.
+The panel keeps at most 20 messages and sends only the current question.
+Provider responses must contain a completed candidate; blocked, malformed, or
+truncated answers are rejected. Obvious identifier patterns are screened, but
+free-text screening is not a guarantee that sensitive data cannot be transmitted.
+Use only non-identifying text pending an institutional privacy design.
+
+See [the October 25 audit and improvement report](docs/SCMS_AUDIT_2026-10-25.md)
+for implementation evidence, priorities, and deployment limitations. The earlier
+PDF documents the pre-audit snapshot and is not a release readiness certificate.
 
 See [the implementation report](docs/IMPLEMENTATION.md), [the complete file manifest](docs/FILES.md), and the captured [build](verification/build.txt) and [check](verification/checks.txt) output.
 

@@ -26,7 +26,7 @@ public final class MessagePopup {
         if ((error instanceof IllegalArgumentException || error instanceof IllegalStateException
                 || error instanceof SecurityException) && error.getMessage() != null) return error.getMessage();
         java.util.logging.Logger.getLogger(MessagePopup.class.getName()).log(
-            java.util.logging.Level.WARNING, "Unexpected clinic operation failure", error);
+            java.util.logging.Level.WARNING, "Unexpected clinic operation failure ({0})", error.getClass().getSimpleName());
         return "The operation could not be completed. Please retry.";
     }
     public static void warning(Component owner, String message) {
