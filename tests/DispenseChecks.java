@@ -31,10 +31,10 @@ public final class DispenseChecks {
         check("case-insensitive partial query",List.of("Paracetamol"),db.dispensableMedicinePage(0,25,"para").rows().stream().map(Medicine::getName).toList());
         DispenseWorkflow wf=workflow(db,nurse,audit);
         check("merge same medicine rows",List.of(new DispenseItem("Paracetamol",5)),DispenseWorkflow.merge(List.of(new DispenseItem("Paracetamol",2),new DispenseItem("paracetamol",3))));
-        DispenseResult four=wf.dispense("p",List.of(new DispenseItem("Paracetamol",4)),"");
+        DispenseResult four=wf.dispense("p",List.of(new DispenseItem("Paracetamol",4)),false);
         check("dispense four one row",1,four.completed().size());
         check("recorded transaction 4 units",4,four.completed().get(0).getQuantity());
-        DispenseResult multi=wf.dispense("p",List.of(new DispenseItem("Paracetamol",1),new DispenseItem("Ibuprofen",2)),"");
+        DispenseResult multi=wf.dispense("p",List.of(new DispenseItem("Paracetamol",1),new DispenseItem("Ibuprofen",2)),false);
         check("two medicines dispense",2,multi.completed().size());
         db.addAllergy("p","Paracetamol");
         List<String> warnings=wf.check("p",List.of(new DispenseItem("Paracetamol",1),new DispenseItem("Ibuprofen",2)));
@@ -42,20 +42,20 @@ public final class DispenseChecks {
         // Cancel action is deliberately no workflow call after the single collected warning set.
         check("one combined warning set",1,warnings.size());
         check("cancel dispenses nothing",before,db.snapshot().transactions().size());
-        DispenseResult override=wf.dispense("p",List.of(new DispenseItem("Paracetamol",1),new DispenseItem("Ibuprofen",2)),"Documented override for demo");
+        DispenseResult override=wf.dispense("p",List.of(new DispenseItem("Paracetamol",1),new DispenseItem("Ibuprofen",2)),true);
         check("override dispenses both",2,override.completed().size());
         int txBeforeShortage=db.snapshot().transactions().size();
-        DispenseResult shortage=wf.dispense("p",List.of(new DispenseItem("Ibuprofen",1),new DispenseItem("Paracetamol",999)),"");
+        DispenseResult shortage=wf.dispense("p",List.of(new DispenseItem("Ibuprofen",1),new DispenseItem("Paracetamol",999)),false);
         check("second-row shortage dispenses none",0,shortage.completed().size());
         check("second-row shortage names medicine",true,shortage.failure().contains("Paracetamol"));
         check("second-row shortage leaves data unchanged",txBeforeShortage,db.snapshot().transactions().size());
-        check("override cannot dispense expired",true,wf.dispense("p",List.of(new DispenseItem("Expired",1)),"Documented override").completed().isEmpty());
+        check("override cannot dispense expired",true,wf.dispense("p",List.of(new DispenseItem("Expired",1)),true).completed().isEmpty());
 
         // Restore stock for predictable partial behavior using a separate fixture.
         InMemoryClinicSystem partialDb=store();
         ClinicSystem failSecond=(ClinicSystem)Proxy.newProxyInstance(ClinicSystem.class.getClassLoader(),new Class<?>[]{ClinicSystem.class},new SecondCallFails(partialDb,nurse,audit));
         DispenseWorkflow partial=new DispenseWorkflow(failSecond,nurse,audit);
-        DispenseResult partialResult=partial.dispense("p",List.of(new DispenseItem("Paracetamol",1),new DispenseItem("Ibuprofen",1)),"");
+        DispenseResult partialResult=partial.dispense("p",List.of(new DispenseItem("Paracetamol",1),new DispenseItem("Ibuprofen",1)),false);
         check("partial failure reports one done",1,partialResult.completed().size());
         check("partial failure reports one remaining",1,partialResult.remaining().size());
         AuditEntry partialAudit=audit.getAll().stream().filter(a->a.getAction().equals("dispense partially completed")).findFirst().orElseThrow();

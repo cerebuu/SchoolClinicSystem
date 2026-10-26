@@ -1,0 +1,151 @@
+Final whole-project javac exit code: 0 (no compiler diagnostics)
+Before dispense: inventory=12, transactions=0, predictions=No usage history, alerts=[0, 0]
+PASS: Updates run behind open success popup
+After dispense: inventory=8, transactions=1, predictions=60.0
+Alerts after dispense: [LOW_STOCK: paracetamol: 8 usable units; threshold <= 10]
+PASS: Dispense publishes inventory, history, predictions and stock alert updates
+After restock/add: paracetamol=18; inventory batches=3; stock alerts=0
+PASS: Outbreak automatically appears in Notifications alerts
+PASS: Guardian notification automatically appears
+Patients before=3, after=4
+PASS: Failed dispense publishes no data changes
+Failed dispense: Insufficient unexpired stock. Nothing dispensed:
+paracetamol: requested 999, available 18
+20 actions refresh counts: Inventory=1, Predictions=1, Patients=0
+PASS: Burst coalesces affected panels only
+PASS: Logout removes all subscriptions
+PASS: Closed panels receive no refresh
+PASS: 8 live workflow checks.
+PASS: Page 3 and filter preserved
+PASS: Selected row preserved
+10,000 rows: page=3, filter=filter kept, visible rows=25, refreshes for 20 publishes=1
+PASS: One refresh for multi-topic burst
+PASS: Hidden tab performs no query
+PASS: Hidden dirty tab fetches once on open
+PASS: Refresh failure recovers via manual retry
+PASS: Deleted last page clamps to final existing page
+PASS: Background publish delivers on EDT
+PASS: Dispose unsubscribes
+PASS: table state, lifecycle, failure recovery and 10,000-row checks.
+RUN DomainChecks
+PASS: 56 domain, authentication, authorization, and integrity checks.
+RUN FeatureChecks
+Outbreak: 3 same-section visits in 48h | expected=1 | actual=1
+Outbreak: 2 visits | expected=0 | actual=0
+Outbreak: 3 different sections | expected=0 | actual=0
+Outbreak: employee department | expected=true | actual=true
+Outbreak: student and employee groups separate | expected=0 | actual=0
+Pattern: null input | expected=0 | actual=0
+Pattern: unknown patient | expected=false | actual=false
+Pattern: unknown symptom | expected=0 | actual=0
+Pattern: outside window/future excluded | expected=0 | actual=0
+Recurring: 3 same symptom in 14d | expected=true | actual=true
+Recurring: same reason different symptoms | expected=true | actual=true
+Recurring: unrelated visits | expected=false | actual=false
+Forecast: 30 units / (60 / 30 days) | expected=15.0 | actual=15.0
+Forecast: zero usage | expected=Infinity | actual=Infinity
+Forecast: unknown medicine | expected=IllegalArgumentException | actual=IllegalArgumentException
+Stock: expired excluded | expected=0 | actual=0
+Expiry: usable batches sorted | expected=[Soon, Later] | actual=[Soon, Later]
+Expiry: expired separately reported | expected=true | actual=true
+Forecast: stock unchanged | expected=30 | actual=30
+Low stock: threshold aggregated | expected=true | actual=true
+Recorded allergies require generic confirmation | expected=[Patient has allergies on record. Staff confirmation required.] | actual=[Patient has allergies on record. Staff confirmation required.]
+Safety: expired | expected=true | actual=true
+Safety: out of stock | expected=[Patient has allergies on record. Staff confirmation required., Empty: out of stock] | actual=[Patient has allergies on record. Staff confirmation required., Empty: out of stock]
+Safety: unknown patient | expected=[Patient not found.] | actual=[Patient not found.]
+Safety: unknown medicine | expected=[Patient has allergies on record. Staff confirmation required., Medicine not found: missing] | actual=[Patient has allergies on record. Staff confirmation required., Medicine not found: missing]
+Every medicine requires staff review for recorded allergies | expected=[Patient has allergies on record. Staff confirmation required.] | actual=[Patient has allergies on record. Staff confirmation required.]
+Dispense: allergy without override | expected=IllegalStateException | actual=IllegalStateException
+Dispense: allergy override | expected=1 | actual=1
+Dispense: expired even with override | expected=IllegalStateException | actual=IllegalStateException
+Dispense: out of stock even with override | expected=IllegalStateException | actual=IllegalStateException
+Dispense: expired batch unchanged | expected=8 | actual=8
+Notification: created | expected=PENDING | actual=PENDING
+Notification: dedicated guardian contact | expected=guardian-p | actual=guardian-p
+Notification: free-text clinical details omitted | expected=false | actual=false
+Notification: sent | expected=SENT | actual=SENT
+Notification: repeated SENT | expected=IllegalArgumentException | actual=IllegalArgumentException
+Notification: invalid ID | expected=IllegalArgumentException | actual=IllegalArgumentException
+Notification: unknown patient | expected=IllegalArgumentException | actual=IllegalArgumentException
+Notification: newest first | expected=7ae531bb-6455-4d03-bc03-107336a848c3 | actual=7ae531bb-6455-4d03-bc03-107336a848c3
+Notification: detached status | expected=PENDING | actual=PENDING
+Notification: missing guardian (null) | expected=No guardian contact on file | actual=No guardian contact on file
+Notification: missing guardian (blank) | expected=No guardian contact on file | actual=No guardian contact on file
+Notification: employee own contact | expected=true | actual=true
+Formatter: MedicalRecord | expected=true | actual=true
+Formatter: MedicineTransaction | expected=true | actual=true
+Formatter: Alert | expected=true | actual=true
+Formatter: arbitrary Formattable | expected=true | actual=true
+Formatter: null | expected=IllegalArgumentException | actual=IllegalArgumentException
+Alerts: all four feature types | expected=[OUTBREAK, RECURRING_VISIT, LOW_STOCK, EXPIRING] | actual=[RECURRING_VISIT, EXPIRING, LOW_STOCK, OUTBREAK]
+Alerts: newest first | expected=true | actual=true
+Alerts: no patient names or clinical free text | expected=false | actual=false
+Patient: copy preserves guardian contact | expected=guardian-p | actual=guardian-p
+Patient: old constructor defaults null | expected=null | actual=null
+PASS: 53 feature checks.
+RUN DispenseChecks
+dropdown source includes live names and zero stock | expected=[Ibuprofen:12, Paracetamol:20, Zero:0] | actual=[Ibuprofen:12, Paracetamol:20, Zero:0]
+expired medicine hidden | expected=false | actual=false
+out-of-stock item is present for disabled choice | expected=0 | actual=0
+page size capped | expected=100 | actual=100
+page metadata and count | expected=[0, 100, 3] | actual=[0, 100, 3]
+case-insensitive partial query | expected=[Paracetamol] | actual=[Paracetamol]
+merge same medicine rows | expected=[Paracetamol x 5] | actual=[Paracetamol x 5]
+dispense four one row | expected=1 | actual=1
+recorded transaction 4 units | expected=4 | actual=4
+two medicines dispense | expected=2 | actual=2
+one combined warning set | expected=1 | actual=1
+cancel dispenses nothing | expected=3 | actual=3
+override dispenses both | expected=2 | actual=2
+second-row shortage dispenses none | expected=0 | actual=0
+second-row shortage names medicine | expected=true | actual=true
+second-row shortage leaves data unchanged | expected=5 | actual=5
+override cannot dispense expired | expected=true | actual=true
+partial failure reports one done | expected=1 | actual=1
+partial failure reports one remaining | expected=1 | actual=1
+partial audit action and user | expected=[dispense partially completed, nurse-id] | actual=[dispense partially completed, nurse-id]
+partial audit counts only | expected=true | actual=true
+partial audit details | expected=true | actual=true
+10,000 transactions filtered and paged | expected=[25, 1100] | actual=[25, 1100]
+transactions newest first | expected=true | actual=true
+out-of-range page empty | expected=0 | actual=0
+10,000-row filtered query ms: 40
+RUN PersistenceChecks
+PASS: 49 persistence, restart, foreign-key, transaction rollback, and authorization checks.
+Isolated database evidence: verification\persistence-db-12080393751305265390\clinic
+RUN GuardianPersistenceChecks
+Migration: old guardian defaults null | expected=null | actual=null
+Migration: own contact preserved | expected=own-contact | actual=own-contact
+Persistence: guardian saved | expected=guardian-separate | actual=guardian-separate
+Reopen: guardian retained | expected=guardian-separate | actual=guardian-separate
+Reopen: patient own contact separate | expected=student-own | actual=student-own
+Reopen: old guardian still null | expected=null | actual=null
+Reopen: notification recipient retained | expected=guardian-separate | actual=guardian-separate
+Reopen: notification SENT retained | expected=SENT | actual=SENT
+Reopen: same notification | expected=d95fafdc-63d9-4a4a-a300-4709324c58e9 | actual=d95fafdc-63d9-4a4a-a300-4709324c58e9
+Reopen: employee contact labeled | expected=true | actual=true
+Reopen: clinical reason excluded | expected=false | actual=false
+PASS: 11 guardian persistence and migration checks.
+RUN DesktopChecks
+PASS first-run setup via dialog
+PASS UI rejects incorrect password
+PASS user added via dialog and table refreshed
+PASS campus create/edit refresh
+PASS required fields prevent registration
+PASS patient registration and refresh
+PASS registration saves separate guardian contact
+PASS dialog cancellation leaves data unchanged
+PASS consultation saved via form
+PASS dispensing changes stock
+PASS notification creation, preview, and confirmed status update
+PASS dispensing requires checkbox confirmation
+PASS cancel safety warning preserves stock
+PASS documented override dispenses medicine
+PASS cached inventory reloads after dispensing
+PASS restock creates batch and updates total
+PASS report dialog opens and closes
+PASS dashboard refresh and window resize
+PASS cancel close retains window
+PASS application startup and confirmed shutdown
+PASS: 20 native Swing workflow checks.

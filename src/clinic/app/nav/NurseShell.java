@@ -9,7 +9,6 @@ import clinic.app.ui.inventory.InventoryPanel;
 import clinic.app.ui.notifications.NotificationsPanel;
 import clinic.app.ui.patients.PatientsPanel;
 import clinic.app.ui.reports.ReportsPanel;
-import clinic.app.ui.settings.SettingsPanel;
 import clinic.model.SchoolNurse;
 import clinic.model.User;
 import java.awt.BorderLayout;
@@ -36,8 +35,7 @@ public final class NurseShell extends JPanel {
             new NavItem("Dispense medicine", true, () -> new DispensePanel(app)),
             new NavItem("Inventory", true, () -> new InventoryPanel(app)),
             new NavItem("Notifications", true, () -> new NotificationsPanel(app)),
-            new NavItem("Reports", true, () -> new ReportsPanel(app)),
-            new NavItem("Settings", true, () -> new SettingsPanel(app))
+            new NavItem("Reports", true, () -> new ReportsPanel(app))
         ), logout, user, false), BorderLayout.CENTER);
     }
 }

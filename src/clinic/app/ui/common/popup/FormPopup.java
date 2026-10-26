@@ -16,7 +16,13 @@ public final class FormPopup {
     public static void show(Component owner,String title,List<FormField> fields,
             Map<String,MultiSelectField> selections,
             java.util.function.BiConsumer<Map<String,String>,Map<String,List<String>>> submit,Runnable saved) {
-        JDialog dialog=new JDialog(SwingUtilities.getWindowAncestor(owner), title, Dialog.ModalityType.APPLICATION_MODAL);
+        showInteractive(owner,title,fields,selections,(values,selected,controller)->controller.saveAsync(()->{
+            submit.accept(values,selected);return true;
+        }),saved);
+    }
+    public static void showInteractive(Component owner,String title,List<FormField> fields,
+            Map<String,MultiSelectField> selections,InteractiveSubmit submit,Runnable saved) {
+        JDialog dialog=PopupDialog.create(owner, title);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         Card form=new Card();
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
@@ -29,11 +35,11 @@ public final class FormPopup {
             if(f.required())label.setText("<html>"+f.label()+" <font color='#"
                 +String.format("%06x",Theme.DANGER.getRGB()&0xffffff)+"'>*</font></html>");
             label.setFont(Theme.font(Theme.TYPE_BODY, java.awt.Font.BOLD));
-            JComponent input=selections.containsKey(f.label())?selections.get(f.label()):f.choices()!=null?new JComboBox<>(f.choices()):f.secret()?new JPasswordField(24):new JTextField(f.initial(), 24);
+            JComponent input=selections.containsKey(f.label())?selections.get(f.label()):f.allergyInput()?new AllergyField(f.initial()):f.rows()>0?new LimitedTextArea(f):f.choices()!=null?new JComboBox<>(f.choices()):f.secret()?new JPasswordField(24):new JTextField(f.initial(), 24);
             if(input instanceof JComboBox<?> c)c.setSelectedItem(f.initial());
             input.getAccessibleContext().setAccessibleName(f.label());
             label.setLabelFor(input);
-            if(!(input instanceof MultiSelectField)) {
+            if(!(input instanceof MultiSelectField) && !(input instanceof LimitedTextArea) && !(input instanceof AllergyField)) {
                 Theme.field(input);
                 input.setMaximumSize(new Dimension(Integer.MAX_VALUE, Theme.FIELD_HEIGHT));
             }
@@ -52,7 +58,7 @@ public final class FormPopup {
             fieldErrors.put(f.label(), fieldError);
             group.add(fieldError);
             group.setAlignmentX(Component.LEFT_ALIGNMENT);
-            group.setMaximumSize(new Dimension(Integer.MAX_VALUE, input instanceof MultiSelectField?290:90));
+            group.setMaximumSize(new Dimension(Integer.MAX_VALUE, input instanceof MultiSelectField?290:input instanceof AllergyField?220:input instanceof LimitedTextArea?150:90));
             form.add(group);
             form.add(Box.createVerticalStrut(Theme.SPACE_2));
             inputs.put(f.label(), input);
@@ -91,7 +97,15 @@ public final class FormPopup {
                     v=new String(chars);
                     Arrays.fill(chars, '\0');
                 }
-                else v=c instanceof JTextField t?t.getText().trim():Objects.toString(((JComboBox<?>)c).getSelectedItem(), "");
+                else v=c instanceof AllergyField allergy?allergy.getText():c instanceof LimitedTextArea area?area.getText():c instanceof JTextField t?t.getText().trim():Objects.toString(((JComboBox<?>)c).getSelectedItem(), "");
+                String validation = f.validator().apply(v);
+                if (validation != null) {
+                    fieldErrors.get(f.label()).setText(validation);
+                    error.setText(" ");
+                    fieldErrors.get(f.label()).scrollRectToVisible(new Rectangle(0,0,1,20));
+                    c.requestFocusInWindow();
+                    return;
+                }
                 if(f.required()&&v.isBlank()) {
                     fieldErrors.get(f.label()).setText(f.label()+" is required.");
                     error.setText(" ");
@@ -101,29 +115,9 @@ public final class FormPopup {
                 fieldErrors.get(f.label()).setText(" ");
                 values.put(f.label(), v);
             }
-            save.setEnabled(false);
-            cancel.setEnabled(false);
-            dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
-            error.setForeground(Theme.MUTED);
-            error.setText("Saving...");
-            AsyncLoader.load(()-> {
-                submit.accept(values,Collections.unmodifiableMap(selectedValues));
-                return true;
-            }, ok-> {
-                values.clear();
-                inputs.values().forEach(c-> {
-                    if(c instanceof JPasswordField p)p.setText("");
-                });
-                dialog.dispose();
-                saved.run();
-            }, failure-> {
-                values.clear();
-                save.setEnabled(true);
-                cancel.setEnabled(true);
-                dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-                error.setForeground(Theme.DANGER);
-                error.setText(MessagePopup.errorText(failure));
-            });
+            SaveController controller=new SaveController(save,cancel,dialog,error,saved,values::clear,()->
+                inputs.values().forEach(c->{if(c instanceof JPasswordField p)p.setText("");}));
+            submit.submit(Collections.unmodifiableMap(values),Collections.unmodifiableMap(selectedValues),controller);
         });
         cancel.addActionListener(e->dialog.dispose());
         dialog.getRootPane().registerKeyboardAction(e -> {
@@ -133,7 +127,8 @@ public final class FormPopup {
         content.setBorder(javax.swing.BorderFactory.createEmptyBorder());
         content.getVerticalScrollBar().setUnitIncrement(16);
         content.setPreferredSize(new Dimension(520, Math.min(520,
-            Math.max(240, fields.size() * 86+selections.size()*200))));
+            Math.max(240, fields.size() * 86+selections.size()*200
+                +(int)fields.stream().filter(f -> f.rows()>0).count()*60))));
         dialog.add(content, BorderLayout.CENTER);
         dialog.add(bottom, BorderLayout.SOUTH);
         dialog.getRootPane().setDefaultButton(save);
@@ -145,5 +140,39 @@ public final class FormPopup {
         dialog.setMinimumSize(new Dimension(Math.min(360,dialog.getWidth()),Math.min(300,dialog.getHeight())));
         dialog.setLocationRelativeTo(owner);
         dialog.setVisible(true);
+    }
+    @FunctionalInterface public interface InteractiveSubmit {
+        void submit(Map<String,String> values,Map<String,List<String>> selections,SaveController controller);
+    }
+    public static final class SaveController {
+        private final JButton save,cancel;
+        private final JDialog dialog;
+        private final JLabel error;
+        private final Runnable saved;
+        private final Runnable cleanup;
+        private final Runnable successCleanup;
+        private SaveController(JButton save,JButton cancel,JDialog dialog,JLabel error,Runnable saved,Runnable cleanup,Runnable successCleanup) {
+            this.save=save;this.cancel=cancel;this.dialog=dialog;this.error=error;this.saved=saved;this.cleanup=cleanup;this.successCleanup=successCleanup;
+        }
+        public void saveAsync(java.util.concurrent.Callable<Boolean> work) {
+            save.setEnabled(false);cancel.setEnabled(false);
+            dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+            error.setForeground(Theme.MUTED);error.setText("Saving...");
+            AsyncLoader.load(work,ok->{
+                if(ok) {
+                    cleanup.run();
+                    successCleanup.run();
+                    dialog.dispose();
+                    saved.run();
+                } else reset("");
+            },failure->{cleanup.run();reset(MessagePopup.errorText(failure));});
+        }
+        private void reset(String message) {
+                save.setEnabled(true);
+                cancel.setEnabled(true);
+                dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+                error.setForeground(message.isBlank()?Theme.MUTED:Theme.DANGER);
+                error.setText(message.isBlank()?" ":message);
+        }
     }
 }

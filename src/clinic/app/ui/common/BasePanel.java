@@ -5,6 +5,9 @@ import java.awt.Component;
 import javax.swing.*;
 public class BasePanel extends JPanel {
     private Runnable refreshAction = () -> {};
+    private LiveRefresh live;
+    protected final void refreshOn(clinic.app.DataChangeBus bus,clinic.app.DataTopic... topics){live=new LiveRefresh(this,bus,()->refreshAction.run(),topics);}
+    protected final boolean refreshActive(){return live==null||live.active();}
     protected final JPanel actions=new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT));
     public BasePanel(String title) {
         this(title, null);

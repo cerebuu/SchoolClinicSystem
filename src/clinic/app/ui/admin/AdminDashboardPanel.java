@@ -30,27 +30,28 @@ public final class AdminDashboardPanel extends BasePanel {
         PagedTablePanel<clinic.model.Campus> catalog = new PagedTablePanel<>(
             new CampusesTableModel(), app.admin::campuses, "Campus ID / name");
         catalog.setEmptyText("No campuses registered");
+        catalog.refreshOn(app.changes,clinic.app.DataTopic.CAMPUSES);
         content.add(catalog, BorderLayout.CENTER);
         status.setForeground(Theme.MUTED);
         content.add(status, BorderLayout.SOUTH);
         add(content, BorderLayout.CENTER);
         onRefresh(() -> load(app));
         action("Refresh", this::refreshPage);
-        load(app);
+        refreshOn(app.changes,clinic.app.DataTopic.USERS,clinic.app.DataTopic.CAMPUSES,clinic.app.DataTopic.AUDIT);
     }
 
     private void load(ApplicationContext app) {
         int request = ++generation;
         status.setText("Refreshing system summary...");
         AsyncLoader.load(app.admin::summary, summary -> {
-            if (request != generation) return;
+            if (request != generation || !refreshActive()) return;
             users.setValue(Integer.toString(summary.users()));
             campuses.setValue(Integer.toString(summary.campuses()));
             auditToday.setValue(Long.toString(summary.eventsToday()));
             denied.setValue(Long.toString(summary.denied()));
             status.setText("System-wide totals. Manage accounts in Users and campus entries in Campuses.");
         }, error -> {
-            if (request != generation) return;
+            if (request != generation || !refreshActive()) return;
             users.setValue("—");
             campuses.setValue("—");
             auditToday.setValue("—");

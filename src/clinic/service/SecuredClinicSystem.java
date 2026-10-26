@@ -26,12 +26,12 @@ public final class SecuredClinicSystem implements ClinicSystem {
 
     @Override
     public void registerPatient(Patient patient) {
-        run("registerPatient", () -> delegate.registerPatient(patient));
+        allergyWrite("registerPatient", patient.getAllergies().size(), () -> delegate.registerPatient(patient));
     }
 
     @Override
     public void addAllergy(String patientId, String allergy) {
-        run("addAllergy", () -> delegate.addAllergy(patientId, allergy));
+        allergyWrite("addAllergy", 1, () -> delegate.addAllergy(patientId, allergy));
     }
 
     @Override
@@ -54,7 +54,7 @@ public final class SecuredClinicSystem implements ClinicSystem {
     public MedicineTransaction dispenseMedicine(String patientId, String medicineName, int quantity, String staffId, boolean overrideConfirmed) {
         verifyStaff(staffId);
         MedicineTransaction result = call("dispenseMedicine", () -> delegate.dispenseMedicine(patientId, medicineName, quantity, staffId, overrideConfirmed));
-        if (overrideConfirmed) audit("safetyOverride", "Confirmed by signed-in staff", true);
+        if (overrideConfirmed) auditAllergyConfirmation(patientId);
         return result;
     }
 
@@ -69,13 +69,26 @@ public final class SecuredClinicSystem implements ClinicSystem {
         verifyStaff(staffId);
         MedicineTransaction result = call("dispenseMedicine", () -> delegate.dispenseMedicine(
             patientId, medicineName, quantity, staffId, overrideReason));
-        if (overrideReason != null && !overrideReason.isBlank()) audit("safetyOverride", "Confirmed by signed-in staff", true);
+        if (overrideReason != null && !overrideReason.isBlank()) auditAllergyConfirmation(patientId);
         return result;
     }
 
     @Override
     public void restockMedicine(String name, int quantity, LocalDate expiry) {
         run("restockMedicine", () -> delegate.restockMedicine(name, quantity, expiry));
+    }
+
+    public void restockMedicine(String name,int quantity,LocalDate expiry,String remarks) { SecuredBatchOperations.save(delegate,user,log,name,quantity,expiry,remarks,true,false); }
+
+    public void saveMedicineBatch(String name,int quantity,LocalDate expiry,String remarks,boolean restock,boolean merge) {
+        SecuredBatchOperations.save(delegate,user,log,name,quantity,expiry,remarks,restock,merge);
+    }
+
+    public void mergeDuplicateMedicineBatches(String name,LocalDate expiry) {
+        SecuredBatchOperations.mergeDuplicates(delegate,user,log,name,expiry);
+    }
+    public void refillBatch(String batchId,String medicine,int quantity,LocalDate expiry,String remarks) {
+        SecuredBatchOperations.refill(delegate,user,log,batchId,medicine,quantity,expiry,remarks);
     }
 
     @Override
@@ -144,6 +157,10 @@ public final class SecuredClinicSystem implements ClinicSystem {
             throw new SecurityException("Staff identity must match the signed-in user.");
         }
     }
+    private void auditAllergyConfirmation(String patientId) {
+        int count=delegate.findPatient(patientId).orElseThrow().getAllergies().size();
+        if(count>0)audit("dispense with allergy confirmation", "Allergy count: "+count, true);
+    }
 
     private <T> T call(String action, Supplier<T> work) {
         boolean allowed = allowed(action);
@@ -154,6 +171,12 @@ public final class SecuredClinicSystem implements ClinicSystem {
 
     private void run(String action, Runnable work) {
         call(action, () -> { work.run(); return null; });
+    }
+    private void allergyWrite(String action, int count, Runnable work) {
+        boolean permitted = allowed(action);
+        audit(action, "Allergy count: " + count, permitted);
+        if (!permitted) throw new SecurityException("Access denied.");
+        work.run();
     }
 
     private void audit(String action, String details, boolean allowed) {

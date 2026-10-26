@@ -9,6 +9,8 @@ public class AuditLog {
 
     private final List<AuditEntry> entries = new ArrayList<AuditEntry>();
     private final clinic.persistence.AdminRepository repository;
+    private Runnable onRecorded=()->{};
+    public synchronized void onRecorded(Runnable listener){onRecorded=java.util.Objects.requireNonNull(listener);}
     public AuditLog() { repository=null; }
     public AuditLog(clinic.persistence.AdminRepository repository) { this.repository=repository; }
 
@@ -17,6 +19,7 @@ public class AuditLog {
                                     String details, boolean allowed) {
         AuditEntry entry = new AuditEntry(timestamp, userId, userName, role, action, details, allowed);
         if (repository != null) repository.append(entry); else entries.add(entry);
+        onRecorded.run();
     }
 
     public synchronized List<AuditEntry> getAll() {

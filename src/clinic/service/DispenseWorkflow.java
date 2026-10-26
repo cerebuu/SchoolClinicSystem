@@ -28,7 +28,11 @@ public final class DispenseWorkflow {
         List<String> warnings=new ArrayList<>();
         List<String> stockErrors=new ArrayList<>();
         for(DispenseItem item:items) {
-            warnings.addAll(clinic.checkSafety(patient,item.medicine()).stream().map(w->item.medicine()+": "+w).toList());
+            for(String warning:clinic.checkSafety(patient,item.medicine())) {
+                if(warning.equals(SafetyChecker.ALLERGY_CONFIRMATION)) {
+                    if(!warnings.contains(warning))warnings.add(warning);
+                } else stockErrors.add(warning);
+            }
             // getStock excludes expired batches, even when an allergy override is supplied.
             if(item.quantity()>clinic.getStock(item.medicine()))stockErrors.add(item.medicine()+": requested "+item.quantity()
                 +", available "+clinic.getStock(item.medicine()));
@@ -36,20 +40,22 @@ public final class DispenseWorkflow {
         if(!stockErrors.isEmpty())throw new IllegalStateException("Insufficient unexpired stock. Nothing dispensed:\n"+String.join("\n",stockErrors));
         return List.copyOf(warnings);
     }
-    public DispenseResult dispense(String patient,List<DispenseItem> requested,String reason) {
+    public Patient patient(String id) {
+        return clinic.findPatient(id).orElseThrow(()->new IllegalArgumentException("Patient not found."));
+    }
+    public DispenseResult dispense(String patient,List<DispenseItem> requested,boolean confirmed) {
         List<DispenseItem> items=merge(requested);
         List<MedicineTransaction> done=new ArrayList<>();
         List<String> warnings;
         try {
             warnings=check(patient,items);
-            if(!warnings.isEmpty()&&(reason==null||reason.trim().length()<10))
-                throw new IllegalStateException("Safety override requires a reason of at least 10 characters. Nothing dispensed.");
+            if(!warnings.isEmpty()&&!confirmed)
+                throw new IllegalStateException(SafetyChecker.ALLERGY_CONFIRMATION+" Nothing dispensed.");
         } catch(RuntimeException ex) {return new DispenseResult(done,items,ex.getMessage());}
         for(int i=0;i<items.size();i++) {
             DispenseItem item=items.get(i);
             try {
-                boolean override=warnings.stream().anyMatch(w->w.startsWith(item.medicine()+":"));
-                done.add(clinic.dispenseMedicine(patient,item.medicine(),item.quantity(),staff.getUserId(),override?(reason==null?"":reason):""));
+                done.add(clinic.dispenseMedicine(patient,item.medicine(),item.quantity(),staff.getUserId(),confirmed));
             } catch(RuntimeException ex) {
                 String message=item.medicine()+": dispensing failed. Remaining items were not attempted.";
                 if(!done.isEmpty()) {

@@ -28,14 +28,20 @@ public final class DashboardPanel extends BasePanel {
         JPanel content = new JPanel(new BorderLayout(Theme.SPACE_4, Theme.SPACE_4));
         content.setOpaque(false);
         content.add(metrics, BorderLayout.NORTH);
-        if (canRecord) content.add(new RecentVisitsPanel(app, () -> load(app, patients, visits, lowStock, expiring, metrics, loading)), BorderLayout.CENTER);
+        if (canRecord) {
+            RecentVisitsPanel recent=new RecentVisitsPanel(app, () -> {});
+            if(app.current().canAccess(User.VIEW_STOCK)) {
+                JSplitPane dashboardTables=new JSplitPane(JSplitPane.VERTICAL_SPLIT,recent,new MedicinePredictionsPanel(app));
+                dashboardTables.setResizeWeight(0.6);content.add(dashboardTables,BorderLayout.CENTER);
+            } else content.add(recent, BorderLayout.CENTER);
+        }
         else content.add(new EmptyState("Clinic summary unavailable",
             "This account does not have permission to view clinic totals."), BorderLayout.CENTER);
         add(content, BorderLayout.CENTER);
         if (canRecord) {
             onRefresh(() -> load(app, patients, visits, lowStock, expiring, metrics, loading));
             action("Refresh", () -> load(app, patients, visits, lowStock, expiring, metrics, loading));
-            load(app, patients, visits, lowStock, expiring, metrics, loading);
+            refreshOn(app.changes,clinic.app.DataTopic.PATIENTS,clinic.app.DataTopic.VISITS,clinic.app.DataTopic.INVENTORY);
         }
     }
 
@@ -53,7 +59,7 @@ public final class DashboardPanel extends BasePanel {
                 ? app.clinic().getExpiringWithin(30).size() : -1;
             return new int[] {patientTotal, todaysVisits, lowStockTotal, expiringTotal};
         }, values -> {
-            if (request != generation) return;
+            if (request != generation || !refreshActive()) return;
             patients.setValue(Integer.toString(values[0]));
             patients.setCaption("All registered records");
             visits.setValue(Integer.toString(values[1]));
@@ -72,7 +78,7 @@ public final class DashboardPanel extends BasePanel {
             metrics.revalidate();
             metrics.repaint();
         }, error -> {
-            if (request != generation) return;
+            if (request != generation || !refreshActive()) return;
             patients.setValue("—");
             visits.setValue("—");
             lowStock.setValue("—");

@@ -30,12 +30,12 @@ public final class NewConsultationForm {
         FormPopup.show(owner, "New Consultation", List.of(
             FormField.text("Patient ID"),
             FormField.text("Symptoms"),
-            FormField.text("Reason"), FormField.optional("Remarks")),
+            FormField.text("Concern"), FormField.optional("Remarks")),
             Map.of("Symptoms",new MultiSelectField(FeatureRules.SYMPTOM_CHOICES)), (values,selections) -> {
                 String patientId = values.get("Patient ID");
                 clinic.findPatient(patientId).orElseThrow(() ->
                     new IllegalArgumentException("Patient ID was not found. Enter a registered patient's ID."));
-                clinic.recordVisit(patientId, selections.get("Symptoms"), values.get("Reason"),
+                clinic.recordVisit(patientId, selections.get("Symptoms"), values.get("Concern"),
                     values.get("Remarks"), staffId);
             }, () -> {
                 saved.run();

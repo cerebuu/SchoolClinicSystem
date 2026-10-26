@@ -22,6 +22,7 @@ public final class TransactionHistoryPanel extends JPanel {
                 today.with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay():null;
             return app.transactions(page,size,query,from,selected.equals("All")?null:today.plusDays(1).atStartOfDay());
         },"Patient ID / medicine");
+        table.refreshOn(app.changes, clinic.app.DataTopic.TRANSACTIONS);
         table.setEmptyText("No transactions yet");add(table,BorderLayout.CENTER);
         dates.addActionListener(e->{period=(String)dates.getSelectedItem();table.setPage(0);});
         details.addActionListener(e->{var t=table.selected();if(t==null)MessagePopup.warning(this,"Select a transaction.");else MessagePopup.info(this,t.toReport());});

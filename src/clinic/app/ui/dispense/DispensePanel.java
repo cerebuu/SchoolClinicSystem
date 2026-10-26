@@ -5,7 +5,7 @@ import clinic.app.Theme;
 import clinic.app.ui.common.Card;
 import clinic.app.ui.common.AsyncLoader;
 import clinic.app.ui.common.popup.MessagePopup;
-import clinic.app.ui.common.popup.WarningOverridePopup;
+import clinic.app.ui.common.popup.AllergyConfirmPopup;
 import clinic.service.*;
 import java.awt.*;
 import java.util.List;
@@ -27,7 +27,7 @@ public final class DispensePanel extends clinic.app.ui.common.BasePanel {
         state.setForeground(Theme.DANGER);form.add(state);
         JPanel content=new JPanel(new BorderLayout(Theme.GAP,Theme.GAP));content.setOpaque(false);
         content.add(form,BorderLayout.NORTH);content.add(history,BorderLayout.CENTER);add(content,BorderLayout.CENTER);
-        submit=action("Check safety and dispense",true,()->dispense());
+        submit=action("Dispense",true,()->dispense());
         onRefresh(()->{items.refresh();history.refresh();});
     }
     private JLabel label(String text){JLabel l=new JLabel(text);l.setFont(Theme.font(Theme.TYPE_BODY,Font.BOLD));return l;}
@@ -35,23 +35,22 @@ public final class DispensePanel extends clinic.app.ui.common.BasePanel {
         final String patientId;final List<DispenseItem> requested;final DispenseWorkflow workflow;
         try {patientId=patient.patientId();requested=items.items();workflow=app.dispenseSession();}
         catch(RuntimeException error){MessagePopup.error(this,error);return;}
-        submit.setEnabled(false);state.setForeground(Theme.MUTED);state.setText("Checking safety and stock...");
-        AsyncLoader.load(()->workflow.check(patientId,requested),warnings->{
-            String reason="";
-            if(!warnings.isEmpty()) {
-                WarningOverridePopup.Result choice=WarningOverridePopup.show(this,patientId,"Selected dispense items",warnings);
-                if(choice.outcome()==WarningOverridePopup.Outcome.CANCELLED){finish("Dispensing cancelled.",Theme.WARNING);return;}
-                reason=choice.reason();
+        submit.setEnabled(false);state.setForeground(Theme.MUTED);state.setText("Checking patient and stock...");
+        AsyncLoader.load(()->{workflow.check(patientId,requested);return workflow.patient(patientId);},profile->{
+            boolean confirmed=false;
+            if(!profile.getAllergies().isEmpty()) {
+                confirmed=AllergyConfirmPopup.show(this,profile,requested);
+                if(!confirmed){finish("Dispensing cancelled.",Theme.WARNING);return;}
             }
-            String overrideReason=reason;state.setText("Dispensing...");
-            AsyncLoader.load(()->workflow.dispense(patientId,requested,overrideReason),result->{
-                submit.setEnabled(true);items.refresh();
+            boolean allergyConfirmed=confirmed;state.setText("Dispensing...");
+            AsyncLoader.load(()->workflow.dispense(patientId,requested,allergyConfirmed),result->{
+                submit.setEnabled(true);
                 if(result.successful()) {
                     state.setForeground(Theme.SUCCESS);state.setText("Medicine dispensed successfully.");
-                    items.clear();patient.clear();history.refresh();MessagePopup.info(this,result.report());
+                    items.clear();patient.clear();MessagePopup.info(this,result.report());
                 } else {
                     state.setForeground(Theme.DANGER);state.setText("Some items were not dispensed.");
-                    history.refresh();MessagePopup.error(this,new IllegalStateException(result.report()));
+                    MessagePopup.error(this,new IllegalStateException(result.report()));
                 }
             },error->{finish(MessagePopup.errorText(error),Theme.DANGER);MessagePopup.error(this,error);});
         },error->{finish(MessagePopup.errorText(error),Theme.DANGER);MessagePopup.error(this,error);});

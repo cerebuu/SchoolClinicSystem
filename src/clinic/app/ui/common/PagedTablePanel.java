@@ -16,6 +16,10 @@ public final class PagedTablePanel<T> extends Card {
     private final Timer debounce;
     private SwingWorker<?, ?> worker;
     private int page, total, generation;
+    private int refreshCount;
+    private LiveRefresh live;
+    private final JLabel updated=new JLabel(" ");
+    private JButton refreshButton;
     private String emptyText = "No matching records";
     private java.util.function.Function<String, String> emptyMessage;
     public PagedTablePanel(PagedTableModel<T> model, PageSource<T> source) {
@@ -32,19 +36,20 @@ public final class PagedTablePanel<T> extends Card {
         table=new JTable(model);
         Theme.table(table);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.setDefaultRenderer(Object.class, new ZebraRenderer());
-        table.setDefaultRenderer(Number.class, new ZebraRenderer());
+        table.setDefaultRenderer(Object.class, new TableRowRenderer());
+        table.setDefaultRenderer(Number.class, new TableRowRenderer());
         JPanel controls=new JPanel(new BorderLayout(Theme.GAP, Theme.GAP));
         controls.setOpaque(false);
         JLabel label = new JLabel(filterLabel);
         label.setLabelFor(search);
         Theme.field(search);
-        controls.add(label, BorderLayout.WEST);
-        controls.add(search, BorderLayout.CENTER);
+        if(showSearchControls){controls.add(label, BorderLayout.WEST);controls.add(search, BorderLayout.CENTER);}
         JButton refresh=Theme.button("Refresh", false);
+        refreshButton=refresh;
         refresh.getAccessibleContext().setAccessibleName("Refresh table");
-        controls.add(refresh, BorderLayout.EAST);
-        if (showSearchControls) add(controls, BorderLayout.NORTH);
+        JPanel refreshArea=new JPanel(new FlowLayout(FlowLayout.RIGHT,Theme.SPACE_2,0));refreshArea.setOpaque(false);
+        updated.setForeground(Theme.MUTED);refreshArea.add(updated);refreshArea.add(refresh);
+        controls.add(refreshArea, BorderLayout.EAST);add(controls, BorderLayout.NORTH);
         scroll=new JScrollPane(table, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS,
             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.setBackground(Theme.WHITE);
@@ -75,9 +80,11 @@ public final class PagedTablePanel<T> extends Card {
         debounce.setRepeats(false);
         search.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) {
+                generation++;
                 debounce.restart();
             }
             public void removeUpdate(DocumentEvent e) {
+                generation++;
                 debounce.restart();
             }
             public void changedUpdate(DocumentEvent e) {
@@ -85,8 +92,14 @@ public final class PagedTablePanel<T> extends Card {
             }
         });
         search.getAccessibleContext().setAccessibleName(filterLabel);
-        reload();
     }
+    public PagedTablePanel<T> refreshOn(clinic.app.DataChangeBus bus,clinic.app.DataTopic... topics) {
+        live=new LiveRefresh(this,bus,this::reload,topics);return this;
+    }
+    public int refreshCount(){return refreshCount;}
+    public String modelType(){return model.getClass().getSimpleName();}
+    public int currentPage(){return page;}
+    public String filterText(){return search.getText();}
     public void setEmptyMessage(java.util.function.Function<String, String> message) { emptyMessage = message; }
     /** For external debounced controls: one immediate load, without the internal debounce. */
     public void applyFilter(String query) {
@@ -114,18 +127,21 @@ public final class PagedTablePanel<T> extends Card {
         return r<0?null:model.row(table.convertRowIndexToModel(r));
     }
     public void reload() {
+        if(live!=null&&!live.active())return;
+        if(debounce.isRunning())return;
         if(worker!=null)worker.cancel(false);
         int version=++generation, p=page;
+        refreshCount++;
+        Object selectedKey=table.getSelectedRow()<0?null:model.key(table.convertRowIndexToModel(table.getSelectedRow()));
+        Point position=scroll.getViewport().getViewPosition();
         String q=search.getText().trim();
         state.setText("Loading...");
         prev.setEnabled(false);
         next.setEnabled(false);
-        table.setEnabled(false);
-        table.clearSelection();
         scroll.setViewportView(table);
         scroll.setColumnHeaderView(table.getTableHeader());
         worker=AsyncLoader.load(()->source.fetch(p, PAGE_SIZE, q), result-> {
-            if(version!=generation)return;
+            if(version!=generation||(live!=null&&!live.active()))return;
             total=result.total();
             int last=Math.max(0, (total-1)/PAGE_SIZE);
             if(page>last) {
@@ -134,6 +150,7 @@ public final class PagedTablePanel<T> extends Card {
                 return;
             }
             model.replace(result);
+            for(int i=0;i<model.getRowCount();i++)if(selectedKey!=null&&selectedKey.equals(model.key(i))){table.setRowSelectionInterval(i,i);break;}
             table.setEnabled(true);
             if (total == 0) {
                 String message = emptyMessage == null
@@ -151,11 +168,16 @@ public final class PagedTablePanel<T> extends Card {
             }
             prev.setEnabled(page>0);
             next.setEnabled(page<last);
+            updated.setText("Updated just now");updated.setToolTipText(java.time.LocalTime.now().withNano(0).toString());
+                refreshButton.setText("Refresh");
+            SwingUtilities.invokeLater(()->{if(version==generation&&total>0)scroll.getViewport().setViewPosition(position);});
         }, err-> {
-            if(version==generation) {
+            if(version==generation&&(live==null||live.active())) {
                 total=0;
                 model.replace(new clinic.service.PageResult<>(java.util.List.of(), 0));
                 state.setText("Unable to load records. Use Refresh to retry.");
+                updated.setText("Refresh failed");
+                refreshButton.setText("Retry");
                 scroll.setColumnHeaderView(null);
                 scroll.setViewportView(new EmptyState("Unable to load records",
                     "Use Refresh to retry. Your current filter is preserved."));
@@ -171,49 +193,7 @@ public final class PagedTablePanel<T> extends Card {
     }
     public void addNotify() {
         super.addNotify();
-        reload();
+        if(live==null)reload();
     }
 
-    private final class ZebraRenderer extends DefaultTableCellRenderer {
-        @Override
-        public Component getTableCellRendererComponent(JTable owner, Object value,
-                boolean selected, boolean focused, int row, int column) {
-            String heading = owner.getColumnName(column);
-            if (value instanceof Boolean allowed) {
-                StatusChip chip = new StatusChip(allowed ? "Allowed" : "Denied",
-                    allowed ? StatusChip.Kind.SUCCESS : StatusChip.Kind.DANGER);
-                chip.setSelected(selected);
-                return chip;
-            }
-            if ("Status".equalsIgnoreCase(heading) || value instanceof Enum<?>) {
-                String text = String.valueOf(value);
-                String lower = text.toLowerCase(java.util.Locale.ROOT);
-                StatusChip.Kind kind = lower.contains("denied") || lower.contains("failed")
-                    || lower.contains("expired") || lower.contains("error")
-                    ? StatusChip.Kind.DANGER
-                    : lower.contains("pending") || lower.contains("waiting")
-                        ? StatusChip.Kind.WARNING
-                        : lower.contains("sent") || lower.contains("allowed")
-                            || lower.equals("active") || lower.contains("success")
-                                ? StatusChip.Kind.SUCCESS : StatusChip.Kind.NEUTRAL;
-                StatusChip chip = new StatusChip(text, kind);
-                chip.setSelected(selected);
-                return chip;
-            }
-            super.getTableCellRendererComponent(owner, value, selected, focused, row, column);
-            setOpaque(true);
-            setHorizontalAlignment(value instanceof Number ? RIGHT : LEFT);
-            setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 12));
-            setBackground(selected ? Theme.BRAND_TINT
-                : row % 2 == 0 ? Theme.WHITE : Theme.ZEBRA);
-            setForeground(selected ? Theme.BRAND_DARK : Theme.INK);
-            setToolTipText(value == null ? null : String.valueOf(value));
-            if (focused) {
-                setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(Theme.FOCUS),
-                    BorderFactory.createEmptyBorder(0, 11, 0, 11)));
-            }
-            return this;
-        }
-    }
 }

@@ -56,7 +56,7 @@ public final class DashboardConsultationDemo {
             require(labels(dialog).contains("Symptoms is required."), "Symptoms validation");
             choice(dialog).setSelectedItem("Fever");
             button(dialog, "Save").doClick();
-            require(labels(dialog).contains("Reason is required."), "Reason validation");
+            require(labels(dialog).contains("Concern is required."), "Concern validation");
             System.out.println("PASS validation: required patient ID, symptoms, and reason produce clear messages.");
             stage = 2;
             button(dialog, "Cancel").doClick();
@@ -68,7 +68,7 @@ public final class DashboardConsultationDemo {
         } else if (stage == 3 && dialog != null) {
             field(dialog, "Patient ID").setText("NOT-REGISTERED");
             choice(dialog).setSelectedItem("Fever");
-            field(dialog, "Reason").setText("Dashboard consultation demo");
+            field(dialog, "Concern").setText("Dashboard consultation demo");
             stage = 4;
             button(dialog, "Save").doClick();
         } else if (stage == 4 && dialog != null && dialog.getTitle().equals("Unable to complete")) {

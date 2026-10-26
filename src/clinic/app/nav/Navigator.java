@@ -95,6 +95,5 @@ public final class Navigator extends JPanel {
         }
         navigation.forEach((name, button) -> button.setActive(name.equals(label)));
         layout.show(pages, label);
-        if (cached && loaded.get(label) instanceof clinic.app.ui.common.BasePanel panel) panel.refreshPage();
     }
 }

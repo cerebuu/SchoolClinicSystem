@@ -16,15 +16,63 @@ public class Inventory {
         batches.add(copy(m));
     }
     public synchronized void restockMedicine(String name, int qty, LocalDate expiry) {
+        restockMedicine(name, qty, expiry, "Restock");
+    }
+    public synchronized void restockMedicine(String name, int qty, LocalDate expiry, String remarks) {
         Validation.positive(qty);
+        if (expiry == null || !expiry.isAfter(LocalDate.now()))
+            throw new IllegalArgumentException("Expiry must be a future date (YYYY-MM-DD).");
+        String normalized = remarks == null ? "" : remarks.trim();
+        if (normalized.length() > 200) throw new IllegalArgumentException("Remarks must be at most 200 characters.");
         if(batches.stream().noneMatch(m->m.getName().equalsIgnoreCase(name)))throw new IllegalArgumentException("Medicine not found.");
-        addMedicine(new Medicine(name, qty, expiry, LocalDate.now(), "Restock"));
+        addMedicine(new Medicine(name, qty, expiry, LocalDate.now(), normalized));
+    }
+    public synchronized List<Medicine> matchingBatches(String name,LocalDate expiry) {
+        return batches.stream().filter(m->BatchMatcher.sameName(m.getName(),name)
+            &&m.getExpirationDate().equals(expiry)&&!m.isExpired())
+            .sorted(Comparator.comparing(Medicine::getBatchDate)).map(this::copy).toList();
+    }
+    public synchronized void mergeBatch(String name,int quantity,LocalDate expiry,String remarks) {
+        Validation.positive(quantity);
+        if(expiry==null||expiry.isBefore(LocalDate.now()))throw new IllegalArgumentException("Expiry must not be in the past.");
+        Medicine target=BatchMatcher.find(batches,name,expiry).map(BatchMatcher.Match::batch)
+            .orElseThrow(()->new IllegalArgumentException("No matching unexpired batch was found."));
+        String merged=BatchMatcher.mergedRemarks(target.getRemarks(),remarks,LocalDate.now());
+        Math.addExact(getStock(name),quantity);
+        Math.addExact(target.getQuantity(),quantity);
+        target.addQuantity(quantity);
+        target.setRemarks(merged);
+    }
+    public synchronized void mergeDuplicateBatches(String name,LocalDate expiry) {
+        List<Medicine> found=batches.stream().filter(m->BatchMatcher.sameName(m.getName(),name)
+            &&m.getExpirationDate().equals(expiry)&&!m.isExpired())
+            .sorted(Comparator.comparing(Medicine::getBatchDate)).toList();
+        if(found.size()<2)throw new IllegalArgumentException("No duplicate batches remain to merge.");
+        Medicine target=found.get(0);
+        int total=target.getQuantity();
+        String remarks=target.getRemarks();
+        for(int i=1;i<found.size();i++) {
+            Medicine batch=found.get(i);
+            total=Math.addExact(total,batch.getQuantity());
+            if(!batch.getRemarks().isBlank()&&!batch.getRemarks().equals(remarks))
+                remarks=BatchMatcher.mergedRemarks(remarks,batch.getRemarks(),batch.getBatchDate());
+        }
+        if(total>target.getQuantity())target.addQuantity(total-target.getQuantity());
+        target.setRemarks(remarks);
+        batches.removeAll(found.subList(1,found.size()));
+    }
+    public synchronized void refillBatch(String batchId,int quantity,LocalDate expiry,String remarks) {
+        Medicine batch=batches.stream().filter(m->m.getBatchId().equals(batchId)).findFirst()
+            .orElseThrow(()->new IllegalArgumentException("Unknown batch ID."));
+        if(batch.getQuantity()!=0)throw new IllegalStateException("Batch still has stock");
+        Math.addExact(getStock(batch.getName()),quantity);
+        batch.refillFromEmpty(quantity,expiry,remarks);
     }
     public synchronized int getStock(String name) {
         return batches.stream().filter(m->m.getName().equalsIgnoreCase(name)&&!m.isExpired()).mapToInt(Medicine::getQuantity).reduce(0, Math::addExact);
     }
     private Medicine copy(Medicine medicine) {
-        return new Medicine(medicine.getName(), medicine.getQuantity(), medicine.getExpirationDate(), medicine.getBatchDate(), medicine.getRemarks());
+        return new Medicine(medicine.getBatchId(),medicine.getName(), medicine.getQuantity(), medicine.getExpirationDate(), medicine.getBatchDate(), medicine.getRemarks());
     }
     private Map<String, Integer> stockTotals() {
         Map<String, Integer> totals = new HashMap<>();
@@ -67,7 +115,7 @@ public class Inventory {
     public synchronized PageResult<Medicine> page(int page, int size, String query) {
         String q=query.toLowerCase(Locale.ROOT);
         PageResult<Medicine> result=PageResult.select(batches, page, size, m->m.getName().toLowerCase(Locale.ROOT).contains(q));
-        return new PageResult<>(result.rows().stream().map(m->new Medicine(m.getName(), m.getQuantity(), m.getExpirationDate(), m.getBatchDate(), m.getRemarks())).toList(), result.total());
+        return new PageResult<>(result.rows().stream().map(this::copy).toList(), result.total());
     }
     public synchronized void collectAlerts(java.util.function.Consumer<clinic.model.Alert> consumer) {
         getLowStock(FeatureRules.LOW_STOCK_THRESHOLD).forEach(m->consumer.accept(new clinic.model.Alert("LOW_STOCK",

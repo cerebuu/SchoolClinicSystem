@@ -24,6 +24,8 @@ public abstract class PagedTableModel<T> extends AbstractTableModel {
         return value(row(r), c);
     }
     protected abstract Object value(T row, int column);
+    /** Stable row identity used to preserve selection across fresh detached page objects. */
+    public Object key(int row){return getValueAt(row,0);}
     public void replace(PageResult<T> result) {
         rows=result.rows();
         fireTableDataChanged();

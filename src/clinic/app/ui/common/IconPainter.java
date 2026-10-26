@@ -68,12 +68,6 @@ public final class IconPainter implements Icon {
                 g.drawLine(2, 5, 9, 10);
                 g.drawLine(9, 10, 16, 5);
             }
-            case "settings" -> {
-                for (int line = 4; line <= 14; line += 5) g.drawLine(2, line, 16, line);
-                g.fillOval(5, 2, 4, 4);
-                g.fillOval(10, 7, 4, 4);
-                g.fillOval(4, 12, 4, 4);
-            }
             case "sign out" -> {
                 g.drawLine(2, 9, 12, 9);
                 g.drawLine(9, 5, 13, 9);

@@ -39,6 +39,7 @@ public final class RecentVisitsPanel extends Card {
                 return new PageResult<>(rows, visits.total());
             }, "Search name or ID number", false);
         table.setEmptyMessage(query -> period.emptyMessage(query));
+        table.refreshOn(app.changes,clinic.app.DataTopic.VISITS,clinic.app.DataTopic.PATIENTS);
         add(table, BorderLayout.CENTER);
         JLabel dates = new JLabel(period.description(LocalDateTime.now()));
         dates.setForeground(Theme.MUTED);
@@ -70,8 +71,6 @@ public final class RecentVisitsPanel extends Card {
         header.add(searchHeader, BorderLayout.CENTER);
         JButton create = Theme.button("+ New Consultation", true);
         create.addActionListener(event -> NewConsultationForm.open(this, app, () -> {
-            table.applyFilter(search.text());
-            saved.run();
         }));
         titleRow.add(create, BorderLayout.EAST);
     }

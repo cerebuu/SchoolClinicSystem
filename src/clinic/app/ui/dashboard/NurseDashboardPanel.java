@@ -40,13 +40,15 @@ public final class NurseDashboardPanel extends BasePanel {
         metrics.add(lowStock);
         metrics.add(expiring);
         content.add(metrics, BorderLayout.NORTH);
-        content.add(new RecentVisitsPanel(app, () -> load(app)), BorderLayout.CENTER);
+        javax.swing.JSplitPane views=new javax.swing.JSplitPane(javax.swing.JSplitPane.VERTICAL_SPLIT,
+            new RecentVisitsPanel(app, () -> {}),new MedicinePredictionsPanel(app));views.setResizeWeight(0.6);
+        content.add(views, BorderLayout.CENTER);
         status.setForeground(Theme.MUTED);
         content.add(status, BorderLayout.SOUTH);
         add(content, BorderLayout.CENTER);
         action("Refresh", () -> load(app));
         onRefresh(() -> load(app));
-        load(app);
+        refreshOn(app.changes,clinic.app.DataTopic.PATIENTS,clinic.app.DataTopic.VISITS,clinic.app.DataTopic.INVENTORY);
     }
 
     private void load(ApplicationContext app) {
@@ -61,7 +63,7 @@ public final class NurseDashboardPanel extends BasePanel {
             app.clinic().getLowStock().size(),
             app.clinic().getExpiringWithin(30).size()
         ), summary -> {
-            if (request != generation) return;
+            if (request != generation || !refreshActive()) return;
             patients.setValue(Integer.toString(summary.patients()));
             consultations.setValue(Integer.toString(summary.consultations()));
             lowStock.setValue(Integer.toString(summary.lowStock()));
@@ -69,7 +71,7 @@ public final class NurseDashboardPanel extends BasePanel {
             status.setText("Clinic operations for " + LocalDate.now() + " · Signed in as "
                 + staffName);
         }, error -> {
-            if (request != generation) return;
+            if (request != generation || !refreshActive()) return;
             status.setText("Unable to load clinic summary. Use Refresh to retry.");
             patients.setValue("Unavailable");
             consultations.setValue("Unavailable");

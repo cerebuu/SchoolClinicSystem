@@ -12,6 +12,7 @@ public final class CampusManagementPanel extends BasePanel {
         super("Campus management");
         this.app=app;
         table=new PagedTablePanel<>(new CampusesTableModel(), app.admin::campuses);
+        table.refreshOn(app.changes, clinic.app.DataTopic.CAMPUSES);
         add(table, BorderLayout.CENTER);
         action("Add campus", true, ()->form(null));
         action("Edit campus", ()-> {
@@ -27,6 +28,6 @@ public final class CampusManagementPanel extends BasePanel {
         List<FormField> fields=new ArrayList<>();
         if(campus==null)fields.add(FormField.text("Campus ID"));
         fields.add(FormField.value("Name", campus==null?"":campus.name()));
-        FormPopup.show(this, campus==null?"Add campus":"Edit campus", fields, v->app.admin.saveCampus(new Campus(campus==null?v.get("Campus ID"):campus.id(), v.get("Name")), campus!=null), table::reload);
+        FormPopup.show(this, campus==null?"Add campus":"Edit campus", fields, v->app.admin.saveCampus(new Campus(campus==null?v.get("Campus ID"):campus.id(), v.get("Name")), campus!=null), ()->{});
     }
 }

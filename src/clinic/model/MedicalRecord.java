@@ -15,7 +15,7 @@ public class MedicalRecord implements Formattable {
         patientId=Validation.required(patient, "Patient ID");
         if(symptoms==null||symptoms.isEmpty())throw new IllegalArgumentException("Symptoms are required.");
         this.symptoms=symptoms.stream().map(s -> Validation.required(s, "Symptom")).distinct().toList();
-        this.reason=Validation.required(reason, "Reason");
+        this.reason=Validation.required(reason, "Concern");
         this.assessment=assessment==null?"":assessment.trim();
         medicationGiven=medicine==null?"":medicine.trim();
         staffId=Validation.required(staff, "Staff ID");
