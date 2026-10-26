@@ -3,7 +3,9 @@ import clinic.core.*;
 import clinic.model.*;
 import clinic.service.*;
 import java.lang.reflect.*;
+import java.util.List;
 public final class ApplicationContext implements AutoCloseable {
+    public final DataChangeBus changes=new DataChangeBus();
     private final AuditLog audit;
     public final Login login;
     public final AdminService admin;
@@ -20,6 +22,7 @@ public final class ApplicationContext implements AutoCloseable {
         login=demo?Login.withSampleUsers(audit):new Login(audit);
         admin=new AdminService(login, audit);
         if (demo) seedSampleCampuses();
+        connectChanges();
     }
     /** Normal launch uses this durable composition; boolean constructor is an isolated fixture. */
     public ApplicationContext(java.nio.file.Path databaseFile) {
@@ -30,6 +33,7 @@ public final class ApplicationContext implements AutoCloseable {
             login=new Login(audit,new clinic.persistence.AccountRepository(database));
             admin=new AdminService(login,audit,repository);
             store=clinic.persistence.ClinicRepository.create(database);
+            connectChanges();
         } catch (RuntimeException failure) {
             database.close();
             throw failure;
@@ -37,6 +41,11 @@ public final class ApplicationContext implements AutoCloseable {
     }
     public static ApplicationContext production() {
         return new ApplicationContext(java.nio.file.Path.of(System.getProperty("clinic.database", "data/scms")));
+    }
+    private void connectChanges() {
+        login.onSessionChanged(changes::clearSession);
+        audit.onRecorded(()->changes.publish(DataTopic.AUDIT));
+        admin.onChanged(action->changes.publish(action.equals("users")?DataTopic.USERS:DataTopic.CAMPUSES));
     }
     public boolean isPersistent() { return database!=null; }
     public String storageDescription() {
@@ -84,30 +93,27 @@ public final class ApplicationContext implements AutoCloseable {
             user.getRole(), "clinicQuery", "Read permission check", allowed);
         if (!allowed) throw new SecurityException("Access denied.");
     }
-    // The proxy rechecks session identity on every call, invalidating retained screen references after logout.
-    public ClinicSystem clinic() {
-        User owner=current();
-        long version = login.getSessionVersion();
-        ClinicSystem secured=new SecuredClinicSystem(store, owner, audit);
-        return (ClinicSystem)Proxy.newProxyInstance(ClinicSystem.class.getClassLoader(), new Class<?>[] {
-            ClinicSystem.class
-        }, (p, m, a)-> {
-            synchronized (login) {
-                if(current()!=owner || login.getSessionVersion()!=version)throw new SecurityException("Session expired.");
-                try {
-                    return m.invoke(secured, a);
-                }
-                catch(InvocationTargetException ex) {
-                    throw ex.getCause();
-                }
-            }
-        });
-    }
+    public ClinicSystem clinic() { return ClinicSession.open(login,store,audit,changes); }
     public PageResult<Patient> patients(int page, int size, String q) {
         synchronized (login) {
             require(User.RECORD_TRANSACTION);
             return store.patientPage(page, size, q);
         }
+    }
+    public java.util.function.Consumer<java.util.Map<String,String>> restockSession(String medicine) {
+        return ClinicSession.restock(login,store,audit,changes,medicine);
+    }
+    public java.util.function.Consumer<java.util.Map<String,String>> inventoryBatchSession(String medicine,boolean restock,boolean merge) {
+        return ClinicSession.inventoryBatch(login,store,audit,changes,medicine,restock,merge);
+    }
+    public java.util.function.Consumer<java.util.Map<String,String>> refillBatchSession(String batchId,String medicine) {
+        return ClinicSession.refillBatch(login,store,audit,changes,batchId,medicine);
+    }
+    public java.util.function.Consumer<BatchMatcher.Group> mergeDuplicateSession() {
+        return ClinicSession.mergeDuplicates(login,store,audit,changes);
+    }
+    public List<Medicine> matchingMedicineBatches(String name,java.time.LocalDate expiry) {
+        synchronized(login){require(User.VIEW_STOCK);return store.matchingMedicineBatches(name,expiry);}
     }
     public PageResult<Medicine> medicines(int page, int size, String q) {
         synchronized (login) {

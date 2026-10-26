@@ -13,6 +13,7 @@ public final class UserManagementPanel extends BasePanel {
         super("User management");
         this.app=app;
         table=new PagedTablePanel<>(new UsersTableModel(), app.admin::users);
+        table.refreshOn(app.changes, clinic.app.DataTopic.USERS);
         add(table, BorderLayout.CENTER);
         action("Add user", true, ()->form(null));
         action("Edit user / role", ()-> {
@@ -32,7 +33,7 @@ public final class UserManagementPanel extends BasePanel {
             if(MessagePopup.confirm(this, "Deactivate account "+u.getUserId()+"?"))Actions.run(this, ()-> {
                 app.admin.updateUser(u, false);
                 return true;
-            }, ok->table.reload());
+            }, ok->{});
         });
         action("Account status", ()-> {
             User u=table.selected();
@@ -61,6 +62,6 @@ public final class UserManagementPanel extends BasePanel {
             User replacement=AdminService.user(user==null?v.get("ID"):user.getUserId(), v.get("Name"), v.get("Role"));
             if(user==null)app.admin.addUser(replacement, v.get("Password"));
             else app.admin.updateUser(replacement, "Yes".equals(v.get("Active")));
-        }, table::reload);
+        }, ()->{});
     }
 }

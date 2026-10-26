@@ -7,6 +7,6 @@ public final class AuditLogPanel extends BasePanel {
     public AuditLogPanel(ApplicationContext app) {
         super("Audit log");
         add(new PagedTablePanel<AuditEntry>(new AuditTableModel(), app.admin::audit,
-            "User ID / date / denied"), BorderLayout.CENTER);
+            "User ID / date / denied").refreshOn(app.changes,clinic.app.DataTopic.AUDIT), BorderLayout.CENTER);
     }
 }

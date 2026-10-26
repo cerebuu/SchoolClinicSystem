@@ -2,6 +2,9 @@ package clinic.app.ui.inventory;
 import clinic.model.*;
 import clinic.app.ui.common.PagedTableModel;
 public final class InventoryTableModel extends PagedTableModel<Medicine> {
+    @Override public Object key(int index) {
+        return row(index).getBatchId();
+    }
     public InventoryTableModel() {
         super("Medicine", "Quantity", "Expiry", "Batch date", "Remarks");
     }

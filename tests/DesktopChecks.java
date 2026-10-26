@@ -183,7 +183,7 @@ public final class DesktopChecks {
             check(app.clinic().findPatient("p1").orElseThrow().getAllergies().isEmpty(), "dialog cancellation leaves data unchanged");
             click(frame, "Consultations");
             click(frame, "Record visit");
-            form("New Consultation", Map.of("Patient ID", "p1", "Symptoms", "Headache", "Reason", "Test visit"));
+            form("New Consultation", Map.of("Patient ID", "p1", "Symptoms", "Headache", "Concern", "Test visit"));
             dismissInfo();
             row();
             check(app.clinic().getVisitHistory("p1").size() == 1, "consultation saved via form");
@@ -195,7 +195,7 @@ public final class DesktopChecks {
             findPatient("p1");
             selectMedicine("Test medicine");
             setQuantity(2);
-            click(frame, "Check safety and dispense");
+            click(frame, "Dispense");
             dismissInfo();
             check(app.clinic().getStock("Test medicine") == 8, "dispensing changes stock");
             var transaction = app.clinic().dispenseMedicine("p1", "Test medicine", 1, "nurse", false);
@@ -214,16 +214,18 @@ public final class DesktopChecks {
             findPatient("p1");
             selectMedicine("Test medicine");
             setQuantity(2);
-            click(frame, "Check safety and dispense");
-            JDialog warning = awaitDialog("Safety warning");
-            edt(() -> check(!button(warning, "Override with reason").isEnabled(), "override requires a reason"));
+            click(frame, "Dispense");
+            JDialog warning = awaitDialog("Confirm allergies before dispensing");
+            edt(() -> check(!button(warning, "Dispense").isEnabled(), "dispensing requires checkbox confirmation"));
             click(warning, "Cancel");
             waitFor(() -> !warning.isShowing());
             check(app.clinic().getStock("Test medicine") == 7, "cancel safety warning preserves stock");
-            click(frame, "Check safety and dispense");
-            final JDialog override = awaitDialog("Safety warning");
-            edt(() -> fill(override, "Override reason", "Test documented override"));
-            click(override, "Override with reason");
+            click(frame, "Dispense");
+            final JDialog override = awaitDialog("Confirm allergies before dispensing");
+            edt(() -> components(override).stream().filter(c -> c instanceof JCheckBox box
+                && box.getText().equals("I have checked and it is safe to dispense"))
+                .map(c -> (JCheckBox)c).findFirst().orElseThrow().doClick());
+            click(override, "Dispense");
             dismissInfo();
             check(app.clinic().getStock("Test medicine") == 5, "documented override dispenses medicine");
             click(frame, "Inventory");

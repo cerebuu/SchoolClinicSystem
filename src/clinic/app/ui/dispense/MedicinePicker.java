@@ -21,6 +21,7 @@ public final class MedicinePicker extends JPanel {
     private int page,generation;
     private boolean loading;
     private final javax.swing.Timer debounce;
+    private final clinic.app.ui.common.LiveRefresh live;
     public MedicinePicker(ApplicationContext app,Runnable changed) {
         super(new BorderLayout(Theme.SPACE_2,Theme.SPACE_2));this.app=app;this.changed=changed;setOpaque(false);
         Theme.field(search);search.getAccessibleContext().setAccessibleName("Search medicines");search.setToolTipText("Search medicine name");
@@ -48,7 +49,8 @@ public final class MedicinePicker extends JPanel {
             public void insertUpdate(DocumentEvent e){change();}public void removeUpdate(DocumentEvent e){change();}public void changedUpdate(DocumentEvent e){change();}
         });
         prev.addActionListener(e->{page--;load();});next.addActionListener(e->{page++;load();});
-        retry.addActionListener(e->refresh());load();
+        retry.addActionListener(e->refresh());
+        live=new clinic.app.ui.common.LiveRefresh(this,app.changes,this::refresh,DataTopic.INVENTORY);
     }
     public Medicine selected(){return selected;}
     public void refresh(){cache.clear();load();}
@@ -58,17 +60,17 @@ public final class MedicinePicker extends JPanel {
         PageResult<Medicine> saved=cache.get(key);
         if(saved!=null){showPage(saved);return;}
         AsyncLoader.load(()->app.dispensableMedicines(p,25,query),result->{
-            if(version!=generation)return;
+            if(version!=generation||!live.active())return;
             if(cache.size()>=4)cache.remove(cache.keySet().iterator().next());cache.put(key,result);showPage(result);
         },error->{if(version==generation)state.setText("Unable to load. Refresh to retry.");});
     }
     private void showPage(PageResult<Medicine> result) {
         loading=true;
+        if(selected!=null)selected=result.rows().stream().filter(m->m.getName().equalsIgnoreCase(selected.getName())).findFirst().orElse(selected);
         DefaultComboBoxModel<Medicine> model=new DefaultComboBoxModel<>(result.rows().toArray(Medicine[]::new));
         model.setSelectedItem(selected);choices.setModel(model);loading=false;choices.setEnabled(true);
         prev.setEnabled(page>0);next.setEnabled((long)(page+1)*25<result.total());
         state.setText(result.total()+" medicines | page "+(page+1));
     }
     public void removeNotify(){generation++;debounce.stop();super.removeNotify();}
-    public void addNotify(){super.addNotify();load();}
 }

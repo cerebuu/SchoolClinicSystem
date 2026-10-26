@@ -8,6 +8,8 @@ public final class AdminService {
     private final AuditLog audit;
     private final Map<String, Campus> campuses=new LinkedHashMap<>();
     private clinic.persistence.AdminRepository repository;
+    private java.util.function.Consumer<String> changed=action->{};
+    public synchronized void onChanged(java.util.function.Consumer<String> listener){changed=listener;}
     public AdminService(Login login, AuditLog audit) {
         this.login=login;
         this.audit=audit;
@@ -20,7 +22,9 @@ public final class AdminService {
     private User authorize(String action) {
         User u=login.getCurrentUser().orElse(null);
         boolean allowed=u!=null&&User.ADMIN.equals(u.getRole());
-        audit.record(LocalDateTime.now(), u==null?"unknown":u.getUserId(), u==null?"unknown":u.getName(), u==null?"unknown":u.getRole(), action, "administration", allowed);
+        // Auditing an audit/summary read would create an endless refresh -> audit -> refresh loop.
+        if(!allowed || (!action.equals("viewAudit")&&!action.equals("adminSummary")))
+            audit.record(LocalDateTime.now(), u==null?"unknown":u.getUserId(), u==null?"unknown":u.getName(), u==null?"unknown":u.getRole(), action, "administration", allowed);
         if(!allowed)throw new SecurityException("Administrator session required.");
         return u;
     }
@@ -28,12 +32,14 @@ public final class AdminService {
         synchronized (login) {
             authorize("addUser");
             login.addUser(u, password);
+            changed.accept("users");
         }
     }
     public synchronized void updateUser(User u, boolean active) {
         synchronized (login) {
             authorize("updateUser");
             login.updateUser(u, active);
+            changed.accept("users");
         }
     }
     public synchronized PageResult<User> users(int page, int size, String filter) {
@@ -49,6 +55,7 @@ public final class AdminService {
             if(!edit&&campuses.containsKey(campus.id()))throw new IllegalArgumentException("Campus ID already exists.");
             if (repository != null) repository.save(campus,edit);
             campuses.put(campus.id(), campus);
+            changed.accept("campuses");
         }
     }
     public synchronized PageResult<Campus> campuses(int page, int size, String filter) {

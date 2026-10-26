@@ -29,7 +29,8 @@ public interface ClinicSystem {
     List<MedicalRecord> getVisitHistory(String patientId);
 
     // ---------- 3. Safety and dispensing ----------
-    /** Run after the medicine is selected and before dispensing. Empty list means no conflict. */
+    /** Returns stock/patient errors and a generic staff-confirmation requirement for recorded allergies.
+     * Does not assess medicine ingredients or allergy compatibility. */
     List<String> checkSafety(String patientId, String medicineName);
 
     /** Throws IllegalStateException if there are warnings and overrideConfirmed is false. */

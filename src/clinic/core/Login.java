@@ -21,6 +21,8 @@ public class Login {
     private final Supplier<Long> clock;
     private User currentUser;
     private long sessionVersion;
+    private Runnable sessionChanged=()->{};
+    public synchronized void onSessionChanged(Runnable listener){sessionChanged=listener;}
     private final java.util.Set<String> inactive = new java.util.HashSet<>();
     private clinic.persistence.AccountRepository repository;
     public Login(AuditLog audit, clinic.persistence.AccountRepository repository) {
@@ -76,6 +78,7 @@ public class Login {
 
     /** Returns the user if the ID and password match, otherwise empty. */
     public synchronized Optional<User> login(String userId, String password) {
+        sessionChanged.run();
         // A failed reauthentication must never retain a previous privileged session.
         currentUser = null;
         sessionVersion++;
@@ -116,6 +119,7 @@ public class Login {
     }
 
     public synchronized void logout() {
+        sessionChanged.run();
         currentUser = null;
         sessionVersion++;
     }

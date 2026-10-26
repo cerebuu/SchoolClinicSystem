@@ -9,6 +9,7 @@ public final class ReportsPanel extends BasePanel {
     public ReportsPanel(ApplicationContext app) {
         super("Reports", "Clinic records");
         PagedTablePanel<MedicalRecord> table=new PagedTablePanel<>(new ConsultationsTableModel(), app::records);
+        table.refreshOn(app.changes, clinic.app.DataTopic.VISITS);
         add(table, BorderLayout.CENTER);
         action("Generate selected report", true, ()-> {
             MedicalRecord r=table.selected();

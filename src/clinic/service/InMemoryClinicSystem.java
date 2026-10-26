@@ -58,7 +58,7 @@ public final class InMemoryClinicSystem implements ClinicData {
     }
     public synchronized MedicineTransaction dispenseMedicine(String patient, String medicine, int quantity, String staff, boolean override) {
         return dispenseMedicine(patient, medicine, quantity, staff,
-            override ? "Safety override confirmed" : "");
+            override ? "Allergies reviewed by staff" : "");
     }
     public synchronized MedicineTransaction dispenseMedicine(String patient, String medicine, int quantity, String staff, String overrideReason) {
         return DispensingService.dispense(this, inventory, transactions, patient, medicine, quantity, staff, overrideReason);
@@ -69,6 +69,21 @@ public final class InMemoryClinicSystem implements ClinicData {
     }
     public synchronized void restockMedicine(String name, int quantity, LocalDate expiry) {
         inventory.restockMedicine(name, quantity, expiry);
+    }
+    public synchronized void restockMedicine(String name, int quantity, LocalDate expiry, String remarks) {
+        inventory.restockMedicine(name, quantity, expiry, remarks);
+    }
+    public synchronized List<Medicine> matchingMedicineBatches(String name,LocalDate expiry) {
+        return inventory.matchingBatches(name,expiry);
+    }
+    public synchronized void mergeMedicineBatch(String name,int quantity,LocalDate expiry,String remarks) {
+        inventory.mergeBatch(name,quantity,expiry,remarks);
+    }
+    public synchronized void mergeDuplicateMedicineBatches(String name,LocalDate expiry) {
+        inventory.mergeDuplicateBatches(name,expiry);
+    }
+    public synchronized void refillBatch(String batchId,int quantity,LocalDate expiry,String remarks) {
+        inventory.refillBatch(batchId,quantity,expiry,remarks);
     }
     public synchronized int getStock(String name) {
         return inventory.getStock(name);

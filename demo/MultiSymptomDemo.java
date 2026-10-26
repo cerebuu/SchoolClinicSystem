@@ -70,7 +70,7 @@ public final class MultiSymptomDemo {
             });
             edt(()->{
                 picker=components(dialog).stream().filter(c->c instanceof MultiSelectField).map(c->(MultiSelectField)c).findFirst().orElseThrow();
-                fill("Patient ID","DEMO");fill("Reason","Demo visit");
+                fill("Patient ID","DEMO");fill("Concern","Demo visit");
                 clickChoice("Fever");clickChoice("Cough");clickChoice("Headache");
                 check("Select three symptoms",List.of("Fever","Cough","Headache"),picker.getSelectedValues());
                 remove("Cough");

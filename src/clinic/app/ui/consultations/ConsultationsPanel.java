@@ -10,11 +10,12 @@ public final class ConsultationsPanel extends BasePanel {
         super("Consultations", "Clinic records");
         PagedTablePanel<MedicalRecord> table = new PagedTablePanel<>(new ConsultationsTableModel(),
             app.current().canAccess(User.RECORDS) ? app::records : app::recentVisits,
-            "Patient ID / reason");
+            "Patient ID / concern");
+        table.refreshOn(app.changes, clinic.app.DataTopic.VISITS);
         add(table, BorderLayout.CENTER);
         if (app.current().canAccess(User.RECORD_TRANSACTION)) {
             action("Record visit", true, () -> NewConsultationForm.open(this, app, () -> {
-                if (table != null) table.reload();
+
             }));
         }
     }

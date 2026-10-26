@@ -1,0 +1,17 @@
+package clinic.app;
+import static clinic.app.DataTopic.*;
+
+/** Only called after a secured mutation returns successfully. Each committed dispense row emits. */
+public final class ClinicChangePublisher {
+    private ClinicChangePublisher() {}
+    public static void changed(DataChangeBus bus,String method) {
+        switch(method) {
+            case "addMedicine","restockMedicine" -> bus.publish(INVENTORY,ALERTS);
+            case "dispenseMedicine" -> bus.publish(INVENTORY,TRANSACTIONS,ALERTS);
+            case "recordVisit" -> bus.publish(VISITS,ALERTS);
+            case "registerPatient","addAllergy" -> bus.publish(PATIENTS);
+            case "createGuardianNotification","updateNotificationStatus" -> bus.publish(NOTIFICATIONS,ALERTS);
+            default -> { }
+        }
+    }
+}

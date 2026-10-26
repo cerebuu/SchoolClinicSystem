@@ -13,7 +13,8 @@ import java.util.*;
  */
 public final class ClinicRepository {
     private static final Set<String> WRITES = Set.of("registerPatient", "addAllergy", "recordVisit",
-        "dispenseMedicine", "addMedicine", "restockMedicine", "createGuardianNotification", "updateNotificationStatus");
+        "dispenseMedicine", "addMedicine", "restockMedicine", "mergeMedicineBatch", "mergeDuplicateMedicineBatches", "refillBatch",
+        "createGuardianNotification", "updateNotificationStatus");
     private ClinicRepository() {}
 
     public static ClinicData create(Database database) {
@@ -25,8 +26,13 @@ public final class ClinicRepository {
                 default -> throw new IllegalStateException();
             };
             return database.transaction(connection -> {
+                ensureBatchIds(connection);
                 if(method.getName().equals("dispensableMedicinePage"))return DispenseRepository.medicines(connection,(int)args[0],(int)args[1],(String)args[2]);
                 if(method.getName().equals("transactionPage"))return DispenseRepository.transactions(connection,(int)args[0],(int)args[1],(String)args[2],(LocalDateTime)args[3],(LocalDateTime)args[4]);
+                if(method.getName().equals("matchingMedicineBatches"))return Sql.query(connection,
+                    "SELECT b.*,i.batch_id FROM medicine_batches b JOIN medicine_batch_ids i USING(ordinal) WHERE LOWER(TRIM(b.name))=LOWER(TRIM(?)) AND b.expiry=? AND b.expiry>=? ORDER BY b.batch_date,b.ordinal",
+                    r->new Medicine(r.getString("batch_id"),r.getString("name"),r.getInt("quantity"),r.getObject("expiry",LocalDate.class),
+                        r.getObject("batch_date",LocalDate.class),r.getString("remarks")),args[0],args[1],LocalDate.now());
                 // Frequent dashboard lookups must not materialize unrelated clinical history.
                 if(method.getName().equals("patientCount")) return count(connection,"SELECT COUNT(*) FROM patients");
                 if(method.getName().equals("recordCount")) return count(connection,"SELECT COUNT(*) FROM visits");
@@ -52,6 +58,10 @@ public final class ClinicRepository {
     private static int count(Connection c,String sql) throws SQLException {
         return Sql.query(c,sql,r -> Math.toIntExact(r.getLong(1))).get(0);
     }
+    private static void ensureBatchIds(Connection c) throws SQLException {
+        List<Integer> missing=Sql.query(c,"SELECT ordinal FROM medicine_batches WHERE ordinal NOT IN (SELECT ordinal FROM medicine_batch_ids) ORDER BY ordinal",r->r.getInt(1));
+        for(int ordinal:missing)Sql.update(c,"INSERT INTO medicine_batch_ids(ordinal,batch_id) VALUES(?,?)",ordinal,UUID.randomUUID().toString());
+    }
     private static Patient patient(Connection c, ResultSet r) throws SQLException {
         String id=r.getString("id"), name=r.getString("name"), contact=r.getString("contact");
         Patient p = Patient.STUDENT.equals(r.getString("patient_type"))
@@ -69,8 +79,8 @@ public final class ClinicRepository {
             r.getString("id"),r.getString("patient_id"),
             Sql.query(c,"SELECT symptom FROM symptoms WHERE visit_id=? ORDER BY ordinal",x -> x.getString(1),r.getString("id")),
             r.getString("reason"),r.getString("assessment"),r.getString("medication"),r.getString("staff_id"),r.getObject("visit_time",LocalDateTime.class)));
-        List<Medicine> batches=Sql.query(c,"SELECT * FROM medicine_batches ORDER BY ordinal",r -> new Medicine(
-            r.getString("name"),r.getInt("quantity"),r.getObject("expiry",LocalDate.class),r.getObject("batch_date",LocalDate.class),r.getString("remarks")));
+        List<Medicine> batches=Sql.query(c,"SELECT b.*,i.batch_id FROM medicine_batches b JOIN medicine_batch_ids i USING(ordinal) ORDER BY b.ordinal",r -> new Medicine(
+            r.getString("batch_id"),r.getString("name"),r.getInt("quantity"),r.getObject("expiry",LocalDate.class),r.getObject("batch_date",LocalDate.class),r.getString("remarks")));
         List<MedicineTransaction> transactions=Sql.query(c,"SELECT * FROM dispensing ORDER BY seq",r -> new MedicineTransaction(
             r.getString("id"),r.getString("medicine"),r.getString("patient_id"),r.getString("staff_id"),r.getInt("quantity"),
             r.getObject("expiry",LocalDate.class),r.getString("remarks"),r.getObject("dispensed_at",LocalDateTime.class)));
@@ -109,12 +119,22 @@ public final class ClinicRepository {
                 r.getRecordId(),r.getPatientId(),r.getReason(),r.getAssessment(),r.getMedicationGiven(),r.getStaffId(),r.getVisitDateTime());
             for(int i=0;i<r.getSymptoms().size();i++) Sql.update(c,"INSERT INTO symptoms VALUES(?,?,?)",r.getRecordId(),i,r.getSymptoms().get(i));
         }
-        for(int i=0;i<after.batches().size();i++) {
+        if(after.batches().size()<before.batches().size()) {
+            Sql.update(c,"DELETE FROM medicine_batch_ids");
+            Sql.update(c,"DELETE FROM medicine_batches");
+            for(int i=0;i<after.batches().size();i++) {
+                Medicine batch=after.batches().get(i);
+                insertBatch(c,i,batch);
+            }
+        } else for(int i=0;i<after.batches().size();i++) {
             Medicine batch=after.batches().get(i);
-            if(i>=before.batches().size()) Sql.update(c,"INSERT INTO medicine_batches VALUES(?,?,?,?,?,?)",
-                i,batch.getName(),batch.getQuantity(),batch.getExpirationDate(),batch.getBatchDate(),batch.getRemarks());
-            else if(batch.getQuantity()!=before.batches().get(i).getQuantity())
-                Sql.update(c,"UPDATE medicine_batches SET quantity=? WHERE ordinal=?",batch.getQuantity(),i);
+            if(i>=before.batches().size()) insertBatch(c,i,batch);
+            else if(batch.getQuantity()!=before.batches().get(i).getQuantity()
+                    ||!batch.getRemarks().equals(before.batches().get(i).getRemarks())
+                    ||!batch.getExpirationDate().equals(before.batches().get(i).getExpirationDate())
+                    ||!batch.getBatchDate().equals(before.batches().get(i).getBatchDate()))
+                Sql.update(c,"UPDATE medicine_batches SET quantity=?,expiry=?,batch_date=?,remarks=? WHERE ordinal=?",
+                    batch.getQuantity(),batch.getExpirationDate(),batch.getBatchDate(),batch.getRemarks(),i);
         }
         Set<String> transactions=new HashSet<>();
         before.transactions().forEach(t -> transactions.add(t.getTransactionId()));
@@ -130,5 +150,9 @@ public final class ClinicRepository {
             else if(statuses.get(n.getNotificationId())!=n.getStatus())
                 Sql.update(c,"UPDATE notifications SET status=? WHERE id=?",n.getStatus().name(),n.getNotificationId());
         }
+    }
+    private static void insertBatch(Connection c,int ordinal,Medicine batch) throws SQLException {
+        Sql.update(c,"INSERT INTO medicine_batches VALUES(?,?,?,?,?,?)",ordinal,batch.getName(),batch.getQuantity(),batch.getExpirationDate(),batch.getBatchDate(),batch.getRemarks());
+        Sql.update(c,"INSERT INTO medicine_batch_ids(ordinal,batch_id) VALUES(?,?)",ordinal,batch.getBatchId());
     }
 }

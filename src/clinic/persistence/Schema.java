@@ -12,7 +12,7 @@ final class Schema {
             try (ResultSet r = s.executeQuery("SELECT version FROM schema_version WHERE id=1")) {
                 if (r.next()) {
                     version=r.getInt(1);
-                    if (version < 1 || version > 3) throw new SQLException("Unsupported database schema version.");
+                    if (version < 1 || version > 5) throw new SQLException("Unsupported database schema version.");
                 }
             }
             if(version==0) {
@@ -31,6 +31,27 @@ final class Schema {
                 s.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS recipient_label VARCHAR(100)");
                 s.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS recipient_contact VARCHAR(500)");
                 s.executeUpdate("UPDATE schema_version SET version=3 WHERE id=1");
+                version=3;
+            }
+            if(version==3) {
+                s.execute("ALTER TABLE medicine_batches ADD COLUMN IF NOT EXISTS remarks CLOB DEFAULT '' NOT NULL");
+                s.executeUpdate("UPDATE medicine_batches SET remarks='' WHERE remarks IS NULL");
+                s.executeUpdate("UPDATE schema_version SET version=4 WHERE id=1");
+                version=4;
+            }
+            if(version==4) {
+                s.execute("CREATE TABLE IF NOT EXISTS medicine_batch_ids (ordinal INT PRIMARY KEY, batch_id VARCHAR(36) NOT NULL UNIQUE)");
+                assignMissingBatchIds(connection);
+                s.executeUpdate("UPDATE schema_version SET version=5 WHERE id=1");
+            }
+        }
+    }
+    private static void assignMissingBatchIds(Connection connection) throws SQLException {
+        try(PreparedStatement rows=connection.prepareStatement("SELECT ordinal FROM medicine_batches WHERE ordinal NOT IN (SELECT ordinal FROM medicine_batch_ids)");
+            ResultSet result=rows.executeQuery();
+            PreparedStatement insert=connection.prepareStatement("INSERT INTO medicine_batch_ids(ordinal,batch_id) VALUES(?,?)")) {
+            while(result.next()) {
+                insert.setInt(1,result.getInt(1));insert.setString(2,java.util.UUID.randomUUID().toString());insert.executeUpdate();
             }
         }
     }

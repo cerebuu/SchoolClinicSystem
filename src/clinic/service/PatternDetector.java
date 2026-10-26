@@ -33,7 +33,7 @@ public class PatternDetector {
         }
         int n=counts.values().stream().mapToInt(Integer::intValue).max().orElse(0);
         return n>=threshold?new Alert("RECURRING_VISIT", "Single-patient group: "+n+" visits; rule >= "+threshold
-            +" visits with the same symptom or reason in "+days+" days"):null;
+            +" visits with the same symptom or concern in "+days+" days"):null;
     }
     private boolean inWindow(MedicalRecord r,LocalDateTime now,int days) {
         return r!=null&&!r.getVisitDateTime().isBefore(now.minusDays(days))&&!r.getVisitDateTime().isAfter(now);
