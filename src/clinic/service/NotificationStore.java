@@ -2,9 +2,13 @@ package clinic.service;
 import clinic.model.*;
 import java.util.*;
 import java.time.LocalDateTime;
+import java.time.Duration;
+import clinic.notify.Channel;
 
 /** Owns notification state and returns detached copies. No clinical free text is retained. */
 public final class NotificationStore {
+    public static final int MAX_ATTEMPTS=3;
+    public static final int COOLDOWN_SECONDS=30;
     private final Map<String,NotificationLog> logs=new LinkedHashMap<>();
     public void restore(List<NotificationLog> saved) {
         saved.forEach(n->logs.put(n.getNotificationId(),n.copy()));
@@ -25,12 +29,43 @@ public final class NotificationStore {
         logs.put(n.getNotificationId(),n);
         return n.copy();
     }
+    public NotificationLog createEmergency(Patient patient) {
+        if (patient == null) throw new IllegalArgumentException("Patient not found.");
+        boolean employee=patient instanceof Employee;
+        String contact=employee?patient.getContactInfo():patient.getGuardianContact();
+        NotificationLog n=new NotificationLog(nextId(),patient.getId(),null,
+            "Emergency notification",LocalDateTime.now(),patient.getName(),null,
+            GuardianMessageTemplates.MessageType.EMERGENCY,"the school clinic",
+            employee?"Employee contact (own)":"Guardian contact",contact);
+        logs.put(n.getNotificationId(),n);
+        return n.copy();
+    }
     public void update(String id,NotificationStatus status) {
         NotificationLog n=logs.get(id);
         if(n==null)throw new IllegalArgumentException("Notification not found.");
-        if(status!=NotificationStatus.SENT||n.getStatus()!=NotificationStatus.PENDING)
-            throw new IllegalArgumentException("Only PENDING to SENT is allowed.");
+        if(status!=NotificationStatus.SENT
+                ||(n.getStatus()!=NotificationStatus.PENDING&&n.getStatus()!=NotificationStatus.FAILED))
+            throw new IllegalArgumentException("Only pending or failed notifications can be marked sent manually.");
         n.markSent();
+    }
+    public NotificationLog beginAttempt(String id,Channel channel,LocalDateTime attemptedAt) {
+        NotificationLog n=required(id);
+        if(n.getStatus()==NotificationStatus.SENT)throw new IllegalStateException("This notification has already been sent.");
+        if(n.getAttemptCount()>=MAX_ATTEMPTS)throw new IllegalStateException("Maximum of three send attempts reached.");
+        if(attemptedAt==null)throw new IllegalArgumentException("Attempt time is required.");
+        LocalDateTime previous=n.getLastAttemptTime();
+        if(previous!=null&&Duration.between(previous,attemptedAt).getSeconds()<COOLDOWN_SECONDS)
+            throw new IllegalStateException("Please wait 30 seconds between send attempts.");
+        n.beginAttempt(channel,attemptedAt);
+        return n.copy();
+    }
+    public void completeAttempt(String id,NotificationStatus status) {
+        required(id).completeAttempt(status);
+    }
+    private NotificationLog required(String id) {
+        NotificationLog n=logs.get(id);
+        if(n==null)throw new IllegalArgumentException("Notification not found.");
+        return n;
     }
     public List<NotificationLog> forPatient(Patient patient) {
         if(patient==null)throw new IllegalArgumentException("Patient not found.");

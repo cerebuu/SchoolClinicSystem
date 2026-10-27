@@ -159,7 +159,7 @@ public final class UiChecks {
         })));
         onEdt(()-> {
             Set<String> nav=buttons(screen.get());
-            check(nav.contains("Users")&&nav.contains("Campuses")&&!nav.contains("Dispense medicine"), "admin navigation separated");
+            check(nav.contains("Users")&&nav.contains("Campuses")&&!nav.contains("Medication history"), "admin navigation separated");
         });
         waitFor(() -> labels(screen.get()).contains("System-wide totals."));
         snapshot(screen.get(), "admin");
@@ -187,7 +187,7 @@ public final class UiChecks {
         })));
         onEdt(()-> {
             Set<String> nav=buttons(screen.get());
-            check(nav.contains("Dispense medicine")&&nav.contains("Reports")&&nav.contains("AI Nurse Assistant")&&!nav.contains("Users"), "nurse navigation");
+            check(nav.contains("Medication history")&&nav.contains("Reports")&&nav.contains("AI Nurse Assistant")&&!nav.contains("Users"), "nurse navigation");
             check(nav.contains("Nurse dashboard"), "nurse has dedicated dashboard navigation");
             check(screen.get() instanceof NurseShell, "nurse receives dedicated workspace");
             check(Router.createWorkspace(app, ()-> {}) instanceof NurseShell,
@@ -211,7 +211,7 @@ public final class UiChecks {
         onEdt(()->check(clickButton(screen.get(), "Inventory"), "inventory page navigation"));
         waitFor(()->!labels(screen.get()).contains("Loading..."));
         snapshot(screen.get(), "inventory");
-        for (String destination : List.of("Consultations", "Dispense medicine", "Notifications", "Reports", "Settings")) {
+        for (String destination : List.of("Consultations", "Medication history", "Notifications", "Reports", "Settings")) {
             onEdt(() -> check(clickButton(screen.get(), destination), "nurse navigation: " + destination));
             waitFor(() -> !labels(screen.get()).contains("Loading..."));
             snapshot(screen.get(), "nurse-" + destination.toLowerCase().replace(' ', '-'));

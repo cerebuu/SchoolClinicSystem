@@ -1,6 +1,7 @@
 package clinic.persistence;
 
 import java.sql.*;
+import java.util.List;
 
 /** Version 1 is additive and retryable: never drops, resets, or seeds application data. */
 final class Schema {
@@ -12,7 +13,7 @@ final class Schema {
             try (ResultSet r = s.executeQuery("SELECT version FROM schema_version WHERE id=1")) {
                 if (r.next()) {
                     version=r.getInt(1);
-                    if (version < 1 || version > 5) throw new SQLException("Unsupported database schema version.");
+                    if (version < 1 || version > 9) throw new SQLException("Unsupported database schema version.");
                 }
             }
             if(version==0) {
@@ -43,7 +44,71 @@ final class Schema {
                 s.execute("CREATE TABLE IF NOT EXISTS medicine_batch_ids (ordinal INT PRIMARY KEY, batch_id VARCHAR(36) NOT NULL UNIQUE)");
                 assignMissingBatchIds(connection);
                 s.executeUpdate("UPDATE schema_version SET version=5 WHERE id=1");
+                version=5;
             }
+            if(version==5) {
+                s.execute("ALTER TABLE notifications ALTER COLUMN transaction_id DROP NOT NULL");
+                s.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS message_type VARCHAR(30) NOT NULL DEFAULT 'MEDICINE_GIVEN'");
+                s.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS channel VARCHAR(10)");
+                s.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS attempt_count INT NOT NULL DEFAULT 0");
+                s.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP(9)");
+                dropNotificationCheck(connection,"status");
+                s.execute("ALTER TABLE notifications ADD CONSTRAINT notification_status_check CHECK(status IN ('PENDING','SENT','FAILED'))");
+                dropNotificationCheck(connection,"message_type");
+                s.execute("ALTER TABLE notifications ADD CONSTRAINT notification_message_type_check CHECK(message_type IN ('CLINIC_VISIT','MEDICINE_GIVEN','SENT_HOME','FOLLOW_UP_NEEDED','EMERGENCY'))");
+                s.executeUpdate("UPDATE schema_version SET version=6 WHERE id=1");
+                version=6;
+            }
+            if(version==6) {
+                s.execute("ALTER TABLE medicine_batches ADD COLUMN IF NOT EXISTS strength VARCHAR(100) NOT NULL DEFAULT ''");
+                s.execute("ALTER TABLE medicine_batches ADD COLUMN IF NOT EXISTS formulation VARCHAR(100) NOT NULL DEFAULT ''");
+                s.execute("ALTER TABLE dispensing ADD COLUMN IF NOT EXISTS strength VARCHAR(100) NOT NULL DEFAULT ''");
+                s.execute("ALTER TABLE dispensing ADD COLUMN IF NOT EXISTS formulation VARCHAR(100) NOT NULL DEFAULT ''");
+                s.execute("ALTER TABLE dispensing ADD COLUMN IF NOT EXISTS visit_id VARCHAR(500)");
+                s.execute("""
+                    CREATE TABLE IF NOT EXISTS dispensing_batch_allocations (
+                      transaction_id VARCHAR(500) NOT NULL REFERENCES dispensing(id),
+                      batch_id VARCHAR(36) NOT NULL,
+                      quantity INT NOT NULL CHECK(quantity>0),
+                      expiry DATE NOT NULL,
+                      PRIMARY KEY(transaction_id,batch_id))
+                    """);
+                s.executeUpdate("UPDATE schema_version SET version=7 WHERE id=1");
+                version=7;
+            }
+            if(version==7) {
+                s.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS campus_id VARCHAR(500)");
+                s.execute("ALTER TABLE audit_entries ADD COLUMN IF NOT EXISTS campus_id VARCHAR(500)");
+                s.executeUpdate("UPDATE schema_version SET version=8 WHERE id=1");
+                version=8;
+            }
+            if(version==8) {
+                s.execute("ALTER TABLE visits ADD COLUMN IF NOT EXISTS campus_id VARCHAR(500)");
+                s.execute("ALTER TABLE dispensing ADD COLUMN IF NOT EXISTS campus_id VARCHAR(500)");
+                s.executeUpdate("UPDATE schema_version SET version=9 WHERE id=1");
+            }
+        }
+    }
+    private static void dropNotificationCheck(Connection connection,String column) throws SQLException {
+        List<String> constraints=new java.util.ArrayList<>();
+        try(PreparedStatement query=connection.prepareStatement("""
+            SELECT tc.constraint_name FROM information_schema.table_constraints tc
+            JOIN information_schema.check_constraints cc
+              ON tc.constraint_catalog=cc.constraint_catalog
+             AND tc.constraint_schema=cc.constraint_schema
+             AND tc.constraint_name=cc.constraint_name
+            WHERE tc.table_name='NOTIFICATIONS' AND tc.constraint_type='CHECK'
+              AND LOWER(cc.check_clause) LIKE ?
+            """)) {
+            query.setString(1,"%"+column.toLowerCase(java.util.Locale.ROOT)+"%");
+            try(ResultSet rows=query.executeQuery()) {
+            while(rows.next())constraints.add(rows.getString(1));
+            }
+        }
+        try(Statement statement=connection.createStatement()) {
+            for(String constraint:constraints)
+                statement.execute("ALTER TABLE notifications DROP CONSTRAINT \""+
+                    constraint.replace("\"","\"\"")+"\"");
         }
     }
     private static void assignMissingBatchIds(Connection connection) throws SQLException {
@@ -59,12 +124,13 @@ final class Schema {
         CREATE TABLE IF NOT EXISTS accounts (
           id VARCHAR(500) PRIMARY KEY, name VARCHAR(500) NOT NULL,
           role VARCHAR(20) NOT NULL CHECK(role IN ('ADMIN','NURSE','ASSISTANT','DOCTOR')),
-          password_hash VARCHAR(200) NOT NULL, active BOOLEAN NOT NULL);
+          password_hash VARCHAR(200) NOT NULL, active BOOLEAN NOT NULL, campus_id VARCHAR(500));
         CREATE TABLE IF NOT EXISTS campuses (id VARCHAR(500) PRIMARY KEY, name VARCHAR(500) NOT NULL);
         CREATE TABLE IF NOT EXISTS audit_entries (
           seq BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, event_time TIMESTAMP(9) NOT NULL,
           user_id VARCHAR(500) NOT NULL, user_name VARCHAR(500) NOT NULL, role VARCHAR(20) NOT NULL,
-          action VARCHAR(100) NOT NULL, details VARCHAR(500) NOT NULL, allowed BOOLEAN NOT NULL);
+          action VARCHAR(100) NOT NULL, details VARCHAR(500) NOT NULL, allowed BOOLEAN NOT NULL,
+          campus_id VARCHAR(500));
         CREATE TABLE IF NOT EXISTS patients (
           id VARCHAR(500) PRIMARY KEY, name VARCHAR(500) NOT NULL, contact VARCHAR(500) NOT NULL,
           patient_type VARCHAR(20) NOT NULL CHECK(patient_type IN ('STUDENT','EMPLOYEE')),
@@ -77,17 +143,21 @@ final class Schema {
         CREATE TABLE IF NOT EXISTS visits (
           seq BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE, id VARCHAR(500) PRIMARY KEY,
           patient_id VARCHAR(500) NOT NULL REFERENCES patients(id), reason VARCHAR(500) NOT NULL,
-          assessment CLOB NOT NULL, medication CLOB NOT NULL, staff_id VARCHAR(500) NOT NULL REFERENCES accounts(id), visit_time TIMESTAMP(9) NOT NULL);
+          assessment CLOB NOT NULL, medication CLOB NOT NULL, staff_id VARCHAR(500) NOT NULL REFERENCES accounts(id),
+          visit_time TIMESTAMP(9) NOT NULL, campus_id VARCHAR(500));
         CREATE TABLE IF NOT EXISTS symptoms (
           visit_id VARCHAR(500) REFERENCES visits(id), ordinal INT NOT NULL, symptom VARCHAR(500) NOT NULL, PRIMARY KEY(visit_id,ordinal));
         CREATE TABLE IF NOT EXISTS medicine_batches (
           ordinal INT PRIMARY KEY, name VARCHAR(500) NOT NULL, quantity INT NOT NULL CHECK(quantity>=0),
-          expiry DATE NOT NULL, batch_date DATE NOT NULL, remarks CLOB NOT NULL);
+          expiry DATE NOT NULL, batch_date DATE NOT NULL, remarks CLOB NOT NULL,
+          strength VARCHAR(100) NOT NULL DEFAULT '', formulation VARCHAR(100) NOT NULL DEFAULT '');
         CREATE TABLE IF NOT EXISTS dispensing (
           seq BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE, id VARCHAR(500) PRIMARY KEY,
           medicine VARCHAR(500) NOT NULL, patient_id VARCHAR(500) NOT NULL REFERENCES patients(id),
           staff_id VARCHAR(500) NOT NULL REFERENCES accounts(id), quantity INT NOT NULL CHECK(quantity>0),
           expiry DATE NOT NULL, remarks CLOB NOT NULL, dispensed_at TIMESTAMP(9) NOT NULL,
+          strength VARCHAR(100) NOT NULL DEFAULT '', formulation VARCHAR(100) NOT NULL DEFAULT '',
+          visit_id VARCHAR(500) REFERENCES visits(id), campus_id VARCHAR(500),
           UNIQUE(id, patient_id));
         CREATE TABLE IF NOT EXISTS notifications (
           seq BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE, id VARCHAR(500) PRIMARY KEY,

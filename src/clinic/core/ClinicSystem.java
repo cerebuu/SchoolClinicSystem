@@ -1,8 +1,12 @@
 package clinic.core;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import clinic.notify.Channel;
+import clinic.model.MedicineProduct;
+import clinic.service.DispenseItem;
 
 import clinic.model.*;
 
@@ -26,6 +30,10 @@ public interface ClinicSystem {
     MedicalRecord recordVisit(String patientId, List<String> symptoms,
                               String reason, String remarks, String staffId);
 
+    MedicalRecord recordVisitAndAdminister(String patientId, List<String> symptoms,
+                                           String reason, String remarks, String staffId,
+                                           List<DispenseItem> medicines, boolean allergyConfirmed);
+
     List<MedicalRecord> getVisitHistory(String patientId);
 
     // ---------- 3. Safety and dispensing ----------
@@ -42,12 +50,18 @@ public interface ClinicSystem {
     MedicineTransaction dispenseMedicine(String patientId, String medicineName,
                                          int quantity, String staffId, String overrideReason);
 
+    MedicineTransaction dispenseMedicine(String patientId, MedicineProduct medicine,
+                                         int quantity, String staffId, boolean overrideConfirmed);
+
     // ---------- 4. Inventory ----------
     void addMedicine(String name, int quantity, LocalDate expiry, String remarks);
+    void addMedicine(MedicineProduct medicine, int quantity, LocalDate expiry, String remarks);
 
     void restockMedicine(String name, int quantity, LocalDate expiry);
+    void restockMedicine(MedicineProduct medicine, int quantity, LocalDate expiry, String remarks);
 
     int getStock(String medicineName);
+    int getStock(MedicineProduct medicine);
 
     List<Medicine> getLowStock();
 
@@ -77,4 +91,11 @@ public interface ClinicSystem {
     void updateNotificationStatus(String notificationId, NotificationStatus status);
 
     List<NotificationLog> getNotifications(String patientId);
+
+    NotificationLog createEmergencyNotification(String patientId);
+
+    NotificationLog beginNotificationAttempt(String notificationId, Channel channel,
+                                               LocalDateTime attemptedAt);
+
+    void completeNotificationAttempt(String notificationId, NotificationStatus status);
 }

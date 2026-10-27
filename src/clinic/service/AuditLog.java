@@ -17,7 +17,11 @@ public class AuditLog {
     public synchronized void record(LocalDateTime timestamp, String userId,
                                     String userName, String role, String action,
                                     String details, boolean allowed) {
-        AuditEntry entry = new AuditEntry(timestamp, userId, userName, role, action, details, allowed);
+        record(timestamp,userId,userName,role,action,details,allowed,null);
+    }
+    public synchronized void record(LocalDateTime timestamp,String userId,String userName,String role,
+            String action,String details,boolean allowed,String campusId) {
+        AuditEntry entry = new AuditEntry(timestamp,userId,userName,role,action,details,allowed,campusId);
         if (repository != null) repository.append(entry); else entries.add(entry);
         onRecorded.run();
     }
@@ -60,7 +64,8 @@ public class AuditLog {
         return PageResult.select(getAll(), page, size, e -> {
             for (String token : tokens) {
                 if (token.equals("denied")) { if (e.isAllowed()) return false; }
-                else if (!(e.getUserId()+" "+e.getTimestamp()+" "+e.getAction()).toLowerCase(java.util.Locale.ROOT).contains(token)) return false;
+                else if (!(e.getUserId()+" "+e.getCampusId()+" "+e.getTimestamp()+" "+e.getAction())
+                        .toLowerCase(java.util.Locale.ROOT).contains(token)) return false;
             }
             return true;
         });

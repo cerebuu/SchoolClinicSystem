@@ -10,18 +10,22 @@ public final class AccountRepository {
     public AccountRepository(Database database) { this.database=database; }
     public record Account(User user, String hash, boolean active, int failures, long lockedUntil) {}
     public List<Account> load() {
-        return database.transaction(c -> Sql.query(c,"SELECT * FROM accounts ORDER BY id", r ->
-            new Account(AdminService.user(r.getString("id"),r.getString("name"),r.getString("role")),
-                r.getString("password_hash"),r.getBoolean("active"),r.getInt("failed_attempts"),r.getLong("locked_until"))));
+        return database.transaction(c -> Sql.query(c,"SELECT * FROM accounts ORDER BY id", r -> {
+            User user=AdminService.user(r.getString("id"),r.getString("name"),r.getString("role"));
+            user.setCampusId(r.getString("campus_id"));
+            return new Account(user,r.getString("password_hash"),r.getBoolean("active"),
+                r.getInt("failed_attempts"),r.getLong("locked_until"));
+        }));
     }
     public void insert(User user, String hash) {
-        database.transaction(c -> Sql.update(c,"INSERT INTO accounts(id,name,role,password_hash,active) VALUES(?,?,?,?,?)",
-            user.getUserId(),user.getName(),user.getRole(),hash,true));
+        database.transaction(c -> Sql.update(c,"INSERT INTO accounts(id,name,role,password_hash,active,campus_id) VALUES(?,?,?,?,?,?)",
+            user.getUserId(),user.getName(),user.getRole(),hash,true,user.getCampusId()));
     }
     public void update(User user, boolean active) {
         database.transaction(c -> {
-            if(Sql.update(c,"UPDATE accounts SET name=?,role=?,active=? WHERE id=?",
-                user.getName(),user.getRole(),active,user.getUserId())!=1) throw new IllegalArgumentException("User not found.");
+            if(Sql.update(c,"UPDATE accounts SET name=?,role=?,active=?,campus_id=? WHERE id=?",
+                user.getName(),user.getRole(),active,user.getCampusId(),user.getUserId())!=1)
+                throw new IllegalArgumentException("User not found.");
             return null;
         });
     }

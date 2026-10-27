@@ -20,12 +20,13 @@ public final class AdminRepository {
         });
     }
     public void append(AuditEntry entry) {
-        database.transaction(c -> Sql.update(c,"INSERT INTO audit_entries(event_time,user_id,user_name,role,action,details,allowed) VALUES(?,?,?,?,?,?,?)",
-            entry.getTimestamp(),entry.getUserId(),entry.getUserName(),entry.getRole(),entry.getAction(),entry.getDetails(),entry.isAllowed()));
+        database.transaction(c -> Sql.update(c,"INSERT INTO audit_entries(event_time,user_id,user_name,role,action,details,allowed,campus_id) VALUES(?,?,?,?,?,?,?,?)",
+            entry.getTimestamp(),entry.getUserId(),entry.getUserName(),entry.getRole(),entry.getAction(),entry.getDetails(),entry.isAllowed(),entry.getCampusId()));
     }
     public List<AuditEntry> audit() {
         return database.transaction(c -> Sql.query(c,"SELECT * FROM audit_entries ORDER BY seq", r -> new AuditEntry(
             r.getObject("event_time",java.time.LocalDateTime.class),r.getString("user_id"),r.getString("user_name"),
-            r.getString("role"),r.getString("action"),r.getString("details"),r.getBoolean("allowed"))));
+            r.getString("role"),r.getString("action"),r.getString("details"),r.getBoolean("allowed"),
+            r.getString("campus_id"))));
     }
 }

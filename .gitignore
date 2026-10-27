@@ -42,3 +42,7 @@ out-check/
 out-demo/
 out-inspection/
 out-run/
+
+# Local AI credentials (never commit)
+/config.local.properties
+/notifier.properties

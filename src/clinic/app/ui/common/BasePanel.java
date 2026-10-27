@@ -10,7 +10,10 @@ public class BasePanel extends JPanel {
     protected final boolean refreshActive(){return live==null||live.active();}
     protected final JPanel actions=new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT));
     public BasePanel(String title) {
-        this(title, null);
+        this(title, (String)null);
+    }
+    public BasePanel(String title,clinic.app.ApplicationContext app) {
+        this(title,java.util.Objects.requireNonNull(app).campusLabel());
     }
     public BasePanel(String title, String campusLabel) {
         super(new BorderLayout(Theme.GAP, Theme.GAP));

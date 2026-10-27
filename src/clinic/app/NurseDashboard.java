@@ -51,8 +51,8 @@ public class NurseDashboard extends JPanel {
         lower.setOpaque(false);
         lower.add(workflowCard("Patient care", "Search patients, review visit history, and record consultations.",
                 new String[] {"Patients", "Consultations"}, new String[] {"patients", "consultations"}, navigate));
-        lower.add(workflowCard("Medicine dispensing", "Review recorded allergies, dispense medicine, and monitor inventory.",
-                new String[] {"Dispense medicine", "Medicine inventory"}, new String[] {"dispense", "inventory"}, navigate));
+        lower.add(workflowCard("Medication history", "Review recorded administrations, create consultations, and monitor inventory.",
+                new String[] {"Medication history", "Medicine inventory"}, new String[] {"dispense", "inventory"}, navigate));
         content.add(lower, BorderLayout.CENTER);
         add(content, BorderLayout.CENTER);
     }

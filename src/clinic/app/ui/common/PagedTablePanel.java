@@ -50,14 +50,13 @@ public final class PagedTablePanel<T> extends Card {
         JPanel refreshArea=new JPanel(new FlowLayout(FlowLayout.RIGHT,Theme.SPACE_2,0));refreshArea.setOpaque(false);
         updated.setForeground(Theme.MUTED);refreshArea.add(updated);refreshArea.add(refresh);
         controls.add(refreshArea, BorderLayout.EAST);add(controls, BorderLayout.NORTH);
-        scroll=new JScrollPane(table, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS,
+        scroll=new JScrollPane(table, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.setBackground(Theme.WHITE);
         scroll.getViewport().setBackground(Theme.WHITE);
         scroll.setWheelScrollingEnabled(true);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         scroll.getHorizontalScrollBar().setUnitIncrement(16);
-        scroll.setColumnHeaderView(table.getTableHeader());
         scroll.setBorder(BorderFactory.createLineBorder(Theme.LINE));
         add(scroll, BorderLayout.CENTER);
         JPanel footer=new JPanel(new BorderLayout(Theme.GAP, 0));
@@ -98,6 +97,12 @@ public final class PagedTablePanel<T> extends Card {
     }
     public int refreshCount(){return refreshCount;}
     public String modelType(){return model.getClass().getSimpleName();}
+    public void setDashboardViewport(int visibleRows,int rowHeight) {
+        table.setRowHeight(rowHeight);
+        int height=table.getTableHeader().getPreferredSize().height+visibleRows*rowHeight;
+        Dimension preferred=scroll.getPreferredSize();
+        scroll.setPreferredSize(new Dimension(preferred.width,height)); scroll.setMinimumSize(new Dimension(0,height));
+    }
     public int currentPage(){return page;}
     public String filterText(){return search.getText();}
     public void setEmptyMessage(java.util.function.Function<String, String> message) { emptyMessage = message; }
@@ -125,6 +130,11 @@ public final class PagedTablePanel<T> extends Card {
         if (!table.isEnabled()) return null;
         int r=table.getSelectedRow();
         return r<0?null:model.row(table.convertRowIndexToModel(r));
+    }
+    public void addSelectionListener(Runnable listener) {
+        table.getSelectionModel().addListSelectionListener(event -> {
+            if (!event.getValueIsAdjusting()) listener.run();
+        });
     }
     public void reload() {
         if(live!=null&&!live.active())return;

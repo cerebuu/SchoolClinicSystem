@@ -24,13 +24,15 @@ public final class AdminService {
         boolean allowed=u!=null&&User.ADMIN.equals(u.getRole());
         // Auditing an audit/summary read would create an endless refresh -> audit -> refresh loop.
         if(!allowed || (!action.equals("viewAudit")&&!action.equals("adminSummary")))
-            audit.record(LocalDateTime.now(), u==null?"unknown":u.getUserId(), u==null?"unknown":u.getName(), u==null?"unknown":u.getRole(), action, "administration", allowed);
+            audit.record(LocalDateTime.now(),u==null?"unknown":u.getUserId(),u==null?"unknown":u.getName(),
+                u==null?"unknown":u.getRole(),action,"administration",allowed,u==null?null:u.getCampusId());
         if(!allowed)throw new SecurityException("Administrator session required.");
         return u;
     }
     public synchronized void addUser(User u, String password) {
         synchronized (login) {
             authorize("addUser");
+            validateCampus(u);
             login.addUser(u, password);
             changed.accept("users");
         }
@@ -38,9 +40,17 @@ public final class AdminService {
     public synchronized void updateUser(User u, boolean active) {
         synchronized (login) {
             authorize("updateUser");
+            validateCampus(u);
             login.updateUser(u, active);
             changed.accept("users");
         }
+    }
+    private void validateCampus(User user) {
+        if(!User.ADMIN.equals(user.getRole())
+                &&(user.getCampusId()==null||!campuses.containsKey(user.getCampusId())))
+            throw new IllegalArgumentException("Assign a valid campus to every clinical staff account.");
+        if(user.getCampusId()!=null&&!campuses.containsKey(user.getCampusId()))
+            throw new IllegalArgumentException("Selected campus does not exist.");
     }
     public synchronized PageResult<User> users(int page, int size, String filter) {
         synchronized (login) {
@@ -64,6 +74,10 @@ public final class AdminService {
             String q=filter.toLowerCase(Locale.ROOT);
             return PageResult.select(campuses.values(), page, size, c->c.id().toLowerCase(Locale.ROOT).contains(q)||c.name().toLowerCase(Locale.ROOT).contains(q));
         }
+    }
+    public synchronized String campusName(String campusId) {
+        Campus campus=campusId==null?null:campuses.get(campusId);
+        return campus==null?null:campus.name();
     }
     public synchronized PageResult<AuditEntry> audit(int page, int size, String query) {
         synchronized (login) {

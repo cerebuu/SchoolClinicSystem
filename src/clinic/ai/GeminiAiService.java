@@ -10,7 +10,7 @@ import java.util.Objects;
 
 /** Minimal Gemini REST client. It deliberately has no clinic-system dependency. */
 public final class GeminiAiService {
-    public static final String KEY_VARIABLE = "GEMINI_API_KEY";
+    public static final String KEY_VARIABLE = AiConfig.KEY_VARIABLE;
     private static final int MAX_PROMPT_CHARS = 3_500;
     // Override with a text model supported by your provider project.
     private static final String DEFAULT_MODEL = "gemini-3.1-flash-lite";
@@ -25,9 +25,9 @@ public final class GeminiAiService {
 
     public static GeminiAiService fromEnvironment(clinic.app.ApplicationContext app) throws AiServiceException {
         Runnable guard = app.nurseSessionGuard();
-        String key = System.getenv(KEY_VARIABLE);
+        String key = AiConfig.getApiKey();
         if (key == null || key.isBlank())
-            throw new AiServiceException("AI is not configured. Set the " + KEY_VARIABLE + " environment variable, then restart the application.");
+            throw new AiServiceException(AiConfig.MISSING_KEY_MESSAGE);
         String configured = System.getenv("GEMINI_MODEL");
         String model = configured == null || configured.isBlank() ? DEFAULT_MODEL : configured.trim();
         if (!model.matches("[A-Za-z0-9._-]{1,100}"))

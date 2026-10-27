@@ -5,6 +5,7 @@ import clinic.app.ui.common.popup.FormField;
 import clinic.app.ui.common.popup.FormPopup;
 import clinic.app.ui.common.popup.MessagePopup;
 import clinic.app.ui.common.popup.MultiSelectField;
+import clinic.app.ui.common.popup.AllergyConfirmPopup;
 import clinic.service.FeatureRules;
 import java.util.Map;
 import clinic.core.ClinicSystem;
@@ -27,17 +28,44 @@ public final class NewConsultationForm {
             MessagePopup.error(owner, error);
             return;
         }
-        FormPopup.show(owner, "New Consultation", List.of(
+        ConsultationMedicinePanel medicines=app.current().canAccess(User.DISPENSE)
+            ?new ConsultationMedicinePanel(app):null;
+        List<FormField> fields=new java.util.ArrayList<>(List.of(
             FormField.text("Patient ID"),
             FormField.text("Symptoms"),
-            FormField.text("Concern"), FormField.optional("Remarks")),
-            Map.of("Symptoms",new MultiSelectField(FeatureRules.SYMPTOM_CHOICES)), (values,selections) -> {
-                String patientId = values.get("Patient ID");
-                clinic.findPatient(patientId).orElseThrow(() ->
+            FormField.text("Concern"), FormField.optional("Remarks")));
+        Map<String,MultiSelectField> selections=new java.util.LinkedHashMap<>();
+        selections.put("Symptoms",new MultiSelectField(FeatureRules.SYMPTOM_CHOICES));
+        Map<String,javax.swing.JComponent> components=new java.util.LinkedHashMap<>();
+        components.putAll(selections);
+        if(medicines!=null) {
+            fields.add(FormField.optional("Medicines administered (optional)"));
+            components.put("Medicines administered (optional)",medicines);
+        }
+        FormPopup.showWithComponents(owner,"New Consultation",fields,components,(values,symptoms,controller)->{
+            String patientId=values.get("Patient ID");
+            try {
+                clinic.findPatient(patientId).orElseThrow(()->
                     new IllegalArgumentException("Patient ID was not found. Enter a registered patient's ID."));
-                clinic.recordVisit(patientId, selections.get("Symptoms"), values.get("Concern"),
-                    values.get("Remarks"), staffId);
-            }, () -> {
+                List<clinic.service.DispenseItem> requested=medicines==null?List.of():medicines.items();
+                boolean confirmed=false;
+                if(!requested.isEmpty()) {
+                    var profile=clinic.findPatient(patientId).orElseThrow();
+                    if(!profile.getAllergies().isEmpty()) {
+                        confirmed=AllergyConfirmPopup.show(owner,profile,requested);
+                        if(!confirmed)return;
+                    }
+                }
+                boolean allergyConfirmed=confirmed;
+                controller.saveAsync(()->{
+                    clinic.recordVisitAndAdminister(patientId,symptoms.get("Symptoms"),values.get("Concern"),
+                        values.get("Remarks"),staffId,requested,allergyConfirmed);
+                    return true;
+                });
+            } catch(RuntimeException error) {
+                MessagePopup.error(owner,error);
+            }
+        }, () -> {
                 saved.run();
                 MessagePopup.info(owner, "Consultation saved.");
             });

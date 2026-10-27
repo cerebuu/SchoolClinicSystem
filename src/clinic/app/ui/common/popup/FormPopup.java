@@ -22,6 +22,12 @@ public final class FormPopup {
     }
     public static void showInteractive(Component owner,String title,List<FormField> fields,
             Map<String,MultiSelectField> selections,InteractiveSubmit submit,Runnable saved) {
+        Map<String,JComponent> components=new LinkedHashMap<>();
+        components.putAll(selections);
+        showWithComponents(owner,title,fields,components,submit,saved);
+    }
+    public static void showWithComponents(Component owner,String title,List<FormField> fields,
+            Map<String,? extends JComponent> selections,InteractiveSubmit submit,Runnable saved) {
         JDialog dialog=PopupDialog.create(owner, title);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         Card form=new Card();
@@ -39,7 +45,8 @@ public final class FormPopup {
             if(input instanceof JComboBox<?> c)c.setSelectedItem(f.initial());
             input.getAccessibleContext().setAccessibleName(f.label());
             label.setLabelFor(input);
-            if(!(input instanceof MultiSelectField) && !(input instanceof LimitedTextArea) && !(input instanceof AllergyField)) {
+            if(!(input instanceof MultiSelectField) && !(input instanceof LimitedTextArea)
+                    && !(input instanceof AllergyField) && !(input instanceof FormValueComponent)) {
                 Theme.field(input);
                 input.setMaximumSize(new Dimension(Integer.MAX_VALUE, Theme.FIELD_HEIGHT));
             }
@@ -58,7 +65,9 @@ public final class FormPopup {
             fieldErrors.put(f.label(), fieldError);
             group.add(fieldError);
             group.setAlignmentX(Component.LEFT_ALIGNMENT);
-            group.setMaximumSize(new Dimension(Integer.MAX_VALUE, input instanceof MultiSelectField?290:input instanceof AllergyField?220:input instanceof LimitedTextArea?150:90));
+            int componentHeight=input instanceof MultiSelectField?290:input instanceof AllergyField?220:
+                input instanceof LimitedTextArea?150:input instanceof FormValueComponent?input.getPreferredSize().height+48:90;
+            group.setMaximumSize(new Dimension(Integer.MAX_VALUE,componentHeight));
             form.add(group);
             form.add(Box.createVerticalStrut(Theme.SPACE_2));
             inputs.put(f.label(), input);
@@ -97,7 +106,12 @@ public final class FormPopup {
                     v=new String(chars);
                     Arrays.fill(chars, '\0');
                 }
-                else v=c instanceof AllergyField allergy?allergy.getText():c instanceof LimitedTextArea area?area.getText():c instanceof JTextField t?t.getText().trim():Objects.toString(((JComboBox<?>)c).getSelectedItem(), "");
+                else v=c instanceof FormValueComponent custom?custom.formValue()
+                    :c instanceof AllergyField allergy?allergy.getText()
+                    :c instanceof LimitedTextArea area?area.getText()
+                    :c instanceof JTextField t?t.getText().trim()
+                    :c instanceof JComboBox<?> combo?Objects.toString(combo.getSelectedItem(),"")
+                    :throwUnsupportedComponent(c);
                 String validation = f.validator().apply(v);
                 if (validation != null) {
                     fieldErrors.get(f.label()).setText(validation);
@@ -140,6 +154,9 @@ public final class FormPopup {
         dialog.setMinimumSize(new Dimension(Math.min(360,dialog.getWidth()),Math.min(300,dialog.getHeight())));
         dialog.setLocationRelativeTo(owner);
         dialog.setVisible(true);
+    }
+    private static String throwUnsupportedComponent(JComponent component) {
+        throw new IllegalStateException("Unsupported custom form component: "+component.getClass().getName());
     }
     @FunctionalInterface public interface InteractiveSubmit {
         void submit(Map<String,String> values,Map<String,List<String>> selections,SaveController controller);

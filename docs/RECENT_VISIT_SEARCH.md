@@ -12,8 +12,9 @@
 Build and run (PowerShell, Java 21):
 
 ```powershell
+cmd /c tools\dependencies.cmd
 $sources = @(Get-ChildItem src,tests,demo -Recurse -Filter *.java | ForEach-Object FullName)
-javac -d out-check @sources
+javac -cp 'lib/*' -d out-check @sources
 java '-Djava.awt.headless=true' -cp out-check VisitSearchDemo
 java -cp out-check VisitSearchDemo --show
 ```

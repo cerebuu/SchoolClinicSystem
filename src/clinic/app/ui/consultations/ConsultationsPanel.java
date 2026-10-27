@@ -7,14 +7,14 @@ import java.awt.BorderLayout;
 
 public final class ConsultationsPanel extends BasePanel {
     public ConsultationsPanel(ApplicationContext app) {
-        super("Consultations", "Clinic records");
+        super("Consultations", app);
         PagedTablePanel<MedicalRecord> table = new PagedTablePanel<>(new ConsultationsTableModel(),
             app.current().canAccess(User.RECORDS) ? app::records : app::recentVisits,
             "Patient ID / concern");
         table.refreshOn(app.changes, clinic.app.DataTopic.VISITS);
         add(table, BorderLayout.CENTER);
         if (app.current().canAccess(User.RECORD_TRANSACTION)) {
-            action("Record visit", true, () -> NewConsultationForm.open(this, app, () -> {
+            action("+ New Consultation", true, () -> NewConsultationForm.open(this, app, () -> {
 
             }));
         }

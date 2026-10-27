@@ -143,9 +143,15 @@ public class Login {
         Login login = new Login(auditLog);
         login.addUser(new Administrator("AD001", "Admin Cy"), "admin123");
         login.login("AD001", "admin123");
-        login.addUser(new SchoolNurse("N001", "Nurse Ann"), "nurse123");
-        login.addUser(new NurseAssistant("A001", "Assistant Bo"), "assist123");
-        login.addUser(new Doctor("D001", "Dr. Di", "Pediatrics"), "doctor123");
+        SchoolNurse nurse=new SchoolNurse("N001","Nurse Ann");
+        nurse.setCampusId("C1");
+        login.addUser(nurse,"nurse123");
+        NurseAssistant assistant=new NurseAssistant("A001","Assistant Bo");
+        assistant.setCampusId("C1");
+        login.addUser(assistant,"assist123");
+        Doctor doctor=new Doctor("D001","Dr. Di","Pediatrics");
+        doctor.setCampusId("C1");
+        login.addUser(doctor,"doctor123");
         login.logout();
         return login;
     }
@@ -185,6 +191,6 @@ public class Login {
         String name = knownUser ? user.getName() : "unknown";
         String role = knownUser ? user.getRole() : "unknown";
         auditLog.record(java.time.LocalDateTime.now(), auditUserId, name, role,
-                "login", result, "SUCCESS".equals(result));
+                "login", result, "SUCCESS".equals(result),knownUser?user.getCampusId():null);
     }
 }

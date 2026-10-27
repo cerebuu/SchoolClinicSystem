@@ -44,10 +44,51 @@ public final class InMemoryClinicSystem implements ClinicData {
         patient(id).addAllergy(allergy);
     }
     public synchronized MedicalRecord recordVisit(String patient, List<String> symptoms, String reason, String remarks, String staff) {
+        return recordVisitWithCampus(patient,symptoms,reason,remarks,staff,null);
+    }
+    @Override
+    public synchronized MedicalRecord recordVisitWithCampus(String patient,List<String> symptoms,String reason,
+            String remarks,String staff,String campusId) {
         patient(patient);
-        MedicalRecord r=new MedicalRecord(id(), patient, symptoms, reason, remarks, "", staff);
+        MedicalRecord r=new MedicalRecord(id(),patient,symptoms,reason,remarks,"",staff,LocalDateTime.now(),campusId);
         records.add(r);
         return r;
+    }
+    public synchronized MedicalRecord recordVisitAndAdminister(String patientId,List<String> symptoms,
+            String reason,String remarks,String staff,List<DispenseItem> requested,boolean allergyConfirmed) {
+        return recordVisitAndAdministerWithCampus(patientId,symptoms,reason,remarks,staff,requested,allergyConfirmed,null);
+    }
+    @Override
+    public synchronized MedicalRecord recordVisitAndAdministerWithCampus(String patientId,List<String> symptoms,
+            String reason,String remarks,String staff,List<DispenseItem> requested,boolean allergyConfirmed,String campusId) {
+        Patient profile=patient(patientId);
+        clinic.util.Validation.required(staff,"Staff");
+        List<DispenseItem> items=requested==null||requested.isEmpty()?List.of():DispenseWorkflow.merge(requested);
+        Map<String,Integer> totals=new LinkedHashMap<>();
+        for(DispenseItem item:items) {
+            List<String> safetyWarnings=checkSafety(patientId,item.medicine());
+            if(safetyWarnings.stream().anyMatch(w->!w.equals(SafetyChecker.ALLERGY_CONFIRMATION)))
+                throw new IllegalStateException(String.join("; ",safetyWarnings));
+            if(safetyWarnings.contains(SafetyChecker.ALLERGY_CONFIRMATION)&&!allergyConfirmed)
+                throw new IllegalStateException(SafetyChecker.ALLERGY_CONFIRMATION);
+            MedicineProduct product=item.product();
+            totals.merge(product.key(),item.quantity(),Math::addExact);
+            if(item.quantity()>inventory.getStock(product))
+                throw new IllegalStateException("Insufficient unexpired stock for "+product.displayName()+". Nothing was recorded.");
+        }
+        for(DispenseItem item:items) {
+            if(totals.get(item.product().key())>inventory.getStock(item.product()))
+                throw new IllegalStateException("Insufficient unexpired stock for "+item.product().displayName()+". Nothing was recorded.");
+        }
+        String visitId=id();
+        String medication=items.stream().map(DispenseItem::toString).collect(java.util.stream.Collectors.joining(", "));
+        MedicalRecord visit=new MedicalRecord(visitId,patientId,symptoms,reason,remarks,medication,staff,
+            LocalDateTime.now(),campusId);
+        records.add(visit);
+        for(DispenseItem item:items)
+            DispensingService.dispense(this,inventory,transactions,patientId,item.product(),item.quantity(),
+                staff,allergyConfirmed?"Allergies reviewed by staff":"",visitId,campusId);
+        return visit;
     }
     public synchronized List<MedicalRecord> getVisitHistory(String patient) {
         patient(patient);
@@ -61,11 +102,27 @@ public final class InMemoryClinicSystem implements ClinicData {
             override ? "Allergies reviewed by staff" : "");
     }
     public synchronized MedicineTransaction dispenseMedicine(String patient, String medicine, int quantity, String staff, String overrideReason) {
-        return DispensingService.dispense(this, inventory, transactions, patient, medicine, quantity, staff, overrideReason);
+        return DispensingService.dispense(this, inventory, transactions, patient,
+            new MedicineProduct(medicine,"",""), quantity, staff, overrideReason,null,null);
+    }
+    public synchronized MedicineTransaction dispenseMedicine(String patient,MedicineProduct medicine,int quantity,
+            String staff,boolean overrideConfirmed) {
+        return DispensingService.dispense(this,inventory,transactions,patient,medicine,quantity,staff,
+            overrideConfirmed?"Allergies reviewed by staff":"",null,null);
+    }
+    @Override
+    public synchronized MedicineTransaction dispenseMedicineWithCampus(String patient,MedicineProduct medicine,int quantity,
+            String staff,String overrideReason,String campusId) {
+        return DispensingService.dispense(this,inventory,transactions,patient,medicine,quantity,staff,
+            overrideReason,null,campusId);
     }
     public synchronized void addMedicine(String name, int quantity, LocalDate expiry, String remarks) {
         clinic.util.Validation.positive(quantity);
         inventory.addMedicine(new Medicine(name, quantity, expiry, LocalDate.now(), remarks));
+    }
+    public synchronized void addMedicine(MedicineProduct medicine,int quantity,LocalDate expiry,String remarks) {
+        clinic.util.Validation.positive(quantity);
+        inventory.addMedicine(new Medicine(medicine,quantity,expiry,LocalDate.now(),remarks));
     }
     public synchronized void restockMedicine(String name, int quantity, LocalDate expiry) {
         inventory.restockMedicine(name, quantity, expiry);
@@ -73,20 +130,35 @@ public final class InMemoryClinicSystem implements ClinicData {
     public synchronized void restockMedicine(String name, int quantity, LocalDate expiry, String remarks) {
         inventory.restockMedicine(name, quantity, expiry, remarks);
     }
+    public synchronized void restockMedicine(MedicineProduct product,int quantity,LocalDate expiry,String remarks) {
+        inventory.restockMedicine(product,quantity,expiry,remarks);
+    }
     public synchronized List<Medicine> matchingMedicineBatches(String name,LocalDate expiry) {
         return inventory.matchingBatches(name,expiry);
+    }
+    public synchronized List<Medicine> matchingMedicineBatches(MedicineProduct product,LocalDate expiry) {
+        return inventory.matchingBatches(product,expiry);
     }
     public synchronized void mergeMedicineBatch(String name,int quantity,LocalDate expiry,String remarks) {
         inventory.mergeBatch(name,quantity,expiry,remarks);
     }
+    public synchronized void mergeMedicineBatch(MedicineProduct product,int quantity,LocalDate expiry,String remarks) {
+        inventory.mergeBatch(product,quantity,expiry,remarks);
+    }
     public synchronized void mergeDuplicateMedicineBatches(String name,LocalDate expiry) {
         inventory.mergeDuplicateBatches(name,expiry);
+    }
+    public synchronized void mergeDuplicateMedicineBatches(MedicineProduct product,LocalDate expiry) {
+        inventory.mergeDuplicateBatches(product,expiry);
     }
     public synchronized void refillBatch(String batchId,int quantity,LocalDate expiry,String remarks) {
         inventory.refillBatch(batchId,quantity,expiry,remarks);
     }
     public synchronized int getStock(String name) {
         return inventory.getStock(name);
+    }
+    public synchronized int getStock(MedicineProduct product) {
+        return inventory.getStock(product);
     }
     public synchronized List<Medicine> getLowStock() {
         return inventory.getLowStock(FeatureRules.LOW_STOCK_THRESHOLD);
@@ -139,6 +211,16 @@ public final class InMemoryClinicSystem implements ClinicData {
     }
     public synchronized List<NotificationLog> getNotifications(String patient) {
         return notifications.forPatient(patients.get(patient));
+    }
+    public synchronized NotificationLog createEmergencyNotification(String patientId) {
+        return notifications.createEmergency(patient(patientId));
+    }
+    public synchronized NotificationLog beginNotificationAttempt(String id,clinic.notify.Channel channel,
+            LocalDateTime attemptedAt) {
+        return notifications.beginAttempt(id,channel,attemptedAt);
+    }
+    public synchronized void completeNotificationAttempt(String id,NotificationStatus status) {
+        notifications.completeAttempt(id,status);
     }
     // Bounded query gateway: scans stored data but copies only the requested page.
     public synchronized PageResult<Patient> patientPage(int page, int size, String filter) {

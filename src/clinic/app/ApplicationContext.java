@@ -69,6 +69,14 @@ public final class ApplicationContext implements AutoCloseable {
     public User current() {
         return login.getCurrentUser().orElseThrow(()->new SecurityException("Sign in required."));
     }
+    public String campusLabel() {
+        User user=current();
+        if(User.ADMIN.equals(user.getRole()))return "Administration";
+        String id=user.getCampusId();
+        if(id==null)return "Campus unassigned";
+        String name=admin.campusName(id);
+        return name==null?"Unknown campus · "+id:name;
+    }
     /** Captures one nurse session; checks do not hold the login lock during network I/O. */
     public Runnable nurseSessionGuard() {
         synchronized (login) {
@@ -90,8 +98,10 @@ public final class ApplicationContext implements AutoCloseable {
         User user = current();
         boolean allowed = java.util.Arrays.stream(features).anyMatch(user::canAccess);
         audit.record(java.time.LocalDateTime.now(), user.getUserId(), user.getName(),
-            user.getRole(), "clinicQuery", "Read permission check", allowed);
+            user.getRole(), "clinicQuery", "Read permission check", allowed,user.getCampusId());
         if (!allowed) throw new SecurityException("Access denied.");
+        if(!User.ADMIN.equals(user.getRole())&&user.getCampusId()==null)
+            throw new SecurityException("Your account has no assigned campus. Ask an administrator to assign one.");
     }
     public ClinicSystem clinic() { return ClinicSession.open(login,store,audit,changes); }
     public PageResult<Patient> patients(int page, int size, String q) {
@@ -106,6 +116,9 @@ public final class ApplicationContext implements AutoCloseable {
     public java.util.function.Consumer<java.util.Map<String,String>> inventoryBatchSession(String medicine,boolean restock,boolean merge) {
         return ClinicSession.inventoryBatch(login,store,audit,changes,medicine,restock,merge);
     }
+    public java.util.function.Consumer<java.util.Map<String,String>> inventoryBatchSession(MedicineProduct medicine,boolean restock,boolean merge) {
+        return ClinicSession.inventoryBatch(login,store,audit,changes,medicine,restock,merge);
+    }
     public java.util.function.Consumer<java.util.Map<String,String>> refillBatchSession(String batchId,String medicine) {
         return ClinicSession.refillBatch(login,store,audit,changes,batchId,medicine);
     }
@@ -114,6 +127,9 @@ public final class ApplicationContext implements AutoCloseable {
     }
     public List<Medicine> matchingMedicineBatches(String name,java.time.LocalDate expiry) {
         synchronized(login){require(User.VIEW_STOCK);return store.matchingMedicineBatches(name,expiry);}
+    }
+    public List<Medicine> matchingMedicineBatches(MedicineProduct product,java.time.LocalDate expiry) {
+        synchronized(login){require(User.VIEW_STOCK);return store.matchingMedicineBatches(product,expiry);}
     }
     public PageResult<Medicine> medicines(int page, int size, String q) {
         synchronized (login) {
@@ -151,8 +167,10 @@ public final class ApplicationContext implements AutoCloseable {
             User user = current();
             boolean allowed = user.canAccess(User.RECORD_TRANSACTION);
             audit.record(java.time.LocalDateTime.now(), user.getUserId(), user.getName(), user.getRole(),
-                "visitSearch", "visit search performed", allowed);
+                "visitSearch", "visit search performed", allowed,user.getCampusId());
             if (!allowed) throw new SecurityException("Access denied.");
+            if(user.getCampusId()==null)
+                throw new SecurityException("Your account has no assigned campus. Ask an administrator to assign one.");
             return store.recentRecordPage(page, size, nameOrId,
                 user.canAccess(User.RECORDS) ? null : user.getUserId(), fromInclusive, toInclusive);
         }

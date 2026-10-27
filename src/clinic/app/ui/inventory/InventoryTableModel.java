@@ -6,15 +6,17 @@ public final class InventoryTableModel extends PagedTableModel<Medicine> {
         return row(index).getBatchId();
     }
     public InventoryTableModel() {
-        super("Medicine", "Quantity", "Expiry", "Batch date", "Remarks");
+        super("Medicine", "Strength", "Formulation", "Quantity", "Expiry", "Batch date", "Remarks");
     }
     protected Object value(Medicine r, int c) {
         return switch(c) {
             case 0 -> r.getName();
-            case 1 -> r.getQuantity();
-            case 2 -> r.getExpirationDate();
-            case 3 -> r.getBatchDate();
-            case 4 -> r.getRemarks();
+            case 1 -> r.getStrength();
+            case 2 -> r.getFormulation();
+            case 3 -> r.getQuantity();
+            case 4 -> r.getExpirationDate();
+            case 5 -> r.getBatchDate();
+            case 6 -> r.getRemarks();
             default -> "";
         };
     }

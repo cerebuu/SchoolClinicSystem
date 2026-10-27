@@ -14,6 +14,10 @@ public final class Navigator extends JPanel {
     private final Map<String, NavItem> allowed=new LinkedHashMap<>();
     private final Map<String, SidebarItem> navigation = new LinkedHashMap<>();
     public Navigator(List<NavItem> items, Runnable logout, User user, boolean superadmin) {
+        this(items,logout,user,superadmin,superadmin?"Administration":
+            user.getCampusId()==null?"Campus unassigned":"Campus "+user.getCampusId());
+    }
+    public Navigator(List<NavItem> items,Runnable logout,User user,boolean superadmin,String campusLabel) {
         super(new BorderLayout());
         JPanel sidebar=new JPanel();
         sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
@@ -36,7 +40,7 @@ public final class Navigator extends JPanel {
         workspace.setAlignmentX(Component.LEFT_ALIGNMENT);
         sidebar.add(workspace);
         if (!superadmin) {
-            CampusBadge campus = new CampusBadge("Clinic records");
+            CampusBadge campus = new CampusBadge(campusLabel);
             campus.setAlignmentX(Component.LEFT_ALIGNMENT);
             sidebar.add(campus);
             sidebar.add(Box.createVerticalStrut(Theme.SPACE_4));

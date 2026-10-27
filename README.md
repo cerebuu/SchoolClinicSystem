@@ -14,8 +14,9 @@ cmd /c Run.cmd
 Or compile and launch manually:
 
 ```powershell
+cmd /c tools\dependencies.cmd
 $sources = @(Get-ChildItem src -Recurse -Filter *.java | ForEach-Object FullName)
-javac -encoding UTF-8 -d out @sources
+javac -encoding UTF-8 -cp "lib/*" -d out @sources
 java -cp "out;lib/*" clinic.app.Main
 ```
 
@@ -37,6 +38,16 @@ key, and lock files are deliberately ignored by Git; keep the database and its
 matching key file together. `--demo` and automated checks use isolated
 in-memory or temporary data and are not persistent.
 
+## Guardian notifications
+
+The notifier defaults to `SIMULATED`, which prints sends to the application
+console Outbox and makes no network requests. Copy
+`notifier.properties.example` to the ignored `notifier.properties` for local
+configuration. `LIVE` email requires SMTP TLS settings and an app password;
+`LIVE` SMS requires a Semaphore API key and may incur provider charges. Never
+commit credentials. Do not select `LIVE` until a staff member has approved
+real sends and configured the provider.
+
 `Demo.cmd` compiles and launches login with the existing explicit sample-user fixture. Normal startup never installs those accounts. `PagedTableDemo.cmd` launches a separate 10,000-row demonstration with 25 rows loaded per page. The CMD launchers work without changing PowerShell's script execution policy.
 
 ## Verify
@@ -57,15 +68,41 @@ The desktop checks use isolated in-memory data and exercise setup, login, requir
 
 ## AI Nurse Assistant (optional)
 
-The nurse-only **AI Nurse Assistant** uses Google Gemini through HTTPS and is
-disabled until `GEMINI_API_KEY` is set in the environment before launching the
-application. In PowerShell for the current terminal session:
+The nurse-only **AI Nurse Assistant** uses Google Gemini through HTTPS.
+
+### AI setup
+
+Choose either setup method, then restart the application:
+
+1. **Local file (recommended for VS Code, debugger, or desktop launches):** copy
+   `config.local.properties.example` to `config.local.properties` in the project
+   root and replace `your-key-here` with your own key. The local file is ignored
+   by Git. Only the example belongs in version control. The application locates
+   the root from the working directory or above its compiled `out/` / `bin/`
+   directory. For a packaged app, put the file in its launch working directory.
+2. **Environment variable:** set it in the same terminal that launches Java.
+   An already-running IDE may not inherit variables exported in another terminal.
 
 ```powershell
-$env:GEMINI_API_KEY = "your-key"
-# Optional: set GEMINI_MODEL to an available text model in your provider project.
+$env:GEMINI_API_KEY = "your-key-here"
 cmd /c Run.cmd
 ```
+
+```sh
+export GEMINI_API_KEY='your-key-here'
+java -cp 'out:lib/*' clinic.app.Main
+```
+
+Lookup precedence is environment, then the Java system property
+`-DGEMINI_API_KEY=...`, then the local properties file. Values are trimmed and
+matching surrounding quotes are removed. Avoid putting real keys in command-line
+arguments or shared launch configurations; the local file is preferable. A copied
+example with its placeholder unchanged is treated as unconfigured.
+
+If configuration is missing or unreadable, the panel shows a red setup message
+and disables Send. Sending also requires checking **I confirm this contains no
+student identifiers, records, or credentials**. Configuration values are never
+printed. `GEMINI_MODEL` remains an optional environment setting.
 
 Open **AI Nurse Assistant** from the nurse sidebar. It sends only the message
 typed for the current request; it never reads the SCMS database or performs

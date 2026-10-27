@@ -20,10 +20,10 @@ public final class DispenseQueries {
     public static PageResult<Medicine> medicines(List<Medicine> batches,int page,int size,String query) {
         String q=query(query);
         Map<String,Medicine> grouped=new TreeMap<>();
-        for(Medicine m:batches)if(!m.isExpired()&&m.getName().toLowerCase(Locale.ROOT).contains(q)) {
-            String key=m.getName().toLowerCase(Locale.ROOT);
+        for(Medicine m:batches)if(!m.isExpired()&&m.getDisplayName().toLowerCase(Locale.ROOT).contains(q)) {
+            String key=m.getProduct().key();
             Medicine old=grouped.get(key);
-            grouped.put(key,new Medicine(old==null?m.getName():old.getName(),
+            grouped.put(key,new Medicine(m.getProduct(),
                 Math.addExact(old==null?0:old.getQuantity(),m.getQuantity()),
                 old==null||m.getExpirationDate().isBefore(old.getExpirationDate())?m.getExpirationDate():old.getExpirationDate(),
                 m.getBatchDate(),"Available unexpired stock"));
@@ -34,7 +34,7 @@ public final class DispenseQueries {
             String query,LocalDateTime from,LocalDateTime to) {
         String q=query(query);
         return page(records.stream().filter(t->(t.getPatientId().toLowerCase(Locale.ROOT).contains(q)
-            ||t.getMedicineName().toLowerCase(Locale.ROOT).contains(q))
+            ||t.getMedicineDisplayName().toLowerCase(Locale.ROOT).contains(q))
             &&(from==null||!t.getDateTime().isBefore(from))&&(to==null||t.getDateTime().isBefore(to)))
             .sorted(Comparator.comparing(MedicineTransaction::getDateTime).reversed()
                 .thenComparing(MedicineTransaction::getTransactionId)).toList(),page,size);

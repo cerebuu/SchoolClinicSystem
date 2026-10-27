@@ -1,6 +1,7 @@
 package clinic.app.ui.assistant;
 
 import clinic.ai.AiServiceException;
+import clinic.ai.AiConfig;
 import clinic.ai.GeminiAiService;
 import clinic.app.ApplicationContext;
 import clinic.app.Theme;
@@ -36,9 +37,10 @@ public final class AiNurseAssistantPanel extends BasePanel {
     private int generation;
     private JButton send;
     private boolean pending;
+    private boolean configured;
 
     public AiNurseAssistantPanel(ApplicationContext app) {
-        super("AI Nurse Assistant", "Clinic records");
+        super("AI Nurse Assistant", app);
         this.app = app;
         this.sessionGuard = app.nurseSessionGuard();
         if (!(app.current() instanceof SchoolNurse)) throw new SecurityException("AI Nurse Assistant access denied.");
@@ -51,6 +53,7 @@ public final class AiNurseAssistantPanel extends BasePanel {
         conversation.getVerticalScrollBar().setUnitIncrement(16);
         add(conversation, BorderLayout.CENTER);
         addComposer();
+        checkConfiguration();
         action("Clear conversation", () -> clear());
         action("Cancel request", () -> cancelRequest());
         addHierarchyListener(e -> {
@@ -78,6 +81,7 @@ public final class AiNurseAssistantPanel extends BasePanel {
         privacyLine.setOpaque(false);
         privacy.setOpaque(false); privacy.setFont(Theme.font(Theme.TYPE_CAPTION, Font.PLAIN));
         privacy.setAlignmentX(Component.LEFT_ALIGNMENT);
+        privacy.addActionListener(e -> updateSendEnabled());
         privacyLine.add(privacy);
         status.setForeground(Theme.MUTED); status.setFont(Theme.font(Theme.TYPE_CAPTION, Font.PLAIN));
         status.setEditable(false); status.setLineWrap(true); status.setWrapStyleWord(true); status.setOpaque(false);
@@ -91,6 +95,20 @@ public final class AiNurseAssistantPanel extends BasePanel {
         add(south, BorderLayout.SOUTH);
     }
 
+    private void updateSendEnabled() {
+        if (send != null) send.setEnabled(configured && !pending && privacy.isSelected());
+    }
+    private void checkConfiguration() {
+        try {
+            configured = !AiConfig.getApiKey().isEmpty();
+            if (!configured) showError(AiConfig.MISSING_KEY_MESSAGE);
+        } catch (AiServiceException error) {
+            configured = false;
+            showError(error.getMessage());
+        }
+        updateSendEnabled();
+    }
+
     private void clear() {
         cancelRequest();
         messages.removeAll();
@@ -99,27 +117,31 @@ public final class AiNurseAssistantPanel extends BasePanel {
         privacy.setSelected(false);
         status.setForeground(Theme.MUTED);
         status.setText("Use general, non-identifying questions only.");
+        checkConfiguration();
     }
     private void submit() {
         if (pending) return;
+        checkConfiguration();
+        if (!configured) return;
         String question = input.getText().trim();
         if (question.isEmpty()) { showError("Enter a question for the assistant."); return; }
         if (!privacy.isSelected()) { showError("Confirm that the message contains no identifying or sensitive record information."); return; }
         final GeminiAiService service;
         try { sessionGuard.run(); service = GeminiAiService.fromEnvironment(app); }
         catch (AiServiceException | SecurityException error) { showError(error.getMessage()); return; }
+        catch (RuntimeException error) { showError("AI configuration could not be initialized. Check settings and restart the application."); return; }
         pending = true; send.setEnabled(false); input.setEnabled(false); privacy.setEnabled(false);
         status.setForeground(Theme.MUTED); status.setText("AI is thinking…");
         final int current = ++generation;
         request = AsyncLoader.load(() -> service.ask(question), answer -> {
             if (current != generation) return;
-            pending = false; send.setEnabled(true); input.setEnabled(true); privacy.setEnabled(true);
+            pending = false; input.setEnabled(true); privacy.setEnabled(true); updateSendEnabled();
             try { sessionGuard.run(); } catch (SecurityException expired) { showError(expired.getMessage()); return; }
-            addNurse(question); input.setText(""); privacy.setSelected(false);
+            addNurse(question); input.setText(""); privacy.setSelected(false); updateSendEnabled();
             status.setForeground(Theme.SUCCESS); status.setText("Review AI drafts before use."); addAssistant("Draft for nurse review\n\n" + answer);
         }, error -> {
             if (current != generation) return;
-            pending = false; send.setEnabled(true); input.setEnabled(true); privacy.setEnabled(true);
+            pending = false; input.setEnabled(true); privacy.setEnabled(true); updateSendEnabled();
             showError(error instanceof AiServiceException || error instanceof SecurityException
                 ? error.getMessage() : "The AI request failed. Your question is retained; use Send to retry.");
         });
@@ -129,7 +151,7 @@ public final class AiNurseAssistantPanel extends BasePanel {
         if (request != null) { request.cancel(true); request = null; }
         if (pending) status.setText("Request cancelled. Your question is retained.");
         pending = false;
-        if (send != null) send.setEnabled(true);
+        updateSendEnabled();
         input.setEnabled(true); privacy.setEnabled(true);
     }
     @Override public void removeNotify() {

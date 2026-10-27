@@ -14,7 +14,7 @@ public final class TransactionHistoryPanel extends JPanel {
         JComboBox<String> dates=new JComboBox<>(new String[]{"All","Today","This week"});
         dates.getAccessibleContext().setAccessibleName("Transaction date filter");Theme.field(dates);
         JPanel controls=new JPanel(new FlowLayout(FlowLayout.LEFT));controls.setOpaque(false);
-        controls.add(new JLabel("Transaction history"));controls.add(dates);
+        controls.add(new JLabel("Medication history"));controls.add(dates);
         JButton details=Theme.button("View transaction",false);controls.add(details);add(controls,BorderLayout.NORTH);
         table=new PagedTablePanel<>(new TransactionsTableModel(),(page,size,query)->{
             String selected=period;LocalDate today=LocalDate.now();
@@ -23,9 +23,13 @@ public final class TransactionHistoryPanel extends JPanel {
             return app.transactions(page,size,query,from,selected.equals("All")?null:today.plusDays(1).atStartOfDay());
         },"Patient ID / medicine");
         table.refreshOn(app.changes, clinic.app.DataTopic.TRANSACTIONS);
-        table.setEmptyText("No transactions yet");add(table,BorderLayout.CENTER);
+        table.setEmptyText("No transactions yet");
+        table.setDashboardViewport(DispenseLayout.HISTORY_VISIBLE_ROWS, DispenseLayout.ROW_HEIGHT);
+        clinic.app.ui.dashboard.DashboardLayout.sizeCard(table);
+        add(table,BorderLayout.CENTER);
         dates.addActionListener(e->{period=(String)dates.getSelectedItem();table.setPage(0);});
         details.addActionListener(e->{var t=table.selected();if(t==null)MessagePopup.warning(this,"Select a transaction.");else MessagePopup.info(this,t.toReport());});
+        DispenseLayout.sizeSection(this);
     }
     public void refresh(){table.reload();}
 }

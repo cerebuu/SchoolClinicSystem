@@ -15,9 +15,9 @@ public final class DispenseWorkflow {
     public static List<DispenseItem> merge(List<DispenseItem> items) {
         Map<String,DispenseItem> merged=new LinkedHashMap<>();
         for(DispenseItem item:items) {
-            String key=item.medicine().toLowerCase(Locale.ROOT);
+            String key=item.product().key();
             DispenseItem old=merged.get(key);
-            merged.put(key,old==null?item:new DispenseItem(old.medicine(),Math.addExact(old.quantity(),item.quantity())));
+            merged.put(key,old==null?item:new DispenseItem(old.product(),Math.addExact(old.quantity(),item.quantity())));
         }
         if(merged.isEmpty())throw new IllegalArgumentException("Add at least one medicine.");
         return List.copyOf(merged.values());
@@ -28,14 +28,14 @@ public final class DispenseWorkflow {
         List<String> warnings=new ArrayList<>();
         List<String> stockErrors=new ArrayList<>();
         for(DispenseItem item:items) {
-            for(String warning:clinic.checkSafety(patient,item.medicine())) {
+            for(String warning:clinic.checkSafety(patient,item.product().name())) {
                 if(warning.equals(SafetyChecker.ALLERGY_CONFIRMATION)) {
                     if(!warnings.contains(warning))warnings.add(warning);
                 } else stockErrors.add(warning);
             }
             // getStock excludes expired batches, even when an allergy override is supplied.
-            if(item.quantity()>clinic.getStock(item.medicine()))stockErrors.add(item.medicine()+": requested "+item.quantity()
-                +", available "+clinic.getStock(item.medicine()));
+            if(item.quantity()>clinic.getStock(item.product()))stockErrors.add(item.product().displayName()+": requested "+item.quantity()
+                +", available "+clinic.getStock(item.product()));
         }
         if(!stockErrors.isEmpty())throw new IllegalStateException("Insufficient unexpired stock. Nothing dispensed:\n"+String.join("\n",stockErrors));
         return List.copyOf(warnings);
@@ -55,12 +55,13 @@ public final class DispenseWorkflow {
         for(int i=0;i<items.size();i++) {
             DispenseItem item=items.get(i);
             try {
-                done.add(clinic.dispenseMedicine(patient,item.medicine(),item.quantity(),staff.getUserId(),confirmed));
+                done.add(clinic.dispenseMedicine(patient,item.product(),item.quantity(),staff.getUserId(),confirmed));
             } catch(RuntimeException ex) {
                 String message=item.medicine()+": dispensing failed. Remaining items were not attempted.";
                 if(!done.isEmpty()) {
                     try {audit.record(LocalDateTime.now(),staff.getUserId(),staff.getName(),staff.getRole(),
-                        "dispense partially completed","completed="+done.size()+", notDispensed="+(items.size()-done.size()),true);}
+                        "dispense partially completed","completed="+done.size()+", notDispensed="+(items.size()-done.size()),
+                        true,staff.getCampusId());}
                     catch(RuntimeException auditFailure){message+=" Audit entry could not be saved; contact the administrator.";}
                 }
                 return new DispenseResult(done,items.subList(i,items.size()),message);

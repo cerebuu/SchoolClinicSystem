@@ -3,6 +3,13 @@
   "configurations": [
     {
       "type": "java",
+      "name": "SuperadminGUI",
+      "request": "launch",
+      "mainClass": "SuperadminGUI",
+      "projectName": "SchoolClinicSystem_62781d83"
+    },
+    {
+      "type": "java",
       "name": "Main",
       "request": "launch",
       "mainClass": "clinic.app.Main",
@@ -13,9 +20,7 @@
       "name": "Run UIC Clinic UI (Demo)",
       "request": "launch",
       "mainClass": "clinic.app.GUI",
-      "args": [
-        "--demo"
-      ],
+      "args": ["--demo"],
       "projectName": "SchoolClinicSystem"
     }
   ]

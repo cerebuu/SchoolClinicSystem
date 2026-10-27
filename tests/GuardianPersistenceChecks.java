@@ -1,9 +1,11 @@
 import clinic.model.*;
+import clinic.notify.Channel;
 import clinic.persistence.*;
 import clinic.service.*;
 import java.nio.file.*;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Objects;
 
 /** Uses only newly created temporary databases; simulates a real version-2 schema. */
@@ -16,7 +18,8 @@ public final class GuardianPersistenceChecks {
     }
     public static void main(String[] args)throws Exception {
         Path file=Files.createTempDirectory("scms-guardian-check-").resolve("clinic");
-        String notificationId;
+        String notificationId,emergencyId;
+        LocalDateTime attemptedAt=LocalDateTime.now().minusMinutes(1);
         try(Database db=new Database(file)) {
             ClinicData clinic=ClinicRepository.create(db);
             Student old=new Student("old","Old student","own-contact","CS",1,"A");
@@ -38,6 +41,10 @@ public final class GuardianPersistenceChecks {
             p.setGuardianContact("guardian-separate");
             clinic.registerPatient(p);
             clinic.registerPatient(new Employee("e","Employee","employee-own","Office","Staff"));
+            NotificationLog emergency=clinic.createEmergencyNotification("old");
+            emergencyId=emergency.getNotificationId();
+            clinic.beginNotificationAttempt(emergencyId,Channel.SMS,attemptedAt);
+            clinic.completeNotificationAttempt(emergencyId,NotificationStatus.FAILED);
             db.transaction(c->{try(Statement s=c.createStatement()) {
                 s.executeUpdate("INSERT INTO accounts(id,name,role,password_hash,active) VALUES('n','Fixture nurse','NURSE','test-only',TRUE)");
             }return null;});
@@ -61,6 +68,15 @@ public final class GuardianPersistenceChecks {
             equal("Reopen: same notification",notificationId,n.getNotificationId());
             equal("Reopen: employee contact labeled",true,clinic.getNotifications("e").get(0).toMessage().startsWith("Employee contact (own): employee-own"));
             equal("Reopen: clinical reason excluded",false,(n.toMessage()+n.getReason()).contains("private diagnosis"));
+            NotificationLog emergency=clinic.getNotifications("old").get(0);
+            equal("Reopen: emergency supports no transaction",null,emergency.getTransactionId());
+            equal("Reopen: emergency type retained",GuardianMessageTemplates.MessageType.EMERGENCY,
+                emergency.getMessageType());
+            equal("Reopen: failed status retained",NotificationStatus.FAILED,emergency.getStatus());
+            equal("Reopen: channel retained",Channel.SMS,emergency.getChannel());
+            equal("Reopen: attempt count retained",1,emergency.getAttemptCount());
+            equal("Reopen: attempt time retained",attemptedAt,emergency.getLastAttemptTime());
+            equal("Reopen: emergency id retained",emergencyId,emergency.getNotificationId());
         }
         System.out.println("PASS: "+checks+" guardian persistence and migration checks.");
     }

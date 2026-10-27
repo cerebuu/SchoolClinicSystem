@@ -8,7 +8,7 @@ import java.util.List;
 public final class PatientsPanel extends BasePanel {
     private final PagedTablePanel<Patient> table;
     public PatientsPanel(ApplicationContext app) {
-        super("Patients", "Clinic records");
+        super("Patients", app);
         table=new PagedTablePanel<>(new PatientsTableModel(), app::patients, "Name / ID / section / position");
         table.refreshOn(app.changes, clinic.app.DataTopic.PATIENTS);
         add(table, BorderLayout.CENTER);
