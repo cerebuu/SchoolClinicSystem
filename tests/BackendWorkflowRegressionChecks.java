@@ -40,8 +40,8 @@ public final class BackendWorkflowRegressionChecks {
     }
     private static void consultationAttribution(ClinicData clinic) {
         clinic.registerPatient(new Student("p","Synthetic patient","contact","CS",1,"A"));
-        MedicineProduct product=new MedicineProduct("Loratadine","10 mg","tablet");
-        MedicineProduct standalone=new MedicineProduct("Standalone medicine","5 mg","tablet");
+        MedicineProduct product=new MedicineProduct("Loratadine","R06AX13","");
+        MedicineProduct standalone=new MedicineProduct("Standalone medicine","A01","");
         clinic.addMedicine(product,5,LocalDate.now().plusDays(30),"");
         clinic.addMedicine(standalone,5,LocalDate.now().plusDays(30),"");
         MedicalRecord medicated=clinic.recordVisitAndAdministerWithCampus("p",List.of("Cough"),"Medicated","","n",
@@ -57,7 +57,7 @@ public final class BackendWorkflowRegressionChecks {
             "standalone administration remains available in medication history");
     }
     private static void invalidCampusDoesNotDeduct(InMemoryClinicSystem clinic) {
-        MedicineProduct product=new MedicineProduct("Loratadine","10 mg","tablet");
+        MedicineProduct product=new MedicineProduct("Loratadine","R06AX13","");
         int before=clinic.getStock(product);
         try {
             clinic.dispenseMedicineWithCampus("p",product,1,"n","","x".repeat(501));
@@ -66,7 +66,7 @@ public final class BackendWorkflowRegressionChecks {
         check(clinic.getStock(product)==before,"invalid campus is rejected before stock deduction");
     }
     private static void availableBatchExpiry(ClinicData clinic) {
-        MedicineProduct product=new MedicineProduct("Expiry regression","10 mg","tablet");
+        MedicineProduct product=new MedicineProduct("Expiry regression","A01","");
         LocalDate soon=LocalDate.now().plusDays(2),later=LocalDate.now().plusDays(30);
         clinic.addMedicine(product,1,soon,"");
         clinic.dispenseMedicine("p",product,1,"n",false);
@@ -138,7 +138,7 @@ public final class BackendWorkflowRegressionChecks {
     private static void auditFailureRollsBackClinicalMutation(Database database,ClinicData store) {
         SchoolNurse nurse=new SchoolNurse("n","Nurse");nurse.setCampusId("uic-bajada");
         clinic.core.ClinicSystem secured=new SecuredClinicSystem(store,nurse,new AuditLog(new AdminRepository(database)));
-        MedicineProduct product=new MedicineProduct("Loratadine","10 mg","tablet");
+        MedicineProduct product=new MedicineProduct("Loratadine","R06AX13","");
         int before=store.getStock(product);
         int transactions=store.transactionPage(0,25,"",null,null).total();
         database.transaction(c->{
@@ -163,7 +163,7 @@ public final class BackendWorkflowRegressionChecks {
         SchoolNurse nurse=new SchoolNurse("n","Nurse");nurse.setCampusId("uic-bajada");
         AuditLog audit=new AuditLog(new AdminRepository(database));
         clinic.core.ClinicSystem secured=new SecuredClinicSystem(store,nurse,audit);
-        MedicineProduct product=new MedicineProduct("Loratadine","10 mg","tablet");
+        MedicineProduct product=new MedicineProduct("Loratadine","R06AX13","");
         rejectAudit(database,"registerPatient",()->secured.registerPatient(
             new Student("audit-p","Synthetic patient","contact","CS",1,"A")));
         check(store.findPatient("audit-p").isEmpty(),"patient registration rolls back when its audit fails");
@@ -187,7 +187,7 @@ public final class BackendWorkflowRegressionChecks {
             "notification status rolls back when its audit fails");
         store.addAllergy("p","Latex");
         int auditCount=audit.size();
-        rejectAudit(database,"dispense with allergy confirmation",()->secured.dispenseMedicine("p",product,1,"n",true));
+        rejectAudit(database,"dispense confirmation",()->secured.dispenseMedicine("p",product,1,"n",true));
         check(store.getStock(product)==stock&&store.transactionPage(0,25,"",null,null).total()==transactions,
             "secondary allergy audit failure rolls back administration and stock");
         check(audit.size()==auditCount,"secondary audit failure also rolls back the primary success audit");
@@ -210,11 +210,11 @@ public final class BackendWorkflowRegressionChecks {
         }
     }
     private static void medicineSearch(ClinicData clinic) {
-        MedicineProduct product=new MedicineProduct("Loratadine","10 mg","tablet");
+        MedicineProduct product=new MedicineProduct("Loratadine","R06AX13","");
         check(clinic.dispensableMedicinePage(0,25,product.displayName()).total()==1,
-            "persistent medicine suggestions accept the displayed name, strength and formulation");
-        check(clinic.dispensableMedicinePage(0,25,"Loratadine 10 mg").total()==1,
-            "persistent suggestions match a search crossing name and strength fields");
+            "persistent medicine suggestions accept the medicine name");
+        check(clinic.dispensableMedicinePage(0,25,"loratadine").total()==1,
+            "persistent suggestions match names without case sensitivity");
         check(clinic.transactionPage(0,25,product.displayName(),null,null,"C1").total()==1,
             "persistent administration search accepts the displayed product label");
     }

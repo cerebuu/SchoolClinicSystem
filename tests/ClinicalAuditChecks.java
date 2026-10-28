@@ -34,7 +34,7 @@ public final class ClinicalAuditChecks {
             "secret reason","secret assessment",nurse.getUserId()),"failed visit is rejected");
         check("failed visit adds no completed mutation event",1,events(audit,"recordVisit",true).size());
 
-        MedicineProduct product=new MedicineProduct("private-medicine-name","private-strength","private-formulation");
+        MedicineProduct product=new MedicineProduct("private-medicine-name","private-atc-primary","private-atc-secondary");
         store.addMedicine(product,8,LocalDate.now().plusDays(30),"private-inventory-remarks");
         MedicineTransaction transaction=clinic.dispenseMedicine(patient.getId(),product,2,nurse.getUserId(),false);
         List<AuditEntry> dispenseEvents=events(audit,"dispenseMedicine",true);
@@ -43,22 +43,22 @@ public final class ClinicalAuditChecks {
             dispenseEvents.get(0).getDetails().contains("transactionId="+transaction.getTransactionId())
                 &&dispenseEvents.get(0).getDetails().contains("quantity=2"));
         check("dispense success carries trusted campus","uic-bajada",dispenseEvents.get(0).getCampusId());
-        privacy("dispense success audit",dispenseEvents.get(0),patient,product.name(),product.strength(),product.formulation());
+        privacy("dispense success audit",dispenseEvents.get(0),patient,product.name(),product.atcPrimary(),product.atcSecondary());
 
         rejects(IllegalArgumentException.class,()->clinic.dispenseMedicine(patient.getId(),product,100,
             nurse.getUserId(),false),"insufficient-stock dispense is rejected");
         check("failed dispense adds no completed mutation event",1,events(audit,"dispenseMedicine",true).size());
 
-        MedicineProduct administered=new MedicineProduct("private-administered-medicine","dose","tablet");
+        MedicineProduct administered=new MedicineProduct("private-administered-medicine","A01","");
         store.addMedicine(administered,4,LocalDate.now().plusDays(30),"");
         MedicalRecord administeredVisit=clinic.recordVisitAndAdminister(patient.getId(),List.of("private-combined-symptom"),
             "private-combined-reason","private-combined-assessment",nurse.getUserId(),
             List.of(new DispenseItem(administered,1)),false);
         List<AuditEntry> composite=events(audit,"recordVisitAndAdminister",true);
         check("successful combined workflow emits one completion event",1,composite.size());
-        check("combined workflow identifies visit and medication count",true,
-            composite.get(0).getDetails().contains("recordId="+administeredVisit.getRecordId())
-                &&composite.get(0).getDetails().contains("medicationCount=1"));
+        check("combined workflow audit records counts only",true,
+            composite.get(0).getDetails().equals("symptomCount=1; medicationCount=1")
+                &&!composite.get(0).getDetails().contains(administeredVisit.getRecordId()));
         check("combined workflow carries trusted campus","uic-bajada",composite.get(0).getCampusId());
         privacy("combined workflow audit",composite.get(0),patient,"private-combined-symptom",
             "private-combined-reason","private-combined-assessment",administered.name());

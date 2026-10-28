@@ -16,7 +16,7 @@ import java.util.List;
 /** Campus filtering checks for clinical search, analytics, counts, and dispense paging. */
 public final class CampusQueryChecks {
     private static int checks;
-    private static final MedicineProduct MEDICINE=new MedicineProduct("Loratadine","10 mg","tablet");
+    private static final MedicineProduct MEDICINE=new MedicineProduct("Loratadine","R06AX13","");
 
     public static void main(String[] args) throws Exception {
         memoryQueriesRespectCampus();
@@ -147,7 +147,7 @@ public final class CampusQueryChecks {
         data.recordVisitWithCampus("repeat-p",List.of("Cough"),"Repeat concern","","n-a","uic-bajada");
         data.recordVisitWithCampus("repeat-p",List.of("Cough"),"Repeat concern","","n-a","uic-bajada");
         data.addMedicine(MEDICINE,30,LocalDate.now().plusDays(90),"");
-        MedicineProduct campusBOnly=new MedicineProduct("Campus B only","","tablet");
+        MedicineProduct campusBOnly=new MedicineProduct("Campus B only","","");
         data.addMedicine(campusBOnly,30,LocalDate.now().plusDays(90),"");
         data.dispenseMedicineWithCampus("a-fever-1",MEDICINE,1,"n-a","","uic-bajada");
         data.dispenseMedicineWithCampus("a-fever-2",MEDICINE,1,"n-a","","uic-bajada");

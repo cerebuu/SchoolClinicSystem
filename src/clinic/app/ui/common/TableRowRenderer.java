@@ -29,14 +29,15 @@ public final class TableRowRenderer extends DefaultTableCellRenderer {
                 chip.setSelected(selected);
                 return chip;
             }
-            super.getTableCellRendererComponent(owner, value, selected, focused, row, column);
+            Object display=value instanceof clinic.model.MedicineProduct product?product.atcPrimary():value;
+            super.getTableCellRendererComponent(owner, display, selected, focused, row, column);
             setOpaque(true);
             setHorizontalAlignment(value instanceof Number ? RIGHT : LEFT);
             setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 12));
             setBackground(selected ? Theme.BRAND_TINT
                 : row % 2 == 0 ? Theme.WHITE : Theme.ZEBRA);
             setForeground(selected ? Theme.BRAND_DARK : Theme.INK);
-            setToolTipText(value == null ? null : String.valueOf(value));
+            setToolTipText(value instanceof clinic.model.MedicineProduct product?product.atcLabel():value == null ? null : String.valueOf(value));
             if (focused) {
                 setBorder(BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(Theme.FOCUS),

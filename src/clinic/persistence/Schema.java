@@ -13,7 +13,7 @@ final class Schema {
             try (ResultSet r = s.executeQuery("SELECT version FROM schema_version WHERE id=1")) {
                 if (r.next()) {
                     version=r.getInt(1);
-                    if (version < 1 || version > 11) throw new SQLException("Unsupported database schema version.");
+                    if (version < 1 || version > 12) throw new SQLException("Unsupported database schema version.");
                 }
             }
             if(version==0) {
@@ -113,6 +113,14 @@ final class Schema {
                 s.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS campus_id VARCHAR(500)");
                 s.execute("CREATE INDEX IF NOT EXISTS notification_campus_time ON notifications(campus_id,created_at)");
                 s.executeUpdate("UPDATE schema_version SET version=11 WHERE id=1");
+                version=11;
+            }
+            if(version==11) {
+                for(String table:List.of("medicine_batches","dispensing","inventory_movements")) {
+                    s.execute("ALTER TABLE "+table+" ADD COLUMN IF NOT EXISTS atc_primary VARCHAR(500) NOT NULL DEFAULT ''");
+                    s.execute("ALTER TABLE "+table+" ADD COLUMN IF NOT EXISTS atc_secondary VARCHAR(500) NOT NULL DEFAULT ''");
+                }
+                s.executeUpdate("UPDATE schema_version SET version=12 WHERE id=1");
             }
         }
     }

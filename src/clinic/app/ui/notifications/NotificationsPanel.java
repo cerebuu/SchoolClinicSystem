@@ -7,6 +7,7 @@ import clinic.model.*;
 import clinic.notify.*;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.util.Map;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.*;
@@ -32,7 +33,7 @@ public final class NotificationsPanel extends BasePanel {
             JTabbedPane views=new JTabbedPane();views.addTab("Messages",table);views.addTab("Alerts",alerts);
             add(views,BorderLayout.CENTER);
         } else add(table,BorderLayout.CENTER);
-        action("Create notification", true, ()->FormPopup.show(this, CREATE_POPUP_TITLE, List.of(FormField.text("Patient ID"), FormField.text("Transaction ID"), FormField.text("Reason")), v->app.clinic().createGuardianNotification(v.get("Patient ID"), v.get("Transaction ID"), v.get("Reason")), ()->{}));
+        action("Create notification",true,()->CreateNotificationPopup.open(this,app,()->{}));
         if(app.current().canAccess(User.SEND_NOTIFICATIONS))addSendActions();
         action("View message", ()-> {
             NotificationLog n=table.selected();
@@ -40,7 +41,10 @@ public final class NotificationsPanel extends BasePanel {
                 MessagePopup.warning(this, "Select a notification.");
                 return;
             }
-            MessagePopup.info(this, n.messageBody());
+            java.util.Map<String,String> ids=new java.util.LinkedHashMap<>();
+            ids.put("Notification ID",n.getNotificationId());ids.put("Patient ID",n.getPatientId());
+            ids.put("Transaction ID",n.getTransactionId());
+            MessagePopup.infoWithCopies(this,n.messageBody(),ids);
         });
         if(app.current().canAccess(User.SEND_NOTIFICATIONS))action("Mark sent (manual)", ()-> {
             NotificationLog n=table.selected();
@@ -74,8 +78,12 @@ public final class NotificationsPanel extends BasePanel {
 
     private void createEmergency() {
         AtomicReference<NotificationLog> created=new AtomicReference<>();
-        FormPopup.show(this,EMERGENCY_POPUP_TITLE,List.of(FormField.text("Patient ID")),
-            values->created.set(app.clinic().createEmergencyNotification(values.get("Patient ID"))),
+        PatientLookupField patientId=new PatientLookupField(app,PatientLookupField.Mode.EXISTING_WITH_CONTACT,"Patient ID");
+        FormPopup.showWithComponents(this,EMERGENCY_POPUP_TITLE,List.of(FormField.text("Patient ID")),
+            Map.of("Patient ID",patientId),(values,selections,controller)->controller.saveAsync(()->{
+                created.set(app.clinic().createEmergencyNotification(values.get("Patient ID")));
+                return true;
+            }),
             ()->{if(created.get()!=null)openSendPopup(created.get());});
     }
 

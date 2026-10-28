@@ -66,8 +66,8 @@ public class NotificationLog {
         if (messageType == null) {
             throw new IllegalArgumentException("message type is required.");
         }
-        if (transactionId == null && messageType != GuardianMessageTemplates.MessageType.EMERGENCY) {
-            throw new IllegalArgumentException("transaction ID is required.");
+        if (transactionId == null && messageType == GuardianMessageTemplates.MessageType.MEDICINE_GIVEN) {
+            throw new IllegalArgumentException("Transaction ID is required for a medicine notification.");
         }
         this.notificationId = notificationId;
         this.patientId = patientId;

@@ -19,20 +19,44 @@ public final class NotificationStore {
     }
     public NotificationLog create(Patient patient,MedicineTransaction transaction,String reason,String campusId) {
         if(patient==null)throw new IllegalArgumentException("Patient not found.");
+        GuardianMessageTemplates.MessageType type=messageType(reason);
         boolean employee=patient instanceof Employee;
         String contact=employee?patient.getContactInfo():patient.getGuardianContact();
-        if(!employee&&(contact==null||contact.isBlank()))throw new IllegalStateException("No guardian contact on file");
-        if(transaction==null||!transaction.getPatientId().equals(patient.getId()))
+        if(contact==null||contact.isBlank())
+            throw new IllegalStateException(employee?"No employee contact on file":"No guardian contact on file");
+        if(type==GuardianMessageTemplates.MessageType.MEDICINE_GIVEN&&transaction==null)
+            throw new IllegalArgumentException("Select a transaction for a medicine notification.");
+        if(transaction!=null&&!transaction.getPatientId().equals(patient.getId()))
             throw new IllegalArgumentException("Transaction does not belong to patient.");
-        if(campusId!=null&&!campusId.equals(transaction.getCampusId()))
+        if(transaction!=null&&campusId!=null&&!campusId.equals(transaction.getCampusId()))
             throw new SecurityException("Access denied.");
         clinic.util.Validation.required(reason,"Reason");
-        NotificationLog n=new NotificationLog(nextId(),patient.getId(),transaction.getTransactionId(),
-            "Clinic care notification",LocalDateTime.now(),patient.getName(),transaction.getMedicineName(),
-            GuardianMessageTemplates.MessageType.MEDICINE_GIVEN,"the school clinic",
+        NotificationLog n=new NotificationLog(nextId(),patient.getId(),transaction==null?null:transaction.getTransactionId(),
+            displayName(type),LocalDateTime.now(),patient.getName(),transaction==null?null:transaction.getMedicineName(),
+            type,"the school clinic",
             employee?"Employee contact (own)":"Guardian contact",contact,campusId);
         logs.put(n.getNotificationId(),n);
         return n.copy();
+    }
+    private static GuardianMessageTemplates.MessageType messageType(String value) {
+        String key=value==null?"":value.trim().replace('-', '_').replace(' ','_').toUpperCase(Locale.ROOT);
+        return switch(key) {
+            case "CLINIC_VISIT" -> GuardianMessageTemplates.MessageType.CLINIC_VISIT;
+            case "SENT_HOME" -> GuardianMessageTemplates.MessageType.SENT_HOME;
+            case "FOLLOW_UP_NEEDED", "FOLLOW_UP" -> GuardianMessageTemplates.MessageType.FOLLOW_UP_NEEDED;
+            case "EMERGENCY" -> GuardianMessageTemplates.MessageType.EMERGENCY;
+            case "MEDICINE_GIVEN", "MEDICINE" -> GuardianMessageTemplates.MessageType.MEDICINE_GIVEN;
+            default -> GuardianMessageTemplates.MessageType.MEDICINE_GIVEN;
+        };
+    }
+    private static String displayName(GuardianMessageTemplates.MessageType type) {
+        return switch(type) {
+            case CLINIC_VISIT -> "Clinic visit";
+            case MEDICINE_GIVEN -> "Medicine given";
+            case SENT_HOME -> "Sent home";
+            case FOLLOW_UP_NEEDED -> "Follow-up needed";
+            case EMERGENCY -> "Emergency";
+        };
     }
     public NotificationLog createEmergency(Patient patient) {
         return createEmergency(patient,null);

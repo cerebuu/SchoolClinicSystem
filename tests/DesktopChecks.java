@@ -1,7 +1,9 @@
 import clinic.app.*;
 import clinic.model.*;
 import java.awt.*;
+import java.awt.event.InputEvent;
 import java.awt.event.WindowEvent;
+import java.awt.datatransfer.DataFlavor;
 import java.nio.file.*;
 import java.time.LocalDate;
 import java.util.*;
@@ -72,9 +74,112 @@ public final class DesktopChecks {
     private static void click(Container parent, String text) {
         SwingUtilities.invokeLater(() -> button(parent, text).doClick());
     }
+    private static boolean visibleButton(Container parent,String text) {
+        return components(parent).stream().anyMatch(c->c instanceof JButton b&&text.equals(b.getText())&&b.isShowing());
+    }
+    private static void clickCopyForId(Container parent,String label) throws Exception {
+        edt(()->{
+            JButton button=components(parent).stream().filter(c->c instanceof JButton copy
+                &&("copy:"+label).equals(copy.getName())).map(c->(JButton)c).findFirst().orElseThrow();
+            button.doClick();
+        });
+    }
+    private static int column(JTable table,String name) {
+        for(int c=0;c<table.getColumnCount();c++)if(name.equals(table.getColumnName(c)))return c;
+        throw new AssertionError("Missing column: "+name);
+    }
+    private static void clickCell(JTable table,int row,int column,boolean right,boolean copyIcon) throws Exception {
+        edt(()->{
+            Rectangle cell=table.getCellRect(row,column,true);
+            int x=copyIcon?cell.x+cell.width-12:cell.x+Math.min(32,cell.width/2);
+            int y=cell.y+cell.height/2,button=right?java.awt.event.MouseEvent.BUTTON3:java.awt.event.MouseEvent.BUTTON1;
+            int mask=right?InputEvent.BUTTON3_DOWN_MASK:InputEvent.BUTTON1_DOWN_MASK;long now=System.currentTimeMillis();
+            table.dispatchEvent(new java.awt.event.MouseEvent(table,java.awt.event.MouseEvent.MOUSE_PRESSED,
+                now,mask,x,y,1,false,button));
+            table.dispatchEvent(new java.awt.event.MouseEvent(table,java.awt.event.MouseEvent.MOUSE_RELEASED,
+                now+1,0,x,y,1,right,button));
+            table.dispatchEvent(new java.awt.event.MouseEvent(table,java.awt.event.MouseEvent.MOUSE_CLICKED,
+                now+2,0,x,y,1,false,button));
+        });
+    }
+    private static String clipboardText() throws Exception {
+        return (String)Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
+    }
+    private static void setClipboardText(String text) {
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(text),null);
+    }
+    private static boolean copiedFeedback(JTable table,int row,int column) {
+        Component cell=table.prepareRenderer(table.getCellRenderer(row,column),row,column);
+        return components((Container)cell).stream().anyMatch(c->c instanceof JLabel label&&"Copied".equals(label.getText()));
+    }
+    private static void consultationCopyDemo() throws Exception {
+        check(visibleButton(frame,"+ New Consultation"),"Consultations retains + New Consultation");
+        edt(()->frame.setSize(1000,700));
+        JTable visits=table();int idColumn=column(visits,"Record ID"),row=0;
+        String id=String.valueOf(visits.getValueAt(row,idColumn));
+        var idView=visits.getColumnModel().getColumn(idColumn);
+        check(idView.getMinWidth()>=154&&idView.getResizable(),"Record ID column is resizable and wide enough at 1000x700");
+        AtomicReference<String> shown=new AtomicReference<>();
+        edt(()->shown.set(components((Container)visits.prepareRenderer(visits.getCellRenderer(row,idColumn),row,idColumn))
+            .stream().filter(c->c instanceof JLabel).map(c->((JLabel)c).getText()).findFirst().orElse("")));
+        check(shown.get().equals(id.substring(0,Math.min(8,id.length()))+(id.length()>8?"…":"")),
+            "Record ID displays its first eight characters and ellipsis");
+        Rectangle cell=visits.getCellRect(row,idColumn,true);
+        String tooltip=visits.getToolTipText(new java.awt.event.MouseEvent(visits,java.awt.event.MouseEvent.MOUSE_MOVED,
+            System.currentTimeMillis(),0,cell.x+12,cell.y+cell.height/2,0,false));
+        check(id.equals(tooltip),"hover tooltip exposes the full ID");
+        clickCell(visits,row,idColumn,false,true);
+        String copied=clipboardText();System.out.println("CLIPBOARD_READBACK="+copied);
+        check(id.equals(copied),"one click on the consultation copy icon copies the full ID");
+        AtomicBoolean feedback=new AtomicBoolean();edt(()->feedback.set(copiedFeedback(visits,row,idColumn)));
+        check(feedback.get(),"Copied feedback is visible after copying");
+        Thread.sleep(1650);
+        edt(()->feedback.set(copiedFeedback(visits,row,idColumn)));
+        check(!feedback.get(),"Copied feedback disappears after about 1.5 seconds");
+        clickCell(visits,row,idColumn,false,false);
+        check(id.equals(clipboardText()),"one click on the ID text copies the full ID");
+        edt(visits::clearSelection);
+        clickCell(visits,row,column(visits,"Concern"),false,false);
+        check(visits.getSelectedRow()==row,"clicking a non-ID cell still selects its row");
+        clickCell(visits,row,idColumn,true,false);
+        waitFor(()->findMenuItem("Copy ID")!=null);
+        SwingUtilities.invokeLater(()->findMenuItem("Copy ID").doClick());
+        waitFor(()->id.equals(clipboardTextUnchecked()));
+        check(id.equals(clipboardText()),"right-click Copy ID copies the full ID");
+        rowAction("View details");JDialog detail=awaitCopyDialog("School clinic","Record ID");
+        setClipboardText("clipboard-marker");
+        clickCopyForId(detail,"Record ID");
+        waitFor(()->id.equals(clipboardTextUnchecked()));
+        check(id.equals(clipboardText()),"consultation detail Copy button copies only the Record ID");
+        click(detail,"OK");waitFor(()->!detail.isShowing());
+        var page=components(frame).stream().filter(c->c instanceof clinic.app.ui.common.PagedTablePanel<?> p
+            &&"ConsultationsTableModel".equals(p.modelType())&&p.isShowing())
+            .map(c->(clinic.app.ui.common.PagedTablePanel<?>)c).findFirst().orElseThrow();
+        int refresh=page.refreshCount();app.changes.publish(DataTopic.VISITS);
+        waitFor(()->page.refreshCount()>refresh&&visits.isEnabled()&&visits.getRowCount()>0);
+        clickCell(visits,row,idColumn,false,true);
+        check(id.equals(clipboardText()),"copy icon works after an automatic table refresh");
+    }
+    private static String clipboardTextUnchecked() {
+        try{return clipboardText();}catch(Exception error){return "";}
+    }
+    private static void printInventoryHistoryEvents() {
+        String medicine="History event demo";
+        app.inventoryBatchSession(medicine,false,false).accept(Map.of("Quantity","12",
+            "Expiry (YYYY-MM-DD)",LocalDate.now().plusDays(200).toString(),"Remarks",""));
+        app.inventoryBatchSession(medicine,true,false).accept(Map.of("Quantity","12",
+            "Expiry (YYYY-MM-DD)",LocalDate.now().plusDays(190).toString(),"Remarks",""));
+        var events=app.medicationHistory(0,100,"",null,null).rows().stream()
+            .filter(entry->medicine.equals(entry.medicine().name())).toList();
+        long initial=events.stream().filter(entry->entry.type()==MedicationHistoryEntry.Type.INITIAL_STOCK).count();
+        long restock=events.stream().filter(entry->entry.type()==MedicationHistoryEntry.Type.RESTOCK).count();
+        check(events.size()==2&&initial==1&&restock==1,"one Add medicine writes one INITIAL_STOCK and one restock writes one RESTOCK");
+        System.out.println("HISTORY_EVENTS add medicine=[INITIAL_STOCK] restock=[RESTOCK] counts="+initial+","+restock);
+    }
     private static JDialog dialog(String title) {
         return Arrays.stream(Window.getWindows()).filter(w -> w instanceof JDialog d
-            && d.isShowing() && title.equals(d.getTitle())).map(w -> (JDialog)w).findFirst().orElse(null);
+            && d.isShowing() && title.equals(d.getTitle())).map(w -> (JDialog)w)
+            .findFirst().orElse(null);
     }
     private static JDialog awaitDialog(String title) throws Exception {
         try {
@@ -92,6 +197,28 @@ public final class DesktopChecks {
         edt(() -> result.set(dialog(title)));
         return result.get();
     }
+    private static JDialog awaitCopyDialog(String title,String label) throws Exception {
+        waitFor(()->Arrays.stream(Window.getWindows()).filter(w->w instanceof JDialog d&&d.isShowing()
+                &&title.equals(d.getTitle()))
+            .anyMatch(w->components((Container)w).stream().anyMatch(c->c instanceof JButton b
+                &&("copy:"+label).equals(b.getName()))));
+        return Arrays.stream(Window.getWindows()).filter(w->w instanceof JDialog d&&d.isShowing()
+                &&title.equals(d.getTitle()))
+            .filter(w->components((Container)w).stream().anyMatch(c->c instanceof JButton b
+                &&("copy:"+label).equals(b.getName())))
+            .map(w->(JDialog)w).findFirst().orElseThrow();
+    }
+    private static JDialog awaitDialogContaining(String title,String text) throws Exception {
+        waitFor(()->Arrays.stream(Window.getWindows()).filter(w->w instanceof JDialog d&&d.isShowing()
+                &&title.equals(d.getTitle()))
+            .anyMatch(w->components((Container)w).stream().anyMatch(c->c instanceof JTextArea area
+                &&area.getText().contains(text))));
+        return Arrays.stream(Window.getWindows()).filter(w->w instanceof JDialog d&&d.isShowing()
+                &&title.equals(d.getTitle()))
+            .filter(w->components((Container)w).stream().anyMatch(c->c instanceof JTextArea area
+                &&area.getText().contains(text)))
+            .map(w->(JDialog)w).findFirst().orElseThrow();
+    }
     private static void fill(Container parent, String name, String value) {
         var multi=components(parent).stream().filter(c->c instanceof clinic.app.ui.common.popup.MultiSelectField m
             &&name.equals(m.getAccessibleContext().getAccessibleName())).findFirst();
@@ -108,9 +235,58 @@ public final class DesktopChecks {
     }
     private static void form(String title, Map<String, String> values) throws Exception {
         JDialog dialog = awaitDialog(title);
-        edt(() -> values.forEach((name, value) -> fill(dialog, name, value)));
+        if(values.containsKey("Medicine"))selectMedicine(dialog,values.get("Medicine"));
+        edt(() -> {
+            values.forEach((name,value)->{if(!name.equals("Medicine"))fill(dialog,name,value);});
+            triggerPatientLookups(dialog);
+        });
+        waitFor(() -> button(dialog,"Save").isEnabled());
         click(dialog, "Save");
         waitFor(() -> !dialog.isShowing());
+    }
+    private static JDialog createNotificationForm() throws Exception {
+        click(frame, "Create notification");
+        return awaitDialog("Create notification");
+    }
+    private static void readyNotification(JDialog dialog) throws Exception {
+        edt(() -> {
+            fill(dialog, "Patient ID", "p1");
+            triggerPatientLookups(dialog);
+        });
+        waitFor(() -> button(dialog, "Save").isEnabled());
+        notificationState("ready", dialog);
+    }
+    private static void notificationState(String step,JDialog dialog) {
+        String transaction=components(dialog).stream().filter(c->c instanceof JTextField field
+            &&"Transaction ID".equals(field.getName())).map(c->((JTextField)c).getText()).findFirst().orElse("");
+        String type=components(dialog).stream().filter(c->c instanceof JComboBox<?> combo
+            &&"Notification type".equals(combo.getName())).map(c->String.valueOf(((JComboBox<?>)c).getSelectedItem()))
+            .findFirst().orElse("");
+        System.out.println("FIELD notification "+step+" | Patient ID="+textField(dialog,"Patient ID").getText()
+            +" | Transaction ID="+transaction+" | Type="+type
+            +" | Save enabled="+buttonEnabled(dialog,"Save")
+            +" | Cancel enabled="+buttonEnabled(dialog,"Cancel")
+            +" | Popup visible="+dialog.isShowing());
+    }
+    private static boolean buttonEnabled(Container parent,String name) {
+        return components(parent).stream().filter(c->c instanceof JButton button&&name.equals(button.getText()))
+            .map(c->((JButton)c).isEnabled()).findFirst().orElse(false);
+    }
+    private static void pressEscape(JDialog dialog) throws Exception {
+        edt(() -> {
+            JRootPane root = dialog.getRootPane();
+            Object binding = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .get(KeyStroke.getKeyStroke("ESCAPE"));
+            Action action = binding == null ? null : root.getActionMap().get(binding);
+            if (action == null) throw new AssertionError("Escape action is unavailable.");
+            action.actionPerformed(new java.awt.event.ActionEvent(root,
+                java.awt.event.ActionEvent.ACTION_PERFORMED, "ESCAPE"));
+        });
+    }
+    private static void triggerPatientLookups(Container parent) {
+        components(parent).stream().filter(c->c instanceof clinic.app.ui.common.PatientLookupField)
+            .map(c->(clinic.app.ui.common.PatientLookupField)c)
+            .forEach(field->field.textField().postActionEvent());
     }
     private static void selectMedicine(Container parent, String name) throws Exception {
         waitFor(() -> components(parent).stream().filter(c->c instanceof JComboBox<?> combo
@@ -138,7 +314,10 @@ public final class DesktopChecks {
             fill(form, "Patient ID", patientId);
             fill(form, "Symptoms", "Headache");
             fill(form, "Concern", concern);
+            triggerPatientLookups(form);
         });
+        waitFor(() -> components(form).stream().filter(c->c instanceof clinic.app.ui.common.PatientLookupField)
+            .map(c->(clinic.app.ui.common.PatientLookupField)c).allMatch(clinic.app.ui.common.PatientLookupField::isFormReady));
         click(form, "+ Add medicine");
         selectMedicine(form, medicine);
         setQuantity(form, quantity);
@@ -155,6 +334,10 @@ public final class DesktopChecks {
     private static JTable table(Container parent) {
         return components(parent).stream().filter(c -> c instanceof JTable t && t.isShowing()
             && t.isEnabled()).map(c -> (JTable)c).findFirst().orElse(null);
+    }
+    private static boolean showingTableModel(String type) {
+        return components(frame).stream().anyMatch(c->c instanceof clinic.app.ui.common.PagedTablePanel<?> page
+            &&type.equals(page.modelType())&&page.isShowing());
     }
     private static JTextField textField(Container parent,String accessibleName) {
         return components(parent).stream().filter(c -> c instanceof JTextField field
@@ -234,11 +417,11 @@ public final class DesktopChecks {
         }
         return null;
     }
-    private static void doubleSubmit(JDialog dialog) throws Exception {
+    private static void doubleSubmit(JDialog dialog,String label) throws Exception {
         edt(() -> {
             JButton save = button(dialog, "Save");
             save.doClick();
-            check(!save.isEnabled(), "consultation save disables while request is pending");
+            check(!save.isEnabled(), label+" Save disables while request is pending");
             save.doClick();
         });
         waitFor(() -> !dialog.isShowing());
@@ -267,6 +450,12 @@ public final class DesktopChecks {
                 : new ApplicationContext(false);
             edt(() -> {
                 Theme.install();
+                try {
+                    var cache=Class.forName("clinic.app.ui.common.MedicineCatalogCache").getDeclaredField("catalog");
+                    cache.setAccessible(true);
+                    cache.set(null,new clinic.service.MedicineCatalog(List.of(
+                        new clinic.service.MedicineCatalog.Entry("Test medicine","A01","A02",true,true))));
+                }catch(ReflectiveOperationException failure){throw new AssertionError(failure);}
                 frame = new JFrame("Clinic integration checks");
                 frame.setSize(1100, 700);
                 new Router(frame, app).login();
@@ -391,14 +580,15 @@ public final class DesktopChecks {
             click(frame, "Patients");
             click(frame, "Register patient");
             JDialog registration = awaitDialog("Register patient");
-            click(registration, "Save");
-            waitFor(() -> components(registration).stream().anyMatch(c -> c instanceof JLabel label && "ID is required.".equals(label.getText())));
+            waitFor(() -> !button(registration,"Save").isEnabled());
             check(app.patientCount() == 0, "required fields prevent registration");
+            click(registration,"Cancel");waitFor(()->!registration.isShowing());
+            click(frame, "Register patient");
             form("Register patient", Map.of("ID", "p1", "Name", "Test Patient", "Contact", "Test contact", "Type", Patient.STUDENT,
-                "Course / Department", "BSCS", "Section / Position", "A", "Year level", "1", "Guardian contact", "Test guardian"));
+                "Course / Department", "BSCS", "Section / Position", "A", "Year level", "1", "Guardian contact", "guardian@example.test"));
             row();
             check(app.patientCount() == 1, "patient registration and refresh");
-            check("Test guardian".equals(app.clinic().findPatient("p1").orElseThrow().getGuardianContact()), "registration saves separate guardian contact");
+            check("guardian@example.test".equals(app.clinic().findPatient("p1").orElseThrow().getGuardianContact()), "registration saves separate guardian contact");
             rowAction("Edit patient");
             JDialog editPatient=awaitDialog("Edit patient — ID p1");
             click(editPatient,"Cancel");
@@ -410,15 +600,16 @@ public final class DesktopChecks {
             waitFor(() -> !allergy.isShowing());
             check(app.clinic().findPatient("p1").orElseThrow().getAllergies().isEmpty(), "dialog cancellation leaves data unchanged");
             click(frame, "Consultations");
+            waitFor(()->visibleButton(frame,"+ New Consultation"));
+            check(visibleButton(frame,"+ New Consultation"),"Consultations still shows + New Consultation");
             click(frame, "+ New Consultation");
             form("New Consultation", Map.of("Patient ID", "p1", "Symptoms", "Headache", "Concern", "Test visit"));
             dismissInfo();
             row();
             check(app.clinic().getVisitHistory("p1").size() == 1, "consultation saved via form");
-            rowAction("View details");
-            dismissInfo();
+            consultationCopyDemo();
             rowAction("View patient history");
-            JDialog visitHistory=awaitDialog("School clinic");
+            JDialog visitHistory=awaitDialogContaining("School clinic","Test visit");
             edt(() -> check(components(visitHistory).stream().anyMatch(c -> c instanceof JTextArea area
                 && area.getText().contains("Test visit")),"patient history menu shows the saved consultation"));
             click(visitHistory,"OK");
@@ -428,23 +619,88 @@ public final class DesktopChecks {
             form("Add medicine batch", Map.of("Medicine", "Test medicine", "Quantity", "10", "Expiry (YYYY-MM-DD)", LocalDate.now().plusDays(90).toString()));
             row();
             JDialog administration = newConsultationWithMedicine("p1", "Administer test medicine", "Test medicine", 2);
-            doubleSubmit(administration);
+            doubleSubmit(administration,"consultation");
             dismissInfo();
             check(app.clinic().getStock("Test medicine") == 8, "consultation administration changes stock");
             check(app.clinic().getVisitHistory("p1").size() == 2,
                 "double-clicked consultation creates exactly one visit");
             click(frame, "Medication history");
+            waitFor(()->showingTableModel("TransactionsTableModel"));
+            check(!visibleButton(frame,"+ New consultation")&&!visibleButton(frame,"+ New Consultation"),
+                "Medication history has no New Consultation button");
             row();
             rowAction("View entry");
-            dismissInfo();
-            check(true, "medication history row menu opens the selected entry");
-            var transaction = app.transactions(0, 25, "p1", null, null).rows().get(0);
+            String transactionId=String.valueOf(table().getValueAt(table().getSelectedRow(),column(table(),"Event ID")));
+            String copyIdName="DISPENSE".equals(String.valueOf(table().getValueAt(table().getSelectedRow(),column(table(),"Event"))))
+                ?"Copy Transaction ID":"Copy Event ID";
+            JDialog transaction=awaitCopyDialog("School clinic",copyIdName.substring("Copy ".length()));
+            setClipboardText("clipboard-marker");
+            clickCopyForId(transaction,copyIdName.substring("Copy ".length()));
+            waitFor(()->transactionId.equals(clipboardTextUnchecked()));
+            check(transactionId.equals(clipboardText()),"View transaction detail Copy button copies only its ID");
+            click(transaction,"OK");waitFor(()->!transaction.isShowing());
             click(frame, "Notifications");
-            click(frame, "Create notification");
-            form("Create notification", Map.of("Patient ID", "p1", "Transaction ID", transaction.getTransactionId(), "Reason", "Test notification"));
+            int notificationCount=app.clinic().getNotifications("p1").size();
+            JDialog canceledNotification=createNotificationForm();
+            readyNotification(canceledNotification);
+            click(canceledNotification,"Cancel");
+            waitFor(()->!canceledNotification.isShowing());
+            notificationState("Cancel",canceledNotification);
+            check(app.clinic().getNotifications("p1").size()==notificationCount,
+                "notification Cancel closes without saving");
+            JDialog escapedNotification=createNotificationForm();
+            readyNotification(escapedNotification);
+            pressEscape(escapedNotification);
+            waitFor(()->!escapedNotification.isShowing());
+            notificationState("Escape",escapedNotification);
+            check(app.clinic().getNotifications("p1").size()==notificationCount,
+                "notification Escape closes without saving");
+            JDialog closedNotification=createNotificationForm();
+            readyNotification(closedNotification);
+            edt(()->closedNotification.dispatchEvent(new WindowEvent(closedNotification,WindowEvent.WINDOW_CLOSING)));
+            waitFor(()->!closedNotification.isShowing());
+            notificationState("window close",closedNotification);
+            check(app.clinic().getNotifications("p1").size()==notificationCount,
+                "notification window close closes without saving");
+            Patient original=app.clinic().findPatient("p1").orElseThrow();
+            Student missingGuardian=new Student("p1",original.getName(),original.getContactInfo(),"BSCS",1,"A");
+            JDialog failedNotification=createNotificationForm();
+            readyNotification(failedNotification);
+            app.clinic().updatePatient("p1",missingGuardian);
+            click(failedNotification,"Save");
+            JDialog failureMessage=awaitDialog("Unable to complete");
+            click(failureMessage,"OK");
+            waitFor(()->!failureMessage.isShowing());
+            notificationState("failed Save recovery",failedNotification);
+            edt(()->check(failedNotification.isShowing()
+                &&"p1".equals(textField(failedNotification,"Patient ID").getText())
+                &&button(failedNotification,"Save").isEnabled(),
+                "failed notification save preserves the patient and keeps the form usable"));
+            click(failedNotification,"Cancel");
+            waitFor(()->!failedNotification.isShowing());
+            check(app.clinic().getNotifications("p1").size()==notificationCount,
+                "failed notification save creates no record");
+            app.clinic().updatePatient("p1",original);
+            JDialog notification=createNotificationForm();
+            readyNotification(notification);
+            doubleSubmit(notification,"notification");
+            notificationState("double Save",notification);
+            waitFor(()->app.clinic().getNotifications("p1").size()==notificationCount+1);
+            check(app.clinic().getNotifications("p1").size()==notificationCount+1,
+                "double-click notification Save creates one record");
             row();
+            check(java.util.stream.IntStream.range(0,table().getRowCount())
+                .anyMatch(index->"p1".equals(String.valueOf(table().getValueAt(index,1)))),
+                "notification table updates automatically without Refresh");
             click(frame, "View message");
-            dismissInfo();
+            JTable notificationTable=table();
+            String notificationId=String.valueOf(notificationTable.getValueAt(notificationTable.getSelectedRow(),column(notificationTable,"ID")));
+            JDialog message=awaitCopyDialog("School clinic","Notification ID");
+            setClipboardText("clipboard-marker");
+            clickCopyForId(message,"Notification ID");
+            waitFor(()->notificationId.equals(clipboardTextUnchecked()));
+            check(notificationId.equals(clipboardText()),"View message Copy button copies only the notification ID");
+            click(message,"OK");waitFor(()->!message.isShowing());
             click(frame, "Mark sent (manual)");
             click(awaitDialog("Confirm"), "OK");
             waitFor(() -> app.clinic().getNotifications("p1").get(0).getStatus() == NotificationStatus.SENT);
@@ -469,13 +725,13 @@ public final class DesktopChecks {
             dismissInfo();
             check(app.clinic().getStock("Test medicine") == 6, "documented override dispenses medicine");
             click(frame, "Inventory");
-            waitFor(() -> table() != null && Integer.valueOf(6).equals(table().getValueAt(0, 3)));
+            waitFor(() -> table() != null && Integer.valueOf(6).equals(table().getValueAt(0, column(table(),"Eligible quantity"))));
             check(true, "cached inventory reloads after dispensing");
             row();
             rowAction("Restock");
             form("Restock Test medicine", Map.of("Quantity", "12", "Expiry (YYYY-MM-DD)", LocalDate.now().plusDays(100).toString()));
             waitFor(() -> table() != null && table().getRowCount() == 1
-                && Integer.valueOf(18).equals(table().getValueAt(0, 3)));
+                && Integer.valueOf(18).equals(table().getValueAt(0, column(table(),"Eligible quantity"))));
             check(app.clinic().getStock("Test medicine") == 18, "restock creates batch and updates total");
             screenshot("desktop-inventory-1100");
             row();
@@ -488,13 +744,24 @@ public final class DesktopChecks {
             click(batches,"Close");
             waitFor(() -> !batches.isShowing());
             check(true,"grouped inventory exposes both underlying stock batches");
+            printInventoryHistoryEvents();
             click(frame, "Reports");
+            waitFor(()->showingTableModel("ConsultationsTableModel"));
             row();
+            JTable reportTable=table();
+            String reportRecordId=String.valueOf(reportTable.getValueAt(reportTable.getSelectedRow(),column(reportTable,"Record ID")));
             click(frame, "Generate selected report");
-            dismissInfo();
+            JDialog report=awaitCopyDialog("School clinic","Record ID");
+            setClipboardText("clipboard-marker");
+            clickCopyForId(report,"Record ID");
+            waitFor(()->reportRecordId.equals(clipboardTextUnchecked()));
+            check(reportRecordId.equals(clipboardText()),"report detail Copy button copies only the Record ID");
+            click(report,"OK");waitFor(()->!report.isShowing());
             check(true, "report dialog opens and closes");
             click(frame, "Nurse dashboard");
+            waitFor(()->showingTableModel("RecentVisitsTableModel"));
             waitFor(() -> table() != null && table().getRowCount() == 3);
+            check(visibleButton(frame,"+ New Consultation"),"Dashboard Recent Clinic Visits still shows + New Consultation");
             check(labelCount("Shared patient registry") == 1 && labelCount("Shared inventory") == 2,
                 "nurse KPI captions identify shared registry and inventory data");
             edt(() -> frame.setSize(1280, 800));

@@ -52,6 +52,7 @@ public class Inventory {
         Math.addExact(getStock(product),quantity);
         Math.addExact(target.getQuantity(),quantity);
         target.addQuantity(quantity);
+        target.setAtcCodes(product);
         target.setRemarks(merged);
     }
     public synchronized void mergeDuplicateBatches(String name,LocalDate expiry) {
@@ -126,7 +127,9 @@ public class Inventory {
     }
     public synchronized List<BatchAllocation> dispenseAllocations(MedicineProduct product,int qty) {
         Validation.positive(qty);
-        if(qty>getStock(product))throw new IllegalArgumentException("Insufficient unexpired stock.");
+        int available=getStock(product);
+        if(qty>available)throw new IllegalArgumentException(product.displayName()+": requested "+qty
+            +" units, but only "+available+" unexpired units are available.");
         int remaining=qty;
         List<BatchAllocation> allocations=new ArrayList<>();
         for(Medicine m:batches.stream().filter(m->m.getProduct().key().equals(product.key())&&!m.isExpired()&&m.getQuantity()>0)
@@ -143,7 +146,7 @@ public class Inventory {
     public synchronized PageResult<Medicine> page(int page, int size, String query) {
         String q=query.toLowerCase(Locale.ROOT);
         PageResult<Medicine> result=PageResult.select(batches, page, size,
-            m->m.getDisplayName().toLowerCase(Locale.ROOT).contains(q));
+            m->(m.getName()+" "+m.getProduct().atcLabel()).toLowerCase(Locale.ROOT).contains(q));
         return new PageResult<>(result.rows().stream().map(this::copy).toList(), result.total());
     }
     public synchronized void collectAlerts(java.util.function.Consumer<clinic.model.Alert> consumer) {

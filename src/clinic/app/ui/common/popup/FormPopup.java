@@ -3,6 +3,8 @@ import clinic.app.Theme;
 import clinic.app.ui.common.AsyncLoader;
 import clinic.app.ui.common.Card;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.*;
 import java.util.List;
 import java.util.function.Consumer;
@@ -85,6 +87,15 @@ public final class FormPopup {
         bottom.add(buttons, BorderLayout.SOUTH);
         SaveController controller=new SaveController(save,cancel,dialog,error,saved,inputs.values(),()->
             inputs.values().forEach(c->{if(c instanceof JPasswordField p)p.setText("");}));
+        controller.watchReadiness();
+        dialog.addWindowListener(new WindowAdapter() {
+            @Override public void windowClosed(WindowEvent event) {
+                inputs.values().forEach(component->{
+                    if(component instanceof AutoCloseable closeable)try{closeable.close();}
+                    catch(Exception ignored) { }
+                });
+            }
+        });
         save.addActionListener(e-> {
             if(controller.busy)return;
             Map<String, String> values=new LinkedHashMap<>();
@@ -102,6 +113,11 @@ public final class FormPopup {
                     fieldErrors.get(f.label()).setText(" ");
                     selectedValues.put(f.label(),selected);
                     continue;
+                }
+                if(c instanceof FormValueComponent custom && !custom.validateForm()) {
+                    fieldErrors.get(f.label()).setText(" ");
+                    c.scrollRectToVisible(new Rectangle(0,0,c.getWidth(),c.getHeight()));
+                    return;
                 }
                 String v;
                 if(c instanceof JPasswordField pw) {
@@ -232,11 +248,22 @@ public final class FormPopup {
                 cleanup.run();cleanup=()->{};
                 busy=false;preparing=false;saving=false;
                 enabledStates.forEach(Component::setEnabled);enabledStates.clear();
-                save.setEnabled(true);
                 cancel.setEnabled(true);
                 dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
                 error.setForeground(message.isBlank()?Theme.MUTED:Theme.DANGER);
                 error.setText(message.isBlank()?" ":message);
+                refreshSaveEnabled();
+        }
+        private void watchReadiness() {
+            inputs.stream().filter(component->component instanceof FormValueComponent).forEach(component->
+                component.addPropertyChangeListener(FormValueComponent.READY_PROPERTY,event->refreshSaveEnabled()));
+            refreshSaveEnabled();
+        }
+        private void refreshSaveEnabled() {
+            if(busy)return;
+            boolean ready=inputs.stream().filter(component->component instanceof FormValueComponent)
+                .map(component->(FormValueComponent)component).allMatch(FormValueComponent::isFormReady);
+            save.setEnabled(ready);
         }
     }
 }

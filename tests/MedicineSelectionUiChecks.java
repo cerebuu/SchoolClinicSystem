@@ -1,6 +1,6 @@
 import clinic.app.ApplicationContext;
 import clinic.app.Theme;
-import clinic.app.ui.dispense.MedicinePicker;
+import clinic.app.ui.common.MedicinePicker;
 import clinic.model.Medicine;
 import clinic.model.MedicineProduct;
 import java.awt.Component;
@@ -24,8 +24,8 @@ public final class MedicineSelectionUiChecks {
                 MedicinePicker picker = new MedicinePicker(app, changes::incrementAndGet);
                 JComboBox<Object> choices = choices(picker);
                 JTextField search = (JTextField) choices.getEditor().getEditorComponent();
-                Medicine first = medicine("Paracetamol", "500 mg");
-                Medicine second = medicine("Ibuprofen", "200 mg");
+                Medicine first = medicine("Paracetamol", "N02BE01");
+                Medicine second = medicine("Ibuprofen", "M01AE01");
                 choices.setSelectedItem(first);
                 check(picker.selected() == first, "choosing a result selects its medicine");
                 check(search.getText().equals(first.getDisplayName()), "selected medicine populates the search field");
@@ -39,7 +39,7 @@ public final class MedicineSelectionUiChecks {
                 check(picker.selected() == second, "a replacement result can be selected");
                 search.setText("");
                 check(picker.selected() == null, "clearing search also clears the selected medicine");
-                Medicine stale=medicine("Unavailable regression medicine", "999 mg");
+                Medicine stale=medicine("Unavailable regression medicine", "A01");
                 choices.setSelectedItem(stale);
                 check(picker.selected()==stale,"test selects a medicine that will be absent from refreshed inventory");
                 picker.refresh();
@@ -78,8 +78,8 @@ public final class MedicineSelectionUiChecks {
         }
     }
 
-    private static Medicine medicine(String name, String strength) {
-        return new Medicine(new MedicineProduct(name, strength, "tablet"), 10,
+    private static Medicine medicine(String name, String atc) {
+        return new Medicine(new MedicineProduct(name, atc, ""), 10,
             LocalDate.now().plusDays(30), LocalDate.now(), "");
     }
 

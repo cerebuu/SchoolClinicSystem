@@ -20,9 +20,14 @@ final class DispensingService {
         Validation.required(staff,"Staff");
         String campus=campusId==null||campusId.isBlank()?null:Validation.required(campusId,"Campus ID");
         // Inventory enforces usable quantity and expiry independently of allergy overrides.
+        MedicineProduct savedMedicine=medicine;
+        if(medicine.atcPrimary().isBlank()&&medicine.atcSecondary().isBlank())
+            savedMedicine=inventory.batches().stream().filter(b->b.getProduct().key().equals(medicine.key())
+                &&!b.isExpired()&&b.getQuantity()>0).sorted(java.util.Comparator.comparing(Medicine::getExpirationDate))
+                .map(Medicine::getProduct).findFirst().orElse(medicine);
         List<BatchAllocation> allocations=inventory.dispenseAllocations(medicine,quantity);
         LocalDate expiry=allocations.get(0).expiry();
-        MedicineTransaction t=new MedicineTransaction(UUID.randomUUID().toString(),medicine,patient,staff,quantity,expiry,
+        MedicineTransaction t=new MedicineTransaction(UUID.randomUUID().toString(),savedMedicine,patient,staff,quantity,expiry,
             override?"Staff confirmation: "+reason:"",java.time.LocalDateTime.now(),visitId,allocations,campus);
         transactions.put(t.getTransactionId(),t);
         return t;

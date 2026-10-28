@@ -5,7 +5,9 @@ import clinic.app.ui.common.popup.*;
 import clinic.model.*;
 import java.awt.BorderLayout;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 public final class PatientsPanel extends BasePanel {
     private final ApplicationContext app;
     private final PagedTablePanel<Patient> table;
@@ -20,12 +22,29 @@ public final class PatientsPanel extends BasePanel {
                 ()->app.clinic().findPatient(patient.getId()).orElseThrow(),this::showEditForm)),
             new RowAction("Add allergy",()->showAddAllergy(patient))));
         add(table, BorderLayout.CENTER);
-        action("Register patient", true, ()->FormPopup.show(this, "Register patient", List.of(FormField.text("ID"), FormField.text("Name"), FormField.text("Contact"), FormField.optional("Guardian contact"), FormField.choice("Type", Patient.STUDENT, Patient.EMPLOYEE), FormField.text("Course / Department"), FormField.text("Section / Position"), FormField.value("Year level", "1"), FormField.allergies()), v-> {
-            Patient p=Patient.STUDENT.equals(v.get("Type"))?new Student(v.get("ID"), v.get("Name"), v.get("Contact"), v.get("Course / Department"), Integer.parseInt(v.get("Year level")), v.get("Section / Position")):new Employee(v.get("ID"), v.get("Name"), v.get("Contact"), v.get("Course / Department"), v.get("Section / Position"));
-            p.setGuardianContact(v.get("Guardian contact").isBlank()?null:v.get("Guardian contact").trim());
-            clinic.util.AllergyParser.parse(v.get("Allergies")).forEach(p::addAllergy);
-            app.clinic().registerPatient(p);
-        }, ()->{}));
+        action("Register patient", true, this::showRegisterForm);
+    }
+
+    private void showRegisterForm() {
+        List<FormField> fields=List.of(FormField.text("ID"),FormField.text("Name"),FormField.text("Contact"),
+            FormField.optional("Guardian contact"),FormField.choice("Type",Patient.STUDENT,Patient.EMPLOYEE),
+            FormField.text("Course / Department"),FormField.text("Section / Position"),
+            FormField.value("Year level","1"),FormField.allergies());
+        Map<String,javax.swing.JComponent> components=new LinkedHashMap<>();
+        components.put("ID",new PatientLookupField(app,PatientLookupField.Mode.NEW_ID,"ID"));
+        FormPopup.showWithComponents(this,"Register patient",fields,components,(values,selections,controller)->
+            controller.saveAsync(()->{
+                Patient patient=Patient.STUDENT.equals(values.get("Type"))
+                    ?new Student(values.get("ID"),values.get("Name"),values.get("Contact"),
+                        values.get("Course / Department"),Integer.parseInt(values.get("Year level")),
+                        values.get("Section / Position"))
+                    :new Employee(values.get("ID"),values.get("Name"),values.get("Contact"),
+                        values.get("Course / Department"),values.get("Section / Position"));
+                patient.setGuardianContact(values.get("Guardian contact").isBlank()?null:values.get("Guardian contact").trim());
+                clinic.util.AllergyParser.parse(values.get("Allergies")).forEach(patient::addAllergy);
+                app.clinic().registerPatient(patient);
+                return true;
+            }),()->MessagePopup.info(this,"Patient registered."));
     }
 
     private void showDetails(Patient patient) {

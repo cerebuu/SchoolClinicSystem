@@ -25,8 +25,9 @@ public final class ReportsPanel extends BasePanel {
                     MessagePopup.warning(this, "Select a record.");
                     return;
                 }
+                java.util.Map<String,String> ids=java.util.Map.of("Record ID",r.getRecordId(),"Patient ID",r.getPatientId());
                 Actions.runInSession(this,app.login,()->app.clinic().generateReport(r),
-                    report->MessagePopup.info(this, report));
+                    report->MessagePopup.infoWithCopies(this,report,ids));
             });
     }
 }

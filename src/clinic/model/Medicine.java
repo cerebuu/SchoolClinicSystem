@@ -5,8 +5,8 @@ import clinic.util.Validation;
 public class Medicine {
     private final String batchId;
     private final String name;
-    private final String strength;
-    private final String formulation;
+    private String atcPrimary;
+    private String atcSecondary;
     private String remarks;
     private LocalDate expirationDate, batchDate;
     private int quantity;
@@ -23,8 +23,8 @@ public class Medicine {
         this.batchId=java.util.UUID.fromString(Validation.required(batchId,"Batch ID")).toString();
         MedicineProduct validProduct=java.util.Objects.requireNonNull(product);
         this.name=validProduct.name();
-        this.strength=validProduct.strength();
-        this.formulation=validProduct.formulation();
+        this.atcPrimary=validProduct.atcPrimary();
+        this.atcSecondary=validProduct.atcSecondary();
         if(quantity<0||expiry==null||batch==null)throw new IllegalArgumentException("Valid stock and dates required.");
         this.quantity=quantity;
         expirationDate=expiry;
@@ -34,9 +34,15 @@ public class Medicine {
     public String getName() {
         return name;
     }
-    public String getStrength() { return strength; }
-    public String getFormulation() { return formulation; }
-    public MedicineProduct getProduct() { return new MedicineProduct(name,strength,formulation); }
+    public void setAtcCodes(MedicineProduct product) {
+        if(!getProduct().key().equals(product.key()))throw new IllegalArgumentException("Medicine name must match.");
+        if(!product.atcPrimary().isBlank()||!product.atcSecondary().isBlank()) {
+            atcPrimary=product.atcPrimary();atcSecondary=product.atcSecondary();
+        }
+    }
+    public String getAtcPrimary() { return atcPrimary; }
+    public String getAtcSecondary() { return atcSecondary; }
+    public MedicineProduct getProduct() { return new MedicineProduct(name,atcPrimary,atcSecondary); }
     public String getDisplayName() { return getProduct().displayName(); }
     public String getBatchId() { return batchId; }
     public String getRemarks() {

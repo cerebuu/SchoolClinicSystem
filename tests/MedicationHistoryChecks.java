@@ -26,7 +26,7 @@ public final class MedicationHistoryChecks {
 
     private static void inMemoryHistoryIsCombinedAndPaged() {
         InMemoryClinicSystem store=new InMemoryClinicSystem();
-        MedicineProduct medicine=new MedicineProduct("Loratadine","10 mg","tablet");
+        MedicineProduct medicine=new MedicineProduct("Loratadine","R06AX13","");
         LocalDate expiry=LocalDate.now().plusDays(90);
         store.registerPatient(new Student("patient-a","Patient A","contact","BSCS",2,"A"));
         store.saveInventoryBatch(medicine,5,expiry,"",false,false,"nurse-a","uic-bajada");
@@ -49,7 +49,7 @@ public final class MedicationHistoryChecks {
         Administrator admin=new Administrator("root","Administrator");
         clinic.service.SecuredClinicSystem secured=new clinic.service.SecuredClinicSystem(store,admin,
             new clinic.service.AuditLog());
-        MedicineProduct medicine=new MedicineProduct("Antacid","","tablet");
+        MedicineProduct medicine=new MedicineProduct("Antacid","","");
         rejects(SecurityException.class,()->secured.addMedicine(medicine,2,LocalDate.now().plusDays(30),""),
             "administrator without restock permission cannot add stock");
         check(store.getStock(medicine)==0&&store.medicationHistoryPage(0,10,"",null,null,null).total()==0,
@@ -72,7 +72,7 @@ public final class MedicationHistoryChecks {
     private static void persistentHistoryScopesMigratesAndRollsBack() throws Exception {
         Path directory=Files.createTempDirectory("scms-medication-history-");
         Path databasePath=directory.resolve("clinic");
-        MedicineProduct product=new MedicineProduct("Loratadine","10 mg","tablet");
+        MedicineProduct product=new MedicineProduct("Loratadine","R06AX13","");
         LocalDate firstExpiry=LocalDate.now().plusDays(60);
         String dispenseId,visitAId,visitBId;
         try {
@@ -109,7 +109,7 @@ public final class MedicationHistoryChecks {
                 check(app.clinic().getVisitHistory("patient-b").size()==1,"patient history returns same-campus visit");
                 check(app.recentVisits(0,25,"",LocalDate.now().atStartOfDay(),java.time.LocalDateTime.now().plusSeconds(1)).total()==1,
                     "campus B recent visits are scoped to B");
-                addStock(app,new MedicineProduct("Vitamin C","500 mg","tablet"),1,LocalDate.now().plusDays(80),false);
+                addStock(app,new MedicineProduct("Vitamin C","A11GA01",""),1,LocalDate.now().plusDays(80),false);
                 check(app.medicationHistory(0,25,"",null,null).total()==1,"campus B sees only its own movement");
                 app.login.logout();
                 app.login.login("n-a","nurse-a-secret").orElseThrow();
@@ -157,7 +157,7 @@ public final class MedicationHistoryChecks {
                 check(app.transactions(0,25,"patient-a",null,null).total()==0,
                     "additive migration keeps unattributed dispensing hidden from clinical queries");
                 check(app.medicationHistory(0,25,"",null,null).total()==0,"v9 rows are not assigned invented movement history");
-                MedicineProduct vitaminD=new MedicineProduct("Vitamin D","1000 IU","tablet");
+                MedicineProduct vitaminD=new MedicineProduct("Vitamin D","A11CC05","");
                 app.clinic().addMedicine(vitaminD,2,LocalDate.now().plusDays(100),"");
                 app.clinic().restockMedicine(vitaminD,1,LocalDate.now().plusDays(110),"");
                 check(app.medicationHistory(0,25,"",null,null).total()==2,
@@ -186,7 +186,7 @@ public final class MedicationHistoryChecks {
             }
             try(ApplicationContext app=new ApplicationContext(databasePath)) {
                 app.login.login("n-a","nurse-a-secret").orElseThrow();
-                MedicineProduct failed=new MedicineProduct("Ibuprofen","200 mg","tablet");
+                MedicineProduct failed=new MedicineProduct("Ibuprofen","M01AE01","");
                 rejects(StorageException.class,()->addStock(app,failed,5,LocalDate.now().plusDays(100),false),"movement insert failure rejects stock operation");
                 check(app.clinic().getStock(failed)==0,"failed movement write rolls back stock batch");
                 check(app.medicationHistory(0,25,"",null,null).total()==2,"failed movement write leaves no history row");

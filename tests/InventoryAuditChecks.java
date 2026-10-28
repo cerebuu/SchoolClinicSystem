@@ -11,7 +11,7 @@ import java.util.List;
 public final class InventoryAuditChecks {
     public static void main(String[] args) {
         LocalDate expiry=LocalDate.now().plusDays(60);
-        MedicineProduct product=new MedicineProduct("Paracetamol","500 mg","tablet");
+        MedicineProduct product=new MedicineProduct("Paracetamol","N02BE01","");
         InMemoryClinicSystem data=new InMemoryClinicSystem();
         data.addMedicine(product,5,expiry,"batch one");
         data.addMedicine(product,3,expiry,"batch two");

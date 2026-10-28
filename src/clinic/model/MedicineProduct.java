@@ -3,32 +3,14 @@ package clinic.model;
 import clinic.util.Validation;
 import java.util.Locale;
 
-public record MedicineProduct(String name, String strength, String formulation) {
+/** Selected medicine identity and its saved ATC metadata; identity uses name only. */
+public record MedicineProduct(String name,String atcPrimary,String atcSecondary) {
     public MedicineProduct {
-        name = Validation.required(name, "Medicine");
-        strength = normalize(strength);
-        formulation = normalize(formulation);
-        if (strength.length() > 100 || formulation.length() > 100) {
-            throw new IllegalArgumentException("Medicine strength and formulation must be at most 100 characters.");
-        }
+        name=Validation.required(name,"Medicine").trim().replaceAll("\\s+"," ");
+        atcPrimary=atcPrimary==null?"":atcPrimary.trim();
+        atcSecondary=atcSecondary==null?"":atcSecondary.trim();
     }
-
-    public String key() {
-        return normalized(name) + "\u001f" + normalized(strength) + "\u001f" + normalized(formulation);
-    }
-
-    public String displayName() {
-        StringBuilder label = new StringBuilder(name);
-        if (!strength.isBlank()) label.append(" ").append(strength);
-        if (!formulation.isBlank()) label.append(" (").append(formulation).append(")");
-        return label.toString();
-    }
-
-    private static String normalize(String value) {
-        return value == null ? "" : value.trim().replaceAll("\\s+", " ");
-    }
-
-    private static String normalized(String value) {
-        return value.toLowerCase(Locale.ROOT);
-    }
+    public String key(){return name.toLowerCase(Locale.ROOT);}
+    public String displayName(){return name;}
+    public String atcLabel(){return atcPrimary+(atcSecondary.isBlank()?"":" / "+atcSecondary);}
 }

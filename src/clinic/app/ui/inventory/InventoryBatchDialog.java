@@ -2,6 +2,7 @@ package clinic.app.ui.inventory;
 
 import clinic.app.Theme;
 import clinic.app.ui.common.TableRowRenderer;
+import clinic.app.ui.common.CopyableIdCell;
 import clinic.app.ui.common.popup.PopupDialog;
 import clinic.model.Medicine;
 import java.awt.BorderLayout;
@@ -45,6 +46,7 @@ final class InventoryBatchDialog {
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setDefaultRenderer(Object.class, new TableRowRenderer());
         table.setDefaultRenderer(Number.class, new TableRowRenderer());
+        CopyableIdCell.install(table);
         table.getAccessibleContext().setAccessibleName("Batches for " + medicine.product().displayName());
         table.getAccessibleContext().setAccessibleDescription(
             "Individual batch quantity, expiry, received date, status, and remarks.");

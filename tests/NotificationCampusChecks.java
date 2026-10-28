@@ -32,7 +32,7 @@ public final class NotificationCampusChecks {
         SchoolNurse c2User=nurse("n2","uic-annex");
         ClinicSystem c1=new SecuredClinicSystem(data,c1User,new AuditLog());
         ClinicSystem c2=new SecuredClinicSystem(data,c2User,new AuditLog());
-        MedicineProduct product=new MedicineProduct("Vitamin C","500 mg","tablet");
+        MedicineProduct product=new MedicineProduct("Vitamin C","A11GA01","");
         c1.addMedicine(product,10,LocalDate.now().plusDays(30),"");
         NotificationLog n1=makeMedicineNotification(c1,patient.getId(),product,c1User.getUserId());
         NotificationLog n2=makeMedicineNotification(c2,patient.getId(),product,c2User.getUserId());
@@ -76,7 +76,7 @@ public final class NotificationCampusChecks {
                 ClinicSystem c1=app.clinic();
                 Student patient=student("shared-persistent");
                 c1.registerPatient(patient);
-                MedicineProduct product=new MedicineProduct("Acetaminophen","325 mg","tablet");
+                MedicineProduct product=new MedicineProduct("Acetaminophen","N02BE01","");
                 c1.addMedicine(product,12,LocalDate.now().plusDays(60),"");
                 NotificationLog own=makeMedicineNotification(c1,patient.getId(),product,"n1");
                 NotificationLog legacy=c1.createEmergencyNotification(patient.getId());

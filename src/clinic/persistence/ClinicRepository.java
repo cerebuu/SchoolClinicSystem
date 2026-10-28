@@ -56,8 +56,8 @@ public final class ClinicRepository {
                     (int)args[0],(int)args[1],(String)args[2],(String)args[3],(LocalDateTime)args[4],
                     (LocalDateTime)args[5],(String)args[6],true);
                 if(method.getName().equals("matchingMedicineBatches")&&args[0] instanceof MedicineProduct product)return Sql.query(connection,
-                    "SELECT b.*,i.batch_id FROM medicine_batches b JOIN medicine_batch_ids i USING(ordinal) WHERE LOWER(TRIM(b.name))=LOWER(TRIM(?)) AND LOWER(TRIM(b.strength))=LOWER(TRIM(?)) AND LOWER(TRIM(b.formulation))=LOWER(TRIM(?)) AND b.expiry=? AND b.expiry>=? ORDER BY b.batch_date,b.ordinal",
-                    r->medicine(r),product.name(),product.strength(),product.formulation(),args[1],LocalDate.now());
+                    "SELECT b.*,i.batch_id FROM medicine_batches b JOIN medicine_batch_ids i USING(ordinal) WHERE LOWER(TRIM(b.name))=LOWER(TRIM(?)) AND b.expiry=? AND b.expiry>=? ORDER BY b.batch_date,b.ordinal",
+                    r->medicine(r),product.name(),args[1],LocalDate.now());
                 if(method.getName().equals("matchingMedicineBatches"))return Sql.query(connection,
                     "SELECT b.*,i.batch_id FROM medicine_batches b JOIN medicine_batch_ids i USING(ordinal) WHERE LOWER(TRIM(b.name))=LOWER(TRIM(?)) AND b.expiry=? AND b.expiry>=? ORDER BY b.batch_date,b.ordinal",
                     ClinicRepository::medicine,args[0],args[1],LocalDate.now());
@@ -75,8 +75,8 @@ public final class ClinicRepository {
                         :Sql.query(connection,sql,r->visit(connection,r),args[0],campusId);
                 }
                 if(method.getName().equals("getStock")&&args[0] instanceof MedicineProduct product)return Sql.query(connection,
-                    "SELECT COALESCE(SUM(CAST(quantity AS BIGINT)),0) FROM medicine_batches WHERE LOWER(TRIM(name))=LOWER(TRIM(?)) AND LOWER(TRIM(strength))=LOWER(TRIM(?)) AND LOWER(TRIM(formulation))=LOWER(TRIM(?)) AND expiry>=?",
-                    row->Math.toIntExact(row.getLong(1)),product.name(),product.strength(),product.formulation(),LocalDate.now()).get(0);
+                    "SELECT COALESCE(SUM(CAST(quantity AS BIGINT)),0) FROM medicine_batches WHERE LOWER(TRIM(name))=LOWER(TRIM(?)) AND expiry>=?",
+                    row->Math.toIntExact(row.getLong(1)),product.name(),LocalDate.now()).get(0);
                 if(method.getName().equals("getStock")) return Sql.query(connection,
                     "SELECT COALESCE(SUM(CAST(quantity AS BIGINT)),0) FROM medicine_batches WHERE LOWER(name)=LOWER(?) AND expiry>=?",
                     row -> Math.toIntExact(row.getLong(1)),args[0],LocalDate.now()).get(0);
@@ -114,7 +114,7 @@ public final class ClinicRepository {
 
     private static Medicine medicine(ResultSet r) throws SQLException {
         return new Medicine(r.getString("batch_id"),
-            new MedicineProduct(r.getString("name"),r.getString("strength"),r.getString("formulation")),
+            new MedicineProduct(r.getString("name"),r.getString("atc_primary"),r.getString("atc_secondary")),
             r.getInt("quantity"),r.getObject("expiry",LocalDate.class),
             r.getObject("batch_date",LocalDate.class),r.getString("remarks"));
     }
@@ -129,7 +129,7 @@ public final class ClinicRepository {
         List<Medicine> batches=Sql.query(c,"SELECT b.*,i.batch_id FROM medicine_batches b JOIN medicine_batch_ids i USING(ordinal) ORDER BY b.ordinal",ClinicRepository::medicine);
         List<InventoryMovement> movements=Sql.query(c,"SELECT * FROM inventory_movements ORDER BY seq",r->new InventoryMovement(
             r.getString("id"),InventoryMovement.Type.valueOf(r.getString("event_type")),
-            new MedicineProduct(r.getString("medicine"),r.getString("strength"),r.getString("formulation")),
+            new MedicineProduct(r.getString("medicine"),r.getString("atc_primary"),r.getString("atc_secondary")),
             r.getInt("quantity"),r.getObject("expiry",LocalDate.class),r.getString("batch_id"),
             r.getObject("event_time",LocalDateTime.class),r.getString("actor_id"),r.getString("campus_id")));
         List<MedicineTransaction> transactions=Sql.query(c,"SELECT * FROM dispensing ORDER BY seq",r -> {
@@ -138,7 +138,7 @@ public final class ClinicRepository {
                 a->new BatchAllocation(a.getString("batch_id"),a.getInt("quantity"),a.getObject("expiry",LocalDate.class)),
                 r.getString("id"));
             return new MedicineTransaction(r.getString("id"),
-                new MedicineProduct(r.getString("medicine"),r.getString("strength"),r.getString("formulation")),
+                new MedicineProduct(r.getString("medicine"),r.getString("atc_primary"),r.getString("atc_secondary")),
                 r.getString("patient_id"),r.getString("staff_id"),r.getInt("quantity"),
                 r.getObject("expiry",LocalDate.class),r.getString("remarks"),
                 r.getObject("dispensed_at",LocalDateTime.class),r.getString("visit_id"),allocations,
@@ -205,18 +205,18 @@ public final class ClinicRepository {
                     ||!batch.getRemarks().equals(before.batches().get(i).getRemarks())
                     ||!batch.getExpirationDate().equals(before.batches().get(i).getExpirationDate())
                     ||!batch.getBatchDate().equals(before.batches().get(i).getBatchDate())
-                    ||!batch.getStrength().equals(before.batches().get(i).getStrength())
-                    ||!batch.getFormulation().equals(before.batches().get(i).getFormulation()))
-                Sql.update(c,"UPDATE medicine_batches SET quantity=?,expiry=?,batch_date=?,remarks=?,strength=?,formulation=? WHERE ordinal=?",
+                    ||!batch.getAtcPrimary().equals(before.batches().get(i).getAtcPrimary())
+                    ||!batch.getAtcSecondary().equals(before.batches().get(i).getAtcSecondary()))
+                Sql.update(c,"UPDATE medicine_batches SET quantity=?,expiry=?,batch_date=?,remarks=?,atc_primary=?,atc_secondary=? WHERE ordinal=?",
                     batch.getQuantity(),batch.getExpirationDate(),batch.getBatchDate(),batch.getRemarks(),
-                    batch.getStrength(),batch.getFormulation(),i);
+                    batch.getAtcPrimary(),batch.getAtcSecondary(),i);
         }
         Set<String> transactions=new HashSet<>();
         before.transactions().forEach(t -> transactions.add(t.getTransactionId()));
         for(MedicineTransaction t:after.transactions()) if(!transactions.contains(t.getTransactionId())) {
-            Sql.update(c,"INSERT INTO dispensing(id,medicine,patient_id,staff_id,quantity,expiry,remarks,dispensed_at,strength,formulation,visit_id,campus_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            Sql.update(c,"INSERT INTO dispensing(id,medicine,patient_id,staff_id,quantity,expiry,remarks,dispensed_at,atc_primary,atc_secondary,visit_id,campus_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                 t.getTransactionId(),t.getMedicineName(),t.getPatientId(),t.getStaffId(),t.getQuantity(),t.getExpirationDate(),
-                t.getRemarks(),t.getDateTime(),t.getMedicineProduct().strength(),t.getMedicineProduct().formulation(),
+                t.getRemarks(),t.getDateTime(),t.getMedicineProduct().atcPrimary(),t.getMedicineProduct().atcSecondary(),
                 t.getVisitId(),t.getCampusId());
             for(BatchAllocation allocation:t.getBatchAllocations())
                 Sql.update(c,"INSERT INTO dispensing_batch_allocations(transaction_id,batch_id,quantity,expiry) VALUES(?,?,?,?)",
@@ -225,9 +225,9 @@ public final class ClinicRepository {
         Set<String> movements=new HashSet<>();
         before.inventoryMovements().forEach(m->movements.add(m.id()));
         for(InventoryMovement movement:after.inventoryMovements())if(!movements.contains(movement.id()))
-            Sql.update(c,"INSERT INTO inventory_movements(id,event_type,medicine,strength,formulation,quantity,expiry,batch_id,event_time,actor_id,campus_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                movement.id(),movement.type().name(),movement.medicine().name(),movement.medicine().strength(),
-                movement.medicine().formulation(),movement.quantity(),movement.expiry(),movement.batchId(),
+            Sql.update(c,"INSERT INTO inventory_movements(id,event_type,medicine,atc_primary,atc_secondary,quantity,expiry,batch_id,event_time,actor_id,campus_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                movement.id(),movement.type().name(),movement.medicine().name(),movement.medicine().atcPrimary(),
+                movement.medicine().atcSecondary(),movement.quantity(),movement.expiry(),movement.batchId(),
                 movement.dateTime(),movement.actorId(),movement.campusId());
         Map<String,NotificationLog> previousNotifications=new HashMap<>();
         before.notifications().forEach(n -> previousNotifications.put(n.getNotificationId(),n));
@@ -340,12 +340,12 @@ public final class ClinicRepository {
         int size=DispenseQueries.size(requestedSize);
         if(page<0)throw new IllegalArgumentException("Invalid page.");
         String normalized=DispenseQueries.query(query);
-        String base=" FROM (SELECT id,dispensed_at AS event_time,'DISPENSE' AS event_type,medicine,strength,formulation,quantity,staff_id AS actor_id,campus_id,patient_id,visit_id,expiry,CAST(NULL AS VARCHAR(500)) AS batch_id,CAST(remarks AS VARCHAR) AS remarks FROM dispensing"
-            +" UNION ALL SELECT id,event_time,event_type,medicine,strength,formulation,quantity,actor_id,campus_id,CAST(NULL AS VARCHAR(500)) AS patient_id,CAST(NULL AS VARCHAR(500)) AS visit_id,expiry,batch_id,'' AS remarks FROM inventory_movements) h WHERE 1=1";
+        String base=" FROM (SELECT id,dispensed_at AS event_time,'DISPENSE' AS event_type,medicine,atc_primary,atc_secondary,quantity,staff_id AS actor_id,campus_id,patient_id,visit_id,expiry,CAST(NULL AS VARCHAR(500)) AS batch_id,CAST(remarks AS VARCHAR) AS remarks FROM dispensing"
+            +" UNION ALL SELECT id,event_time,event_type,medicine,atc_primary,atc_secondary,quantity,actor_id,campus_id,CAST(NULL AS VARCHAR(500)) AS patient_id,CAST(NULL AS VARCHAR(500)) AS visit_id,expiry,batch_id,'' AS remarks FROM inventory_movements) h WHERE 1=1";
         String where=base;
         List<Object> args=new ArrayList<>();
         if(!normalized.isEmpty()) {
-            where+=" AND LOCATE(?,LOWER(id || ' ' || event_type || ' ' || medicine || ' ' || strength || ' ' || formulation || ' ' || actor_id || ' ' || COALESCE(campus_id,'') || ' ' || COALESCE(patient_id,'') || ' ' || COALESCE(batch_id,'')))>0";
+            where+=" AND LOCATE(?,LOWER(id || ' ' || event_type || ' ' || medicine || ' ' || atc_primary || ' ' || atc_secondary || ' ' || actor_id || ' ' || COALESCE(campus_id,'') || ' ' || COALESCE(patient_id,'') || ' ' || COALESCE(batch_id,'')))>0";
             args.add(normalized);
         }
         if(from!=null){where+=" AND event_time>=?";args.add(from);}
@@ -361,7 +361,7 @@ public final class ClinicRepository {
                     a->new BatchAllocation(a.getString("batch_id"),a.getInt("quantity"),a.getObject("expiry",LocalDate.class)),r.getString("id"))
                 :List.of();
             return new MedicationHistoryEntry(r.getString("id"),type,r.getObject("event_time",LocalDateTime.class),
-                new MedicineProduct(r.getString("medicine"),r.getString("strength"),r.getString("formulation")),
+                new MedicineProduct(r.getString("medicine"),r.getString("atc_primary"),r.getString("atc_secondary")),
                 r.getInt("quantity"),r.getString("actor_id"),r.getString("campus_id"),r.getString("patient_id"),
                 r.getString("visit_id"),r.getObject("expiry",LocalDate.class),r.getString("batch_id"),
                 allocations,r.getString("remarks"));
@@ -385,9 +385,9 @@ public final class ClinicRepository {
         return true;
     }
     private static void insertBatch(Connection c,int ordinal,Medicine batch) throws SQLException {
-        Sql.update(c,"INSERT INTO medicine_batches(ordinal,name,quantity,expiry,batch_date,remarks,strength,formulation) VALUES(?,?,?,?,?,?,?,?)",
+        Sql.update(c,"INSERT INTO medicine_batches(ordinal,name,quantity,expiry,batch_date,remarks,atc_primary,atc_secondary) VALUES(?,?,?,?,?,?,?,?)",
             ordinal,batch.getName(),batch.getQuantity(),batch.getExpirationDate(),batch.getBatchDate(),batch.getRemarks(),
-            batch.getStrength(),batch.getFormulation());
+            batch.getAtcPrimary(),batch.getAtcSecondary());
         Sql.update(c,"INSERT INTO medicine_batch_ids(ordinal,batch_id) VALUES(?,?)",ordinal,batch.getBatchId());
     }
 }

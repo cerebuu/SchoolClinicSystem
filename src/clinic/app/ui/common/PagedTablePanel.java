@@ -49,6 +49,7 @@ public final class PagedTablePanel<T> extends Card {
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setDefaultRenderer(Object.class, new TableRowRenderer());
         table.setDefaultRenderer(Number.class, new TableRowRenderer());
+        CopyableIdCell.install(table);
         table.getAccessibleContext().setAccessibleDescription(
             "Use Shift+F10 or the context menu key on a row to open row actions.");
         JPanel controls=new JPanel(new BorderLayout(Theme.GAP, Theme.GAP));

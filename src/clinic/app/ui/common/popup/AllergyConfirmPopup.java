@@ -28,14 +28,8 @@ public final class AllergyConfirmPopup {
         JPanel footer=new JPanel(new BorderLayout());footer.setOpaque(false);
         JCheckBox checked=new JCheckBox("I have checked and it is safe to dispense");
         checked.setOpaque(false);checked.setForeground(Theme.INK);footer.add(checked,BorderLayout.NORTH);
-        // Plain neutral buttons avoid Theme.button's pink hover/selection styling.
-        JButton cancel=new JButton("Cancel"), dispense=new JButton("Dispense");
-        for(JButton button:List.of(cancel,dispense)) {
-            button.setFont(Theme.font(Theme.TYPE_BODY,Font.BOLD));button.setForeground(Theme.INK);
-            button.setBackground(Theme.WARNING_TINT);button.setOpaque(true);button.setContentAreaFilled(false);
-            button.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Theme.WARNING),
-                BorderFactory.createEmptyBorder(10,20,10,20)));
-        }
+        JButton cancel=Theme.button("Cancel",false), dispense=Theme.button("Dispense",true);
+        dispense.setBackground(Theme.WARNING);
         dispense.setEnabled(false);checked.addActionListener(e->dispense.setEnabled(checked.isSelected()));
         boolean[] confirmed={false};cancel.addActionListener(e->dialog.dispose());
         dispense.addActionListener(e->{if(checked.isSelected()){confirmed[0]=true;dialog.dispose();}});

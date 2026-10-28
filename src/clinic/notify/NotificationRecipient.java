@@ -13,7 +13,15 @@ public final class NotificationRecipient {
     private NotificationRecipient() {}
 
     public static List<Option> options(NotificationLog notification) {
-        String contact=notification.getRecipientContact();
+        return optionsForContact(notification.getRecipientContact());
+    }
+
+    /** Returns only validated, masked recipients for a saved profile contact. */
+    public static List<String> maskedAddresses(String contact) {
+        return optionsForContact(contact).stream().map(Option::maskedAddress).distinct().toList();
+    }
+
+    private static List<Option> optionsForContact(String contact) {
         if(contact==null||contact.isBlank())return List.of();
         List<Option> options=new ArrayList<>();
         for(String candidate:contact.split("[,;\\n]")) {

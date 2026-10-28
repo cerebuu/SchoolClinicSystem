@@ -16,7 +16,7 @@ public final class InventoryPanel extends BasePanel {
     public InventoryPanel(ApplicationContext app) {
         super("Medicine inventory",app);this.app=app;
         table=new PagedTablePanel<>(new InventoryTableModel(),
-            (page,size,query)->InventoryCatalog.page(app,page,size,query), "Medicine / strength / formulation");
+            (page,size,query)->InventoryCatalog.page(app,page,size,query), "Medicine / ATC code");
         table.refreshOn(app.changes,clinic.app.DataTopic.INVENTORY);
         table.setRowActions(medicine->{
             List<RowAction> rowActions=new ArrayList<>();
@@ -33,11 +33,12 @@ public final class InventoryPanel extends BasePanel {
         }
     }
     private void addBatch() {
-        FormPopup.showInteractive(this,"Add medicine batch",List.of(FormField.text("Medicine"),FormField.optional("Strength"),
-            FormField.optional("Formulation"),FormField.positiveQuantity(),
-            FormField.futureExpiry(),FormField.remarks()),Map.of(),(values,selected,controller)->
-            checkBatch(values,product(values),false,controller),()->{});
+        MedicinePicker picker=new MedicinePicker(app,()->{},true);
+        FormPopup.showWithComponents(this,"Add medicine batch",List.of(FormField.text("Medicine"),
+            FormField.positiveQuantity(),FormField.futureExpiry(),FormField.remarks()),Map.of("Medicine",picker),
+            (values,selected,controller)->checkBatch(values,picker.selected().getProduct(),false,controller),()->{});
     }
+
     private void restock(InventoryProductRow selectedProduct) {
         openRestock(selectedProduct,null);
     }
@@ -47,22 +48,19 @@ public final class InventoryPanel extends BasePanel {
     private void openRestock(InventoryProductRow selectedProduct,Medicine selectedBatch) {
         MedicineProduct selectedMedicine=selectedBatch!=null?selectedBatch.getProduct()
             :selectedProduct==null?null:selectedProduct.product();
-        List<FormField> fields=selectedMedicine==null?List.of(FormField.text("Medicine"),FormField.optional("Strength"),
-            FormField.optional("Formulation"),FormField.positiveQuantity(),
+        List<FormField> fields=selectedMedicine==null?List.of(FormField.text("Medicine"),FormField.positiveQuantity(),
             FormField.futureExpiry(),FormField.remarks()):selectedBatch==null?List.of(FormField.positiveQuantity(),
             FormField.futureExpiry(),FormField.remarks()):List.of(FormField.positiveQuantity(),
             FormField.futureExpiry(selectedBatch.getExpirationDate().toString()),FormField.remarks(selectedBatch.getRemarks()));
-        FormPopup.showInteractive(this,"Restock"+(selectedMedicine==null?" medicine":" "+selectedMedicine.displayName()),fields,Map.of(),
+        MedicinePicker picker=new MedicinePicker(app,()->{},true);
+        FormPopup.showWithComponents(this,"Restock"+(selectedMedicine==null?" medicine":" "+selectedMedicine.displayName()),fields,selectedMedicine==null?Map.of("Medicine",picker):Map.of(),
             (values,selected,controller)->checkRestock(values,
-                selectedMedicine==null?product(values):selectedMedicine,selectedBatch,controller),
+                selectedMedicine==null?picker.selected().getProduct():selectedMedicine,selectedBatch,controller),
             ()->MessagePopup.info(this,"Medicine restocked."));
     }
     private void viewBatches(InventoryProductRow selected) {
         Medicine selectedBatch=InventoryBatchDialog.show(this,selected,app.current().canAccess(User.RESTOCK));
         if(selectedBatch!=null)restockBatch(selectedBatch);
-    }
-    private MedicineProduct product(Map<String,String> values) {
-        return new MedicineProduct(values.get("Medicine"),values.get("Strength"),values.get("Formulation"));
     }
     private void checkRestock(Map<String,String> values,MedicineProduct product,Medicine selectedBatch,FormPopup.SaveController controller) {
         int quantity=Integer.parseInt(values.get("Quantity"));LocalDate expiry=LocalDate.parse(values.get("Expiry (YYYY-MM-DD)"));

@@ -2,11 +2,15 @@ package clinic.app.ui.consultations;
 
 import clinic.app.ApplicationContext;
 import clinic.app.ui.common.Actions;
+import clinic.app.ui.common.PatientLookupField;
 import clinic.app.ui.common.popup.FormField;
 import clinic.app.ui.common.popup.FormPopup;
 import clinic.app.ui.common.popup.MessagePopup;
 import clinic.app.ui.common.popup.MultiSelectField;
 import clinic.app.ui.common.popup.AllergyConfirmPopup;
+import clinic.app.ui.dispense.DispenseItemsPanel;
+import clinic.service.DispenseItem;
+import clinic.service.DispenseWorkflow;
 import clinic.service.FeatureRules;
 import java.util.Map;
 import clinic.core.ClinicSystem;
@@ -35,8 +39,8 @@ public final class NewConsultationForm {
             MessagePopup.error(owner, error);
             return;
         }
-        ConsultationMedicinePanel medicines=app.current().canAccess(User.DISPENSE)
-            ?new ConsultationMedicinePanel(app):null;
+        DispenseItemsPanel medicines=app.current().canAccess(User.DISPENSE)
+            ?new DispenseItemsPanel(app,true):null;
         List<FormField> fields=new java.util.ArrayList<>(List.of(
             FormField.text("Patient ID"),
             FormField.text("Symptoms"),
@@ -45,6 +49,8 @@ public final class NewConsultationForm {
         selections.put("Symptoms",new MultiSelectField(FeatureRules.SYMPTOM_CHOICES));
         Map<String,javax.swing.JComponent> components=new java.util.LinkedHashMap<>();
         components.putAll(selections);
+        PatientLookupField patientLookup=new PatientLookupField(app,PatientLookupField.Mode.EXISTING,"Patient ID");
+        components.put("Patient ID",patientLookup);
         if(medicines!=null) {
             fields.add(FormField.optional("Medicines administered (optional)"));
             components.put("Medicines administered (optional)",medicines);
@@ -66,6 +72,7 @@ public final class NewConsultationForm {
                     }
                     boolean allergyConfirmed=confirmed;
                     controller.saveAsync(()->{
+                        verifyStock(clinic,requested);
                         clinic.recordVisitAndAdminister(patientId,symptoms.get("Symptoms"),values.get("Concern"),
                             values.get("Remarks"),staffId,requested,allergyConfirmed);
                         return true;
@@ -79,5 +86,15 @@ public final class NewConsultationForm {
                 saved.run();
                 MessagePopup.info(owner, "Consultation saved.");
             });
+    }
+
+    static void verifyStock(ClinicSystem clinic,List<DispenseItem> requested) {
+        List<DispenseItem> items=requested==null||requested.isEmpty()?List.of():DispenseWorkflow.merge(requested);
+        for(DispenseItem item:items) {
+            int available=clinic.getStock(item.product());
+            if(item.quantity()>available)throw new IllegalStateException(item.product().displayName()
+                +": requested "+item.quantity()+", available "+available
+                +" unexpired units. Nothing was recorded or dispensed.");
+        }
     }
 }

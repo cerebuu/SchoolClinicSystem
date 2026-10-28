@@ -23,7 +23,7 @@ public final class TransactionHistoryPanel extends JPanel {
             return app.medicationHistory(page,size,query,from,selected.equals("All")?null:today.plusDays(1).atStartOfDay());
         },"Medicine / patient / actor / batch");
         table.setRowActions(entry->java.util.List.of(new RowAction("View entry",
-            ()->MessagePopup.info(this,entry.toReport()))));
+            ()->MessagePopup.infoWithCopies(this,entry.toReport(),copyIds(entry)))));
         table.refreshOn(app.changes, clinic.app.DataTopic.TRANSACTIONS,clinic.app.DataTopic.INVENTORY);
         table.setEmptyText("No medication or stock events yet");
         table.setDashboardViewport(DispenseLayout.HISTORY_VISIBLE_ROWS, DispenseLayout.ROW_HEIGHT);
@@ -33,4 +33,17 @@ public final class TransactionHistoryPanel extends JPanel {
         DispenseLayout.sizeSection(this);
     }
     public void refresh(){table.reload();}
+
+    private static java.util.Map<String,String> copyIds(MedicationHistoryEntry entry) {
+        java.util.Map<String,String> ids=new java.util.LinkedHashMap<>();
+        ids.put(entry.type()==MedicationHistoryEntry.Type.DISPENSE?"Transaction ID":"Event ID",entry.id());
+        if(entry.patientId()!=null)ids.put("Patient ID",entry.patientId());
+        if(entry.visitId()!=null)ids.put("Visit ID",entry.visitId());
+        ids.put("Actor ID",entry.actorId());
+        if(entry.campusId()!=null)ids.put("Campus ID",entry.campusId());
+        if(entry.batchId()!=null)ids.put("Batch ID",entry.batchId());
+        for(int i=0;i<entry.batchAllocations().size();i++)
+            ids.put("Batch ID "+(i+1),entry.batchAllocations().get(i).batchId());
+        return ids;
+    }
 }

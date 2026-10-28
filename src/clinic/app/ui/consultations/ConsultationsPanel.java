@@ -17,7 +17,8 @@ public final class ConsultationsPanel extends BasePanel {
         table.refreshOn(app.changes, clinic.app.DataTopic.VISITS);
         table.setRowActions(record->{
             List<RowAction> actions=new ArrayList<>();
-            actions.add(new RowAction("View details",()->MessagePopup.info(this,record.toReport())));
+            actions.add(new RowAction("View details",()->MessagePopup.infoWithCopies(this,record.toReport(),
+                java.util.Map.of("Record ID",record.getRecordId(),"Patient ID",record.getPatientId()))));
             if(app.current().canAccess(User.RECORDS))
                 actions.add(new RowAction("View patient history",()->Actions.runInSession(this,app.login,
                     ()->app.clinic().getVisitHistory(record.getPatientId()),visits->MessagePopup.info(this,

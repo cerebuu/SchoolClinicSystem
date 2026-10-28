@@ -20,13 +20,13 @@ public final class DispenseQueries {
     public static PageResult<Medicine> medicines(List<Medicine> batches,int page,int size,String query) {
         String q=query(query);
         Map<String,Medicine> grouped=new TreeMap<>();
-        for(Medicine m:batches)if(!m.isExpired()&&m.getDisplayName().toLowerCase(Locale.ROOT).contains(q)) {
+        for(Medicine m:batches)if(!m.isExpired()&&(m.getName()+" "+m.getProduct().atcLabel()).toLowerCase(Locale.ROOT).contains(q)) {
             String key=m.getProduct().key();
             Medicine old=grouped.get(key);
             boolean earlier=old==null||m.getQuantity()>0&&old.getQuantity()==0
                 ||old!=null&&(m.getQuantity()>0)==(old.getQuantity()>0)
                     &&m.getExpirationDate().isBefore(old.getExpirationDate());
-            grouped.put(key,new Medicine(m.getProduct(),
+            grouped.put(key,new Medicine(old!=null&&!old.getProduct().atcPrimary().isBlank()?old.getProduct():m.getProduct(),
                 Math.addExact(old==null?0:old.getQuantity(),m.getQuantity()),
                 earlier?m.getExpirationDate():old.getExpirationDate(),
                 m.getBatchDate(),"Available unexpired stock"));

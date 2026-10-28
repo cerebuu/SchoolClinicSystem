@@ -58,8 +58,9 @@ public final class SecuredClinicSystem implements ClinicSystem {
             ?data.recordVisitAndAdministerWithCampus(patientId,symptoms,reason,remarks,staffId,medicines,
                 allergyConfirmed,user.getCampusId())
             :delegate.recordVisitAndAdminister(patientId,symptoms,reason,remarks,staffId,medicines,allergyConfirmed),
-            record->"recordId="+record.getRecordId()+"; medicationCount="+(medicines==null?0:medicines.size()),
-            ()->{if(allergyConfirmed)auditAllergyConfirmation(patientId);},
+            record->"symptomCount="+(symptoms==null?0:symptoms.size())
+                +"; medicationCount="+(medicines==null?0:medicines.size()),
+            ()->{if(allergyConfirmed)auditConfirmationCount(patientId);},
             medicines!=null&&!medicines.isEmpty()?User.DISPENSE:null);
     }
 
@@ -80,10 +81,10 @@ public final class SecuredClinicSystem implements ClinicSystem {
         verifyStaff(staffId);
         return clinicalMutation("dispenseMedicine", () -> delegate instanceof ClinicData data
             ?data.dispenseMedicineWithCampus(patientId,new MedicineProduct(medicineName,"",""),quantity,
-                staffId,overrideConfirmed?"Allergies reviewed by staff":"",user.getCampusId())
+                staffId,overrideConfirmed?"Clinical confirmation":"",user.getCampusId())
             :delegate.dispenseMedicine(patientId,medicineName,quantity,staffId,overrideConfirmed),
             transaction->"transactionId="+transaction.getTransactionId()+"; quantity="+transaction.getQuantity(),
-            ()->{if(overrideConfirmed)auditAllergyConfirmation(patientId);});
+            ()->{if(overrideConfirmed)auditConfirmationCount(patientId);});
     }
 
     @Override
@@ -105,8 +106,7 @@ public final class SecuredClinicSystem implements ClinicSystem {
                     quantity,staffId,overrideReason,user.getCampusId());
             }
             return delegate.dispenseMedicine(patientId,medicineName,quantity,staffId,overrideReason);
-        },transaction->"transactionId="+transaction.getTransactionId()+"; quantity="+transaction.getQuantity(),
-            ()->{if(overrideReason!=null&&!overrideReason.isBlank())auditAllergyConfirmation(patientId);});
+        },transaction->"transactionId="+transaction.getTransactionId()+"; quantity="+transaction.getQuantity());
     }
 
     @Override
@@ -115,10 +115,10 @@ public final class SecuredClinicSystem implements ClinicSystem {
         verifyStaff(staffId);
         return clinicalMutation("dispenseMedicine",()->delegate instanceof ClinicData data
             ?data.dispenseMedicineWithCampus(patientId,medicine,quantity,staffId,
-                overrideConfirmed?"Allergies reviewed by staff":"",user.getCampusId())
+                overrideConfirmed?"Clinical confirmation":"",user.getCampusId())
             :delegate.dispenseMedicine(patientId,medicine,quantity,staffId,overrideConfirmed),
             transaction->"transactionId="+transaction.getTransactionId()+"; quantity="+transaction.getQuantity(),
-            ()->{if(overrideConfirmed)auditAllergyConfirmation(patientId);});
+            ()->{if(overrideConfirmed)auditConfirmationCount(patientId);});
     }
 
     @Override
@@ -206,9 +206,10 @@ public final class SecuredClinicSystem implements ClinicSystem {
 
     @Override
     public NotificationLog createGuardianNotification(String patientId, String transactionId, String reason) {
-        return call("createGuardianNotification", () -> delegate instanceof ClinicData data
+        return clinicalMutation("createGuardianNotification", () -> delegate instanceof ClinicData data
             ?data.createGuardianNotificationWithCampus(patientId,transactionId,reason,user.getCampusId())
-            :delegate.createGuardianNotification(patientId,transactionId,reason));
+            :delegate.createGuardianNotification(patientId,transactionId,reason),
+            notification->"notificationId="+notification.getNotificationId());
     }
 
     @Override
@@ -230,9 +231,10 @@ public final class SecuredClinicSystem implements ClinicSystem {
 
     @Override
     public NotificationLog createEmergencyNotification(String patientId) {
-        return call("createEmergencyNotification",()->delegate instanceof ClinicData data
+        return clinicalMutation("createEmergencyNotification",()->delegate instanceof ClinicData data
             ?data.createEmergencyNotificationWithCampus(patientId,user.getCampusId())
-            :delegate.createEmergencyNotification(patientId));
+            :delegate.createEmergencyNotification(patientId),
+            notification->"notificationId="+notification.getNotificationId());
     }
 
     @Override
@@ -289,14 +291,13 @@ public final class SecuredClinicSystem implements ClinicSystem {
             throw new SecurityException("Your account needs an approved UIC campus assignment. Ask a Super Admin to update it.");
         }
     }
+    private void auditConfirmationCount(String patientId) {
+        int count=delegate.findPatient(patientId).orElseThrow().getAllergies().size();
+        if(count>0)audit("dispense confirmation", "count=1", true);
+    }
     private String campusScope() {
         return User.ADMIN.equals(user.getRole())?null:user.getCampusId();
     }
-    private void auditAllergyConfirmation(String patientId) {
-        int count=delegate.findPatient(patientId).orElseThrow().getAllergies().size();
-        if(count>0)audit("dispense with allergy confirmation", "Allergy count: "+count, true);
-    }
-
     private <T> T call(String action, Supplier<T> work) {
         boolean allowed = allowed(action);
         if (!allowed) {
@@ -347,13 +348,13 @@ public final class SecuredClinicSystem implements ClinicSystem {
     private void allergyWrite(String action, int count, Runnable work) {
         boolean permitted = allowed(action);
         if (!permitted) {
-            audit(action,"Allergy count: "+count,false);
+            audit(action,"count="+count,false);
             throw new SecurityException("Access denied.");
         }
         requireCampus();
         log.unitOfWork(()->{
             work.run();
-            audit(action,"Allergy count: "+count,true);
+            audit(action,"count="+count,true);
             return null;
         });
     }

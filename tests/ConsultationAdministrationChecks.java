@@ -25,8 +25,8 @@ public final class ConsultationAdministrationChecks {
         MedicalRecord noMedicine=clinic.recordVisitAndAdminister("p",List.of("Cough"),"Review","","n",List.of(),false);
         check(noMedicine.getMedicationGiven().isEmpty()&&data.transactionPage(0,25,"",null,null).total()==0,
             "consultation without medicines saves without an administration");
-        MedicineProduct first=new MedicineProduct("First medicine","10 mg","tablet");
-        MedicineProduct second=new MedicineProduct("Second medicine","5 mg","syrup");
+        MedicineProduct first=new MedicineProduct("First medicine","A01","");
+        MedicineProduct second=new MedicineProduct("Second medicine","A01","");
         data.addMedicine(first,3,LocalDate.now().plusDays(30),"");
         data.addMedicine(second,4,LocalDate.now().plusDays(30),"");
         MedicalRecord multiple=clinic.recordVisitAndAdminister("p",List.of("Cough"),"Review","","n",
@@ -48,11 +48,11 @@ public final class ConsultationAdministrationChecks {
         SchoolNurse nurse=new SchoolNurse("n","Nurse");nurse.setCampusId("uic-bajada");
         ClinicSystem clinic=new SecuredClinicSystem(data,nurse,new AuditLog());
         clinic.registerPatient(new Student("p","Test patient","contact","CS",1,"A"));
-        MedicineProduct product=new MedicineProduct("Vitamin C","500 mg","tablet");
-        MedicineProduct lowerStrength=new MedicineProduct("Vitamin C","250 mg","tablet");
+        MedicineProduct product=new MedicineProduct("Vitamin C","A11GA01","");
+        MedicineProduct otherMedicine=new MedicineProduct("Vitamin D","A11CC05","");
         data.addMedicine(product,2,LocalDate.now().plusDays(5),"");
         data.addMedicine(product,4,LocalDate.now().plusDays(12),"");
-        data.addMedicine(lowerStrength,5,LocalDate.now().plusDays(8),"");
+        data.addMedicine(otherMedicine,5,LocalDate.now().plusDays(8),"");
         MedicalRecord visit=clinic.recordVisitAndAdminister("p",List.of("Cough"),"Concern","Notes","n",
             List.of(new DispenseItem(product,1),new DispenseItem(product,2)),false);
         MedicineTransaction transaction=data.transactionPage(0,25,"",null,null).rows().get(0);
@@ -62,7 +62,7 @@ public final class ConsultationAdministrationChecks {
         check(transaction.getBatchAllocations().get(0).expiry().isBefore(transaction.getBatchAllocations().get(1).expiry()),
             "FEFO allocation is ordered by expiry");
         check(transaction.getCampusId().equals("uic-bajada"),"memory transaction stores trusted campus");
-        check(clinic.getStock(product)==3&&clinic.getStock(lowerStrength)==5,"strength-specific stock remains separate");
+        check(clinic.getStock(product)==3&&clinic.getStock(otherMedicine)==5,"different medicine names retain separate stock");
         int visits=data.recordPage(0,25,"").total(),transactions=data.transactionPage(0,25,"",null,null).total();
         rejects(IllegalStateException.class,()->clinic.recordVisitAndAdminister("p",List.of("Cough"),"Too much","",
             "n",List.of(new DispenseItem(product,100)),false),"insufficient stock rejects composite operation");
@@ -88,7 +88,7 @@ public final class ConsultationAdministrationChecks {
                 app.login.login("n","nurse-password").orElseThrow();
                 ClinicSystem clinic=app.clinic();
                 clinic.registerPatient(new Student("p","Persistent patient","contact","CS",1,"A"));
-                MedicineProduct product=new MedicineProduct("Ibuprofen","200 mg","tablet");
+                MedicineProduct product=new MedicineProduct("Ibuprofen","M01AE01","");
                 clinic.addMedicine(product,2,LocalDate.now().plusDays(4),"");
                 clinic.addMedicine(product,3,LocalDate.now().plusDays(9),"");
                 MedicalRecord visit=clinic.recordVisitAndAdminister("p",List.of("Fever"),"Concern","",
@@ -103,17 +103,17 @@ public final class ConsultationAdministrationChecks {
                 app.login.login("n","nurse-password").orElseThrow();
                 ClinicSystem clinic=app.clinic();
                 MedicalRecord visit=clinic.getVisitHistory("p").get(0);
-                MedicineTransaction tx=app.transactions(0,25,"200 mg",null,null).rows().get(0);
+                MedicineTransaction tx=app.transactions(0,25,"Ibuprofen",null,null).rows().get(0);
                 check(visit.getCampusId().equals("uic-bajada"),"campus attribution survives restart");
                 check(tx.getVisitId().equals(visit.getRecordId())&&tx.getBatchAllocations().stream()
                     .mapToInt(BatchAllocation::quantity).sum()==4,"consultation link and allocated quantities survive restart");
-                check(clinic.getStock(new MedicineProduct("Ibuprofen","200 mg","tablet"))==1,
+                check(clinic.getStock(new MedicineProduct("Ibuprofen","M01AE01",""))==1,
                     "FEFO stock decrement survives restart");
             }
             try(Database db=new Database(database)) {
                 ClinicData data=ClinicRepository.create(db);
-                MedicineProduct first=new MedicineProduct("Rollback first","","tablet");
-                MedicineProduct second=new MedicineProduct("Rollback second","","tablet");
+                MedicineProduct first=new MedicineProduct("Rollback first","","");
+                MedicineProduct second=new MedicineProduct("Rollback second","","");
                 data.addMedicine(first,3,LocalDate.now().plusDays(30),"");
                 data.addMedicine(second,3,LocalDate.now().plusDays(30),"");
                 int visits=data.recordCount(),transactions=data.transactionPage(0,25,"",null,null).total();

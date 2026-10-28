@@ -36,7 +36,7 @@ final class InventoryCatalog {
             .map(InventoryCatalog::summarize)
             .toList();
         return PageResult.select(products, page, size, row -> filter.isEmpty()
-            || row.product().displayName().toLowerCase(java.util.Locale.ROOT)
+            || (row.product().name()+" "+row.product().atcLabel()).toLowerCase(java.util.Locale.ROOT)
                 .contains(filter.toLowerCase(java.util.Locale.ROOT)));
     }
 
@@ -45,7 +45,8 @@ final class InventoryCatalog {
             .sorted(Comparator.comparing(Medicine::getExpirationDate)
                 .thenComparing(Medicine::getBatchDate).thenComparing(Medicine::getBatchId))
             .toList();
-        MedicineProduct product = ordered.get(0).getProduct();
+        MedicineProduct product = ordered.stream().map(Medicine::getProduct)
+            .filter(p->!p.atcPrimary().isBlank()).findFirst().orElse(ordered.get(0).getProduct());
         int eligibleQuantity = 0;
         LocalDate nextExpiry = null;
         for (Medicine batch : ordered) {
