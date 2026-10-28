@@ -36,6 +36,7 @@ public final class AiNurseAssistantPanel extends BasePanel {
     private javax.swing.SwingWorker<String, Void> request;
     private int generation;
     private JButton send;
+    private JButton cancel;
     private boolean pending;
     private boolean configured;
 
@@ -55,7 +56,8 @@ public final class AiNurseAssistantPanel extends BasePanel {
         addComposer();
         checkConfiguration();
         action("Clear conversation", () -> clear());
-        action("Cancel request", () -> cancelRequest());
+        cancel = action("Cancel request", () -> cancelRequest());
+        cancel.setEnabled(false);
         addHierarchyListener(e -> {
             if ((e.getChangeFlags() & java.awt.event.HierarchyEvent.SHOWING_CHANGED) != 0 && !isShowing()) cancelRequest();
         });
@@ -72,10 +74,33 @@ public final class AiNurseAssistantPanel extends BasePanel {
         input.getInputMap().put(javax.swing.KeyStroke.getKeyStroke("shift ENTER"), "insert-break");
         input.getAccessibleContext().setAccessibleName("Assistant question");
         input.getActionMap().put("send-ai-message", new javax.swing.AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { submit(); } });
-        composer.add(new JScrollPane(input), BorderLayout.CENTER);
+        JLabel questionLabel = new JLabel("Question");
+        questionLabel.setFont(Theme.font(Theme.TYPE_BODY, Font.BOLD));
+        questionLabel.setForeground(Theme.INK);
+        questionLabel.setLabelFor(input);
+        JLabel keyboardHint = new JLabel("Enter to send · Shift+Enter for a new line");
+        keyboardHint.setFont(Theme.font(Theme.TYPE_CAPTION, Font.PLAIN));
+        keyboardHint.setForeground(Theme.MUTED);
+        JPanel prompt = new JPanel(new BorderLayout(0, Theme.SPACE_1));
+        prompt.setOpaque(false);
+        prompt.add(questionLabel, BorderLayout.NORTH);
+        prompt.add(keyboardHint, BorderLayout.SOUTH);
+        JScrollPane inputScroll = new JScrollPane(input);
+        inputScroll.setBorder(BorderFactory.createLineBorder(Theme.LINE));
+        inputScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        inputScroll.getVerticalScrollBar().setUnitIncrement(16);
+        JPanel entry = new JPanel(new BorderLayout(0, Theme.SPACE_2));
+        entry.setOpaque(false);
+        entry.add(prompt, BorderLayout.NORTH);
+        entry.add(inputScroll, BorderLayout.CENTER);
+        composer.add(entry, BorderLayout.CENTER);
         send = Theme.button("Send", true);
+        send.getAccessibleContext().setAccessibleName("Send question to assistant");
         send.addActionListener(e -> submit());
-        composer.add(send, BorderLayout.EAST);
+        JPanel sendArea = new JPanel(new java.awt.GridBagLayout());
+        sendArea.setOpaque(false);
+        sendArea.add(send);
+        composer.add(sendArea, BorderLayout.EAST);
         JPanel privacyLine = new JPanel();
         privacyLine.setLayout(new BoxLayout(privacyLine, BoxLayout.Y_AXIS));
         privacyLine.setOpaque(false);
@@ -89,6 +114,7 @@ public final class AiNurseAssistantPanel extends BasePanel {
         status.setAlignmentX(Component.LEFT_ALIGNMENT);
         status.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         status.setBorder(BorderFactory.createEmptyBorder(Theme.SPACE_1, 2, 0, 2));
+        privacyLine.add(Box.createVerticalStrut(Theme.SPACE_1));
         privacyLine.add(status);
         JPanel south = new JPanel(new BorderLayout()); south.setOpaque(false);
         south.add(privacyLine, BorderLayout.NORTH); south.add(composer, BorderLayout.CENTER);
@@ -131,17 +157,18 @@ public final class AiNurseAssistantPanel extends BasePanel {
         catch (AiServiceException | SecurityException error) { showError(error.getMessage()); return; }
         catch (RuntimeException error) { showError("AI configuration could not be initialized. Check settings and restart the application."); return; }
         pending = true; send.setEnabled(false); input.setEnabled(false); privacy.setEnabled(false);
+        cancel.setEnabled(true);
         status.setForeground(Theme.MUTED); status.setText("AI is thinking…");
         final int current = ++generation;
         request = AsyncLoader.load(() -> service.ask(question), answer -> {
             if (current != generation) return;
-            pending = false; input.setEnabled(true); privacy.setEnabled(true); updateSendEnabled();
+            pending = false; cancel.setEnabled(false); input.setEnabled(true); privacy.setEnabled(true); updateSendEnabled();
             try { sessionGuard.run(); } catch (SecurityException expired) { showError(expired.getMessage()); return; }
             addNurse(question); input.setText(""); privacy.setSelected(false); updateSendEnabled();
             status.setForeground(Theme.SUCCESS); status.setText("Review AI drafts before use."); addAssistant("Draft for nurse review\n\n" + answer);
         }, error -> {
             if (current != generation) return;
-            pending = false; input.setEnabled(true); privacy.setEnabled(true); updateSendEnabled();
+            pending = false; cancel.setEnabled(false); input.setEnabled(true); privacy.setEnabled(true); updateSendEnabled();
             showError(error instanceof AiServiceException || error instanceof SecurityException
                 ? error.getMessage() : "The AI request failed. Your question is retained; use Send to retry.");
         });
@@ -151,6 +178,7 @@ public final class AiNurseAssistantPanel extends BasePanel {
         if (request != null) { request.cancel(true); request = null; }
         if (pending) status.setText("Request cancelled. Your question is retained.");
         pending = false;
+        if (cancel != null) cancel.setEnabled(false);
         updateSendEnabled();
         input.setEnabled(true); privacy.setEnabled(true);
     }

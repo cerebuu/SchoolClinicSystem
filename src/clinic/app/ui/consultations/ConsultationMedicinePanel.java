@@ -4,6 +4,7 @@ import clinic.app.ApplicationContext;
 import clinic.app.Theme;
 import clinic.app.ui.common.popup.FormValueComponent;
 import clinic.app.ui.dispense.MedicinePicker;
+import clinic.app.ui.dispense.PositiveQuantitySpinner;
 import clinic.model.Medicine;
 import clinic.service.DispenseItem;
 import clinic.service.DispenseWorkflow;
@@ -17,7 +18,7 @@ import javax.swing.*;
 final class ConsultationMedicinePanel extends JPanel implements FormValueComponent {
     private final JPanel rows=new JPanel();
     private final List<MedicinePicker> pickers=new ArrayList<>();
-    private final List<JSpinner> quantities=new ArrayList<>();
+    private final List<PositiveQuantitySpinner> quantities=new ArrayList<>();
 
     ConsultationMedicinePanel(ApplicationContext app) {
         super(new BorderLayout(Theme.GAP,Theme.GAP));
@@ -43,7 +44,7 @@ final class ConsultationMedicinePanel extends JPanel implements FormValueCompone
         JPanel row=new JPanel(new BorderLayout(Theme.GAP,0));
         row.setOpaque(false);
         MedicinePicker picker=new MedicinePicker(app,()->{});
-        JSpinner quantity=new JSpinner(new SpinnerNumberModel(1,1,Integer.MAX_VALUE,1));
+        PositiveQuantitySpinner quantity=new PositiveQuantitySpinner();
         quantity.getAccessibleContext().setAccessibleName("Quantity");
         quantity.setPreferredSize(new Dimension(86,Theme.CONTROL_HEIGHT));
         JButton remove=Theme.button("Remove",false);
@@ -74,16 +75,12 @@ final class ConsultationMedicinePanel extends JPanel implements FormValueCompone
 
     List<DispenseItem> items() {
         List<DispenseItem> selected=new ArrayList<>();
-        boolean any=pickers.stream().anyMatch(picker->picker.selected()!=null);
         for(int i=0;i<pickers.size();i++) {
             Medicine medicine=pickers.get(i).selected();
             if(medicine==null) {
-                if(any)throw new IllegalArgumentException("Choose a medicine or remove its empty row.");
-                continue;
+                throw new IllegalArgumentException("Choose a medicine or remove its empty row.");
             }
-            try { quantities.get(i).commitEdit(); }
-            catch(java.text.ParseException error) { throw new IllegalArgumentException("Enter a whole-number medicine quantity."); }
-            selected.add(new DispenseItem(medicine,(Integer)quantities.get(i).getValue()));
+            selected.add(new DispenseItem(medicine,quantities.get(i).positiveQuantity()));
         }
         return selected.isEmpty()?List.of():DispenseWorkflow.merge(selected);
     }

@@ -12,18 +12,25 @@ import java.util.*;
 
 public final class InventoryPanel extends BasePanel {
     private final ApplicationContext app;
-    private final PagedTablePanel<Medicine> table;
+    private final PagedTablePanel<InventoryProductRow> table;
     public InventoryPanel(ApplicationContext app) {
         super("Medicine inventory",app);this.app=app;
-        table=new PagedTablePanel<>(new InventoryTableModel(),app::medicines);
+        table=new PagedTablePanel<>(new InventoryTableModel(),
+            (page,size,query)->InventoryCatalog.page(app,page,size,query), "Medicine / strength / formulation");
         table.refreshOn(app.changes,clinic.app.DataTopic.INVENTORY);
+        table.setRowActions(medicine->{
+            List<RowAction> rowActions=new ArrayList<>();
+            if(app.current().canAccess(User.RESTOCK))
+                rowActions.add(new RowAction("Restock",()->restock(medicine)));
+            rowActions.add(new RowAction("View batches",()->viewBatches(medicine)));
+            rowActions.add(new RowAction("Stock and forecast",()->forecast(medicine)));
+            return rowActions;
+        });
         add(table,BorderLayout.CENTER);
         if(app.current().canAccess(User.RESTOCK)) {
             action("Add medicine",true,()->addBatch());
-            action("Restock",()->restock());
             action("Merge duplicates",()->findDuplicates());
         }
-        action("Stock and forecast",()->forecast());
     }
     private void addBatch() {
         FormPopup.showInteractive(this,"Add medicine batch",List.of(FormField.text("Medicine"),FormField.optional("Strength"),
@@ -31,23 +38,37 @@ public final class InventoryPanel extends BasePanel {
             FormField.futureExpiry(),FormField.remarks()),Map.of(),(values,selected,controller)->
             checkBatch(values,product(values),false,controller),()->{});
     }
-    private void restock() {
-        Medicine medicine=table.selected();
-        List<FormField> fields=medicine==null?List.of(FormField.text("Medicine"),FormField.optional("Strength"),
+    private void restock(InventoryProductRow selectedProduct) {
+        openRestock(selectedProduct,null);
+    }
+    private void restockBatch(Medicine selectedBatch) {
+        openRestock(null,selectedBatch);
+    }
+    private void openRestock(InventoryProductRow selectedProduct,Medicine selectedBatch) {
+        MedicineProduct selectedMedicine=selectedBatch!=null?selectedBatch.getProduct()
+            :selectedProduct==null?null:selectedProduct.product();
+        List<FormField> fields=selectedMedicine==null?List.of(FormField.text("Medicine"),FormField.optional("Strength"),
             FormField.optional("Formulation"),FormField.positiveQuantity(),
+            FormField.futureExpiry(),FormField.remarks()):selectedBatch==null?List.of(FormField.positiveQuantity(),
             FormField.futureExpiry(),FormField.remarks()):List.of(FormField.positiveQuantity(),
-            FormField.futureExpiry(medicine.getExpirationDate().toString()),FormField.remarks(medicine.getRemarks()));
-        FormPopup.showInteractive(this,"Restock"+(medicine==null?" medicine":" "+medicine.getDisplayName()),fields,Map.of(),
-            (values,selected,controller)->checkRestock(values,medicine==null?product(values):medicine.getProduct(),medicine,controller),
+            FormField.futureExpiry(selectedBatch.getExpirationDate().toString()),FormField.remarks(selectedBatch.getRemarks()));
+        FormPopup.showInteractive(this,"Restock"+(selectedMedicine==null?" medicine":" "+selectedMedicine.displayName()),fields,Map.of(),
+            (values,selected,controller)->checkRestock(values,
+                selectedMedicine==null?product(values):selectedMedicine,selectedBatch,controller),
             ()->MessagePopup.info(this,"Medicine restocked."));
+    }
+    private void viewBatches(InventoryProductRow selected) {
+        Medicine selectedBatch=InventoryBatchDialog.show(this,selected,app.current().canAccess(User.RESTOCK));
+        if(selectedBatch!=null)restockBatch(selectedBatch);
     }
     private MedicineProduct product(Map<String,String> values) {
         return new MedicineProduct(values.get("Medicine"),values.get("Strength"),values.get("Formulation"));
     }
-    private void checkRestock(Map<String,String> values,MedicineProduct product,Medicine selected,FormPopup.SaveController controller) {
+    private void checkRestock(Map<String,String> values,MedicineProduct product,Medicine selectedBatch,FormPopup.SaveController controller) {
         int quantity=Integer.parseInt(values.get("Quantity"));LocalDate expiry=LocalDate.parse(values.get("Expiry (YYYY-MM-DD)"));
-        Actions.run(this,()->medicineBatches(product),batches->{
-            Optional<Medicine> empty=BatchMatcher.depleted(batches,product,selected==null?null:selected.getBatchId());
+        controller.prepareAsync(()->medicineBatches(product),batches->{
+            Optional<Medicine> empty=BatchMatcher.depleted(batches,product,
+                selectedBatch==null?null:selectedBatch.getBatchId());
             if(empty.isPresent()) {
                 DuplicateBatchPopup.EmptyChoice choice=DuplicateBatchPopup.reuseEmpty(this,empty.get(),quantity,expiry,values.get("Remarks"));
                 if(choice==DuplicateBatchPopup.EmptyChoice.CANCEL)return;
@@ -70,7 +91,7 @@ public final class InventoryPanel extends BasePanel {
     }
     private void checkBatch(Map<String,String> values,MedicineProduct product,boolean restock,FormPopup.SaveController controller) {
         int quantity=Integer.parseInt(values.get("Quantity"));LocalDate expiry=LocalDate.parse(values.get("Expiry (YYYY-MM-DD)"));
-        Actions.run(this,()->app.matchingMedicineBatches(product,expiry),batches->{
+        controller.prepareAsync(()->app.matchingMedicineBatches(product,expiry),batches->{
             chooseMatchingBatch(values,product,expiry,quantity,restock,controller,batches);
         });
     }
@@ -109,11 +130,9 @@ public final class InventoryPanel extends BasePanel {
         if(!DuplicateBatchPopup.confirmGroup(this,details.toString())){confirmDuplicateGroup(groups,index+1);return;}
         Actions.run(this,()->{app.mergeDuplicateSession().accept(group);return true;},done->confirmDuplicateGroup(groups,index+1));
     }
-    private void forecast() {
-        Medicine medicine=table.selected();
-        if(medicine==null){MessagePopup.warning(this,"Select a medicine.");return;}
-        Actions.run(this,()->"Available unexpired stock: "+app.clinic().getStock(medicine.getProduct())+
-            "\nEstimated days remaining: "+app.clinic().estimateDaysRemaining(medicine.getName())+
+    private void forecast(InventoryProductRow medicine) {
+        Actions.run(this,()->"Available unexpired stock: "+app.clinic().getStock(medicine.product())+
+            "\nEstimated days remaining: "+app.clinic().estimateDaysRemaining(medicine.product().name())+
             " (-1 means no usage history)",message->MessagePopup.info(this,message));
     }
 }

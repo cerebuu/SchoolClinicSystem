@@ -14,6 +14,8 @@ final class ClinicSession {
             var owner=login.getCurrentUser().orElseThrow(()->new SecurityException("Sign in required."));
             if(!User.ADMIN.equals(owner.getRole())&&owner.getCampusId()==null)
                 throw new SecurityException("Your account has no assigned campus. Ask an administrator to assign one.");
+            if(User.NURSE.equals(owner.getRole())&&clinic.model.NurseCampus.forId(owner.getCampusId()).isEmpty())
+                throw new SecurityException("Your account needs an approved UIC campus assignment. Ask a Super Admin to update it.");
             long version=login.getSessionVersion();
             var secured=new SecuredClinicSystem(store,owner,audit);
             return (ClinicSystem)Proxy.newProxyInstance(ClinicSystem.class.getClassLoader(),new Class<?>[]{ClinicSystem.class},(p,m,a)->{

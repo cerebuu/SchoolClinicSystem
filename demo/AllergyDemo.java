@@ -59,7 +59,7 @@ public final class AllergyDemo {
         Path path=Files.createTempDirectory("scms-allergy-demo-").resolve("clinic");
         try(Database db=new Database(path)) {
             ClinicData data=ClinicRepository.create(db);
-            SchoolNurse nurse=new SchoolNurse("n","Fixture nurse");nurse.setCampusId("C1");
+            SchoolNurse nurse=new SchoolNurse("n","Fixture nurse");nurse.setCampusId("uic-bajada");
             var secured=new SecuredClinicSystem(data,nurse,new AuditLog());
             Patient p=new Student("s","Synthetic student","contact","CS",1,"A");
             AllergyParser.parse("Penicillin, Aspirin").forEach(p::addAllergy); secured.registerPatient(p);

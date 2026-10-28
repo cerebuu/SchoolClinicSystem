@@ -10,12 +10,10 @@ import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JSpinner;
-import javax.swing.SpinnerNumberModel;
 
 final class DispenseItemRow extends JPanel {
     final MedicinePicker medicine;
-    final JSpinner quantity = new JSpinner(new SpinnerNumberModel(1, 1, Integer.MAX_VALUE, 1));
+    final PositiveQuantitySpinner quantity = new PositiveQuantitySpinner();
     private final JLabel stock = new JLabel("Available: —");
 
     DispenseItemRow(ApplicationContext app, Runnable changed, Runnable remove) {
@@ -52,12 +50,7 @@ final class DispenseItemRow extends JPanel {
     }
 
     DispenseItem item() {
-        try {
-            quantity.commitEdit();
-        } catch (java.text.ParseException error) {
-            throw new IllegalArgumentException("Enter a positive whole quantity.");
-        }
         if (medicine.selected() == null) throw new IllegalArgumentException("Choose a medicine for every row.");
-        return new DispenseItem(medicine.selected(), (Integer) quantity.getValue());
+        return new DispenseItem(medicine.selected(), quantity.positiveQuantity());
     }
 }

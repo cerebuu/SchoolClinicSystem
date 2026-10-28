@@ -102,6 +102,8 @@ public final class ApplicationContext implements AutoCloseable {
         if (!allowed) throw new SecurityException("Access denied.");
         if(!User.ADMIN.equals(user.getRole())&&user.getCampusId()==null)
             throw new SecurityException("Your account has no assigned campus. Ask an administrator to assign one.");
+        if(User.NURSE.equals(user.getRole())&&clinic.model.NurseCampus.forId(user.getCampusId()).isEmpty())
+            throw new SecurityException("Your account needs an approved UIC campus assignment. Ask a Super Admin to update it.");
     }
     public ClinicSystem clinic() { return ClinicSession.open(login,store,audit,changes); }
     public PageResult<Patient> patients(int page, int size, String q) {
@@ -142,7 +144,21 @@ public final class ApplicationContext implements AutoCloseable {
     }
     public PageResult<MedicineTransaction> transactions(int page,int size,String query,
             java.time.LocalDateTime from,java.time.LocalDateTime to) {
-        synchronized(login){require(User.DISPENSE);return store.transactionPage(page,size,query,from,to);}
+        synchronized(login) {
+            require(User.DISPENSE);
+            User user=current();
+            String campusId=User.ADMIN.equals(user.getRole())?null:user.getCampusId();
+            return store.transactionPage(page,size,query,from,to,campusId);
+        }
+    }
+    public PageResult<MedicationHistoryEntry> medicationHistory(int page,int size,String query,
+            java.time.LocalDateTime from,java.time.LocalDateTime to) {
+        synchronized(login) {
+            require(User.DISPENSE);
+            User user=current();
+            String campusId=User.ADMIN.equals(user.getRole())?null:user.getCampusId();
+            return store.medicationHistoryPage(page,size,query,from,to,campusId);
+        }
     }
     public DispenseWorkflow dispenseSession() {
         synchronized(login){require(User.DISPENSE);return new DispenseWorkflow(clinic(),current(),audit);}
@@ -150,15 +166,20 @@ public final class ApplicationContext implements AutoCloseable {
     public PageResult<MedicalRecord> records(int page, int size, String q) {
         synchronized (login) {
             requireAny(User.RECORDS, User.VIEW_REPORTS);
-            return store.recordPage(page, size, q);
+            User user=current();
+            if(!user.canAccess(User.RECORDS))
+                return new PageResult<>(List.of(),0);
+            String campusId=User.ADMIN.equals(user.getRole())?null:user.getCampusId();
+            return store.recordPage(page,size,q,campusId);
         }
     }
     public PageResult<MedicalRecord> recentVisits(int page, int size, String query) {
         synchronized (login) {
             require(User.RECORD_TRANSACTION);
             User user = current();
-            return store.recentRecordPage(page, size, query,
-                user.canAccess(User.RECORDS) ? null : user.getUserId());
+            String campusId=User.ADMIN.equals(user.getRole())?null:user.getCampusId();
+            return store.recentRecordPage(page,size,query,
+                user.canAccess(User.RECORDS)?null:user.getUserId(),campusId);
         }
     }
     public PageResult<MedicalRecord> recentVisits(int page, int size, String nameOrId,
@@ -171,20 +192,25 @@ public final class ApplicationContext implements AutoCloseable {
             if (!allowed) throw new SecurityException("Access denied.");
             if(user.getCampusId()==null)
                 throw new SecurityException("Your account has no assigned campus. Ask an administrator to assign one.");
-            return store.recentRecordPage(page, size, nameOrId,
-                user.canAccess(User.RECORDS) ? null : user.getUserId(), fromInclusive, toInclusive);
+            if(User.NURSE.equals(user.getRole())&&clinic.model.NurseCampus.forId(user.getCampusId()).isEmpty())
+                throw new SecurityException("Your account needs an approved UIC campus assignment. Ask a Super Admin to update it.");
+            String campusId=User.ADMIN.equals(user.getRole())?null:user.getCampusId();
+            return store.recentRecordPage(page,size,nameOrId,
+                user.canAccess(User.RECORDS)?null:user.getUserId(),fromInclusive,toInclusive,campusId);
         }
     }
     public PageResult<NotificationLog> notifications(int page, int size, String q) {
         synchronized (login) {
             require(User.RECORD_TRANSACTION);
-            return store.notificationPage(page, size, q);
+            return store.notificationPageForCampus(page,size,q,current().getCampusId());
         }
     }
     public PageResult<Alert> alerts(int page, int size, String q) {
         synchronized (login) {
             require(User.RECORDS);
-            return store.alertPage(page, size, q);
+            User user=current();
+            String campusId=User.ADMIN.equals(user.getRole())?null:user.getCampusId();
+            return store.alertPage(page,size,q,campusId);
         }
     }
     public int patientCount() {
@@ -196,7 +222,9 @@ public final class ApplicationContext implements AutoCloseable {
     public int visitCount() {
         synchronized (login) {
             require(User.RECORD_TRANSACTION);
-            return store.recordCount();
+            User user=current();
+            String campusId=User.ADMIN.equals(user.getRole())?null:user.getCampusId();
+            return store.recordCount(campusId);
         }
     }
 }

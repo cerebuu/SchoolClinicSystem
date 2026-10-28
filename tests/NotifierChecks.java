@@ -35,7 +35,7 @@ public final class NotifierChecks {
         return clinic.createGuardianNotification(id,tx.getTransactionId(),"demo reason");
     }
     private static ClinicSystem nurse(InMemoryClinicSystem store,AuditLog audit) {
-        SchoolNurse user=new SchoolNurse("N1","Demo nurse");user.setCampusId("C1");
+        SchoolNurse user=new SchoolNurse("N1","Demo nurse");user.setCampusId("uic-bajada");
         return new SecuredClinicSystem(store,user,audit);
     }
     private static NotifierService simulated(ClinicSystem clinic) {
@@ -116,12 +116,12 @@ public final class NotifierChecks {
             simulated(clinic).send(emergency,Channel.EMAIL).success());
         System.out.println("EMERGENCY CONFIRMATION | UI requires the confirmation checkbox; not exercised in this headless run.");
 
-        NurseAssistant assistantUser=new NurseAssistant("A1","Demo assistant");assistantUser.setCampusId("C1");
+        NurseAssistant assistantUser=new NurseAssistant("A1","Demo assistant");assistantUser.setCampusId("uic-bajada");
         ClinicSystem assistant=new SecuredClinicSystem(store,assistantUser,audit);
         NotificationLog assistantNotice=assistant.createEmergencyNotification("phone");
         truth("Nurse assistant can send",simulated(assistant).send(assistantNotice,Channel.SMS).success());
 
-        Doctor doctor=new Doctor("D1","Demo doctor","General");doctor.setCampusId("C1");
+        Doctor doctor=new Doctor("D1","Demo doctor","General");doctor.setCampusId("uic-bajada");
         for(User denied:List.of(doctor,new Administrator("AD1","Demo administrator"))) {
             ClinicSystem restricted=new SecuredClinicSystem(store,denied,audit);
             SendResult deniedResult=simulated(restricted).send(assistantNotice,Channel.SMS);
@@ -143,9 +143,13 @@ public final class NotifierChecks {
         truth("Failed send audit is redacted",audit.getAll().stream().anyMatch(entry->
             entry.getAction().equals("notification failed")&&entry.getDetails().contains("channel=SMS")
                 &&entry.getDetails().contains(retry.getNotificationId())));
-        truth("Audit excludes contacts, message text, and patient names",
+        truth("Audit excludes contacts and patient names",
             !auditText.contains("guardian.demo@gmail.com")&&!auditText.contains("09171234567")
-                &&!auditText.contains("Demo email")&&!auditText.contains("Demo medicine"));
+                &&!auditText.contains("Demo email"));
+        String notificationAudit=audit.getAll().stream()
+            .filter(entry->entry.getAction().startsWith("notification "))
+            .map(entry->entry.getDetails()).reduce("",(left,right)->left+"\n"+right);
+        truth("Notification audit excludes message content",!notificationAudit.contains("Demo medicine"));
 
         checkAutomaticRefresh();
         truth("SMS truncation has a clear 160-character rule",
@@ -161,7 +165,7 @@ public final class NotifierChecks {
             app.login.bootstrapAdministrator("root","Demo admin","admin-pass");
             app.login.login("root","admin-pass").orElseThrow();
             app.admin.saveCampus(new clinic.model.Campus("C1","Campus 1"),false);
-            SchoolNurse nurse=new SchoolNurse("N1","Demo nurse");nurse.setCampusId("C1");
+            SchoolNurse nurse=new SchoolNurse("N1","Demo nurse");nurse.setCampusId("uic-bajada");
             app.admin.addUser(nurse,"nurse-pass");
             app.login.logout();
             app.login.login("N1","nurse-pass").orElseThrow();

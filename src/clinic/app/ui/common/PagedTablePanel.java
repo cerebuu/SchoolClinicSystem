@@ -1,12 +1,21 @@
 package clinic.app.ui.common;
 import clinic.app.Theme;
 import java.awt.*;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
 import javax.swing.*;
 import javax.swing.event.*;
-import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableCellRenderer;
+import javax.swing.table.TableColumn;
 public final class PagedTablePanel<T> extends Card {
     public static final int PAGE_SIZE=25;
     private final PagedTableModel<T> model;
+    private final RowActionTableModel displayModel;
     private final PageSource<T> source;
     private final JTable table;
     private final JScrollPane scroll;
@@ -22,6 +31,7 @@ public final class PagedTablePanel<T> extends Card {
     private JButton refreshButton;
     private String emptyText = "No matching records";
     private java.util.function.Function<String, String> emptyMessage;
+    private Function<T, List<RowAction>> rowActionProvider = ignored -> List.of();
     public PagedTablePanel(PagedTableModel<T> model, PageSource<T> source) {
         this(model, source, "Search / filter");
     }
@@ -33,11 +43,14 @@ public final class PagedTablePanel<T> extends Card {
         setLayout(new BorderLayout(Theme.GAP, Theme.GAP));
         this.model=model;
         this.source=source;
-        table=new JTable(model);
+        displayModel=new RowActionTableModel();
+        table=new JTable(displayModel);
         Theme.table(table);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setDefaultRenderer(Object.class, new TableRowRenderer());
         table.setDefaultRenderer(Number.class, new TableRowRenderer());
+        table.getAccessibleContext().setAccessibleDescription(
+            "Use Shift+F10 or the context menu key on a row to open row actions.");
         JPanel controls=new JPanel(new BorderLayout(Theme.GAP, Theme.GAP));
         controls.setOpaque(false);
         JLabel label = new JLabel(filterLabel);
@@ -92,6 +105,114 @@ public final class PagedTablePanel<T> extends Card {
         });
         search.getAccessibleContext().setAccessibleName(filterLabel);
     }
+    /** Adds an accessible, permission-filtered actions menu at the end of each row. */
+    public PagedTablePanel<T> setRowActions(Function<T, List<RowAction>> actions) {
+        rowActionProvider=Objects.requireNonNull(actions);
+        displayModel.showActionsColumn();
+        int actionColumn=displayModel.getColumnCount()-1;
+        TableColumn column=table.getColumnModel().getColumn(actionColumn);
+        column.setMinWidth(48);
+        column.setPreferredWidth(52);
+        column.setMaxWidth(64);
+        table.setDefaultRenderer(ActionCell.class,new RowActionCellRenderer());
+        table.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent event) {
+                if (!SwingUtilities.isLeftMouseButton(event) || event.getClickCount()!=1) return;
+                int viewRow=table.rowAtPoint(event.getPoint());
+                int viewColumn=table.columnAtPoint(event.getPoint());
+                if (viewRow<0 || viewColumn!=actionColumn) return;
+                table.setRowSelectionInterval(viewRow,viewRow);
+                showRowActions(viewRow);
+            }
+        });
+        javax.swing.Action openActions=new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent event) {
+                showRowActions(table.getSelectedRow());
+            }
+        };
+        table.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_F10,KeyEvent.SHIFT_DOWN_MASK),"open-row-actions");
+        table.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_CONTEXT_MENU,0),"open-row-actions");
+        table.getActionMap().put("open-row-actions",openActions);
+        table.getAccessibleContext().firePropertyChange(
+            javax.accessibility.AccessibleContext.ACCESSIBLE_DESCRIPTION_PROPERTY,
+            null,"Use Shift+F10 or the context menu key on a row to open row actions.");
+        return this;
+    }
+
+    private void showRowActions(int viewRow) {
+        if(viewRow<0 || viewRow>=table.getRowCount() || !table.isEnabled())return;
+        int row=table.convertRowIndexToModel(viewRow);
+        List<RowAction> actions=List.copyOf(rowActionProvider.apply(model.row(row)));
+        if(actions.isEmpty())return;
+        JPopupMenu menu=new JPopupMenu();
+        for(RowAction action:actions) {
+            JMenuItem item=new JMenuItem(action.label());
+            item.addActionListener(event->action.command().run());
+            menu.add(item);
+        }
+        if(actions.size()>0) {
+            int column=Math.min(displayModel.getColumnCount()-1,table.getColumnCount()-1);
+            Rectangle cell=table.getCellRect(viewRow,column,true);
+            menu.show(table,cell.x,cell.y+cell.height);
+        }
+    }
+
+    private record ActionCell(Object row) {
+        @Override public String toString(){return "Actions";}
+    }
+
+    private final class RowActionTableModel extends AbstractTableModel {
+        private boolean showActions;
+        private RowActionTableModel() {
+            model.addTableModelListener(event -> {
+                if(event.getFirstRow()==TableModelEvent.HEADER_ROW)fireTableStructureChanged();
+                else fireTableDataChanged();
+            });
+        }
+        private void showActionsColumn() {
+            if(showActions)return;
+            showActions=true;
+            fireTableStructureChanged();
+        }
+        @Override public int getRowCount(){return model.getRowCount();}
+        @Override public int getColumnCount(){return model.getColumnCount()+(showActions?1:0);}
+        @Override public String getColumnName(int column) {
+            return showActions&&column==getColumnCount()-1?"Actions":model.getColumnName(column);
+        }
+        @Override public Class<?> getColumnClass(int column) {
+            return showActions&&column==getColumnCount()-1?ActionCell.class:model.getColumnClass(column);
+        }
+        @Override public Object getValueAt(int row,int column) {
+            return showActions&&column==getColumnCount()-1?new ActionCell(model.row(row))
+                :model.getValueAt(row,column);
+        }
+        @Override public boolean isCellEditable(int row,int column){return false;}
+    }
+
+    private static final class RowActionCellRenderer extends JButton implements TableCellRenderer {
+        private RowActionCellRenderer() {
+            setText("⋯");
+            setFont(Theme.font(20,java.awt.Font.BOLD));
+            setMargin(new Insets(0,0,0,0));
+            setFocusPainted(false);
+            setOpaque(true);
+            setPreferredSize(new Dimension(38,32));
+            setMinimumSize(new Dimension(38,32));
+            setMaximumSize(new Dimension(38,32));
+            getAccessibleContext().setAccessibleName("Row actions");
+        }
+        @Override public Component getTableCellRendererComponent(JTable table,Object value,
+                boolean selected,boolean focused,int row,int column) {
+            setBackground(selected?table.getSelectionBackground():Theme.WHITE);
+            setForeground(selected?table.getSelectionForeground():Theme.BRAND_DARK);
+            Color border=focused?Theme.FOCUS:Theme.BRAND_BORDER;
+            setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(border),
+                BorderFactory.createEmptyBorder(0,3,0,3)));
+            return this;
+        }
+    }
     public PagedTablePanel<T> refreshOn(clinic.app.DataChangeBus bus,clinic.app.DataTopic... topics) {
         live=new LiveRefresh(this,bus,this::reload,topics);return this;
     }
@@ -143,6 +264,7 @@ public final class PagedTablePanel<T> extends Card {
         int version=++generation, p=page;
         refreshCount++;
         Object selectedKey=table.getSelectedRow()<0?null:model.key(table.convertRowIndexToModel(table.getSelectedRow()));
+        table.setEnabled(false);
         Point position=scroll.getViewport().getViewPosition();
         String q=search.getText().trim();
         state.setText("Loading...");

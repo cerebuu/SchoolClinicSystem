@@ -14,6 +14,8 @@ public final class Database implements AutoCloseable {
     private FileChannel lockChannel;
     private FileLock lock;
     private final Path file;
+    private int transactionDepth;
+    private Throwable rollbackCause;
 
     public Database(Path base) {
         file = base.toAbsolutePath().normalize();
@@ -63,14 +65,27 @@ public final class Database implements AutoCloseable {
 
     public synchronized <T> T transaction(Work<T> work) {
         if (connection == null) throw new StorageException("Clinic storage is closed. Restart the application.", null);
+        boolean outermost=transactionDepth==0;
+        transactionDepth++;
         try {
             T result = work.run(connection);
-            connection.commit();
+            if(outermost) {
+                if(rollbackCause!=null)
+                    throw new StorageException("The operation could not be completed. No changes were saved.",rollbackCause);
+                connection.commit();
+            }
             return result;
-        } catch (Exception failure) {
-            try { connection.rollback(); } catch (SQLException rollback) { failure.addSuppressed(rollback); }
+        } catch (Exception | Error failure) {
+            if(rollbackCause==null)rollbackCause=failure;
+            if(outermost) {
+                try { connection.rollback(); } catch (SQLException rollback) { failure.addSuppressed(rollback); }
+            }
             if (failure instanceof RuntimeException runtime) throw runtime;
+            if (failure instanceof Error error) throw error;
             throw new StorageException("The database operation could not be completed. No changes were saved. Check storage availability and retry.", failure);
+        } finally {
+            transactionDepth--;
+            if(outermost)rollbackCause=null;
         }
     }
 

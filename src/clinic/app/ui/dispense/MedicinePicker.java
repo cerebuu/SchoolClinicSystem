@@ -38,6 +38,7 @@ public final class MedicinePicker extends JPanel {
     private int generation;
     private boolean loading;
     private boolean reopenPopup;
+    private boolean reconcileSelectionAfterRefresh;
     private String query = "";
 
     public MedicinePicker(ApplicationContext app, Runnable changed) {
@@ -83,6 +84,10 @@ public final class MedicinePicker extends JPanel {
             private void changed() {
                 if (!loading && !(choices.getSelectedItem() instanceof PageOption)) {
                     query = editor.getText().trim();
+                    if (selected != null && !query.equals(selected.getDisplayName())) {
+                        selected = null;
+                        changed.run();
+                    }
                     generation++;
                     debounce.restart();
                 }
@@ -100,6 +105,12 @@ public final class MedicinePicker extends JPanel {
     }
     public void refresh() {
         cache.clear();
+        if (selected != null) {
+            // Selection puts its display label in the search field; load from the first
+            // page to reconcile it against the current inventory.
+            page = 0;
+            reconcileSelectionAfterRefresh = true;
+        }
         load();
     }
 
@@ -118,6 +129,8 @@ public final class MedicinePicker extends JPanel {
                 setState("Out of stock — unavailable");
                 return;
             }
+            debounce.stop();
+            page = 0;
             selected = medicine;
             restoreEditor();
             changed.run();
@@ -148,6 +161,7 @@ public final class MedicinePicker extends JPanel {
             showPage(result, currentQuery, requestedPage);
         }, error -> {
             if (version == generation && live.active()) {
+                reconcileSelectionAfterRefresh = false;
                 choices.setEnabled(true);
                 setState("Unable to load medicines. Retry the search.");
             }
@@ -155,11 +169,18 @@ public final class MedicinePicker extends JPanel {
     }
     private void showPage(PageResult<Medicine> result, String query, int requestedPage) {
         loading = true;
+        boolean selectionInvalidated = false;
         if (selected != null) {
-            selected = result.rows().stream()
+            Medicine refreshed = result.rows().stream()
                 .filter(medicine -> medicine.getProduct().key().equals(selected.getProduct().key()))
-                .findFirst().orElse(selected);
+                .findFirst().orElse(null);
+            if (refreshed != null && refreshed.getQuantity() > 0) selected = refreshed;
+            else if (reconcileSelectionAfterRefresh) {
+                selected = null;
+                selectionInvalidated = true;
+            }
         }
+        reconcileSelectionAfterRefresh = false;
         DefaultComboBoxModel<Object> model = new DefaultComboBoxModel<>();
         if (requestedPage > 0) model.addElement(PageOption.PREVIOUS);
         result.rows().forEach(model::addElement);
@@ -170,6 +191,11 @@ public final class MedicinePicker extends JPanel {
         loading = false;
         choices.setEnabled(true);
         setState(result.total() + " medicines | page " + (requestedPage + 1));
+        if (selectionInvalidated) {
+            // A refreshed search may no longer contain the previously selected product.
+            // Keep the typed query visible so the user can choose another available item.
+            changed.run();
+        }
         if (reopenPopup) {
             reopenPopup = false;
             SwingUtilities.invokeLater(() -> {

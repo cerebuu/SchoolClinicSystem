@@ -17,7 +17,7 @@ public final class SecuredClinicSystem implements ClinicSystem {
 
     public SecuredClinicSystem(ClinicSystem delegate, User user, AuditLog log) {
         this.delegate = java.util.Objects.requireNonNull(delegate);
-        this.user = java.util.Objects.requireNonNull(user);
+        this.user = java.util.Objects.requireNonNull(user).immutableCopy();
         this.log = java.util.Objects.requireNonNull(log);
     }
 
@@ -28,7 +28,12 @@ public final class SecuredClinicSystem implements ClinicSystem {
 
     @Override
     public void registerPatient(Patient patient) {
-        allergyWrite("registerPatient", patient.getAllergies().size(), () -> delegate.registerPatient(patient));
+        allergyWrite("registerPatient", patient==null?0:patient.getAllergies().size(), () -> delegate.registerPatient(patient));
+    }
+
+    @Override
+    public void updatePatient(String patientId, Patient profile) {
+        run("updatePatient", () -> delegate.updatePatient(patientId, profile));
     }
 
     @Override
@@ -39,28 +44,30 @@ public final class SecuredClinicSystem implements ClinicSystem {
     @Override
     public MedicalRecord recordVisit(String patientId, List<String> symptoms, String reason, String remarks, String staffId) {
         verifyStaff(staffId);
-        return call("recordVisit", () -> delegate instanceof ClinicData data
-            ?data.recordVisitWithCampus(patientId,symptoms,reason,remarks,staffId,user.getCampusId())
-            :delegate.recordVisit(patientId,symptoms,reason,remarks,staffId));
+        return clinicalMutation("recordVisit",()->delegate instanceof ClinicData data
+                ?data.recordVisitWithCampus(patientId,symptoms,reason,remarks,staffId,user.getCampusId())
+                :delegate.recordVisit(patientId,symptoms,reason,remarks,staffId),
+            record->"recordId="+record.getRecordId()+"; symptomCount="+(symptoms==null?0:symptoms.size()));
     }
 
     @Override
     public MedicalRecord recordVisitAndAdminister(String patientId,List<String> symptoms,String reason,
             String remarks,String staffId,List<DispenseItem> medicines,boolean allergyConfirmed) {
         verifyStaff(staffId);
-        require(User.RECORD_TRANSACTION,"recordVisitAndAdminister");
-        if(medicines!=null&&!medicines.isEmpty())require(User.DISPENSE,"recordVisitAndAdminister");
-        MedicalRecord visit=call("recordVisitAndAdminister",()->delegate instanceof ClinicData data
+        return clinicalMutation("recordVisitAndAdminister",()->delegate instanceof ClinicData data
             ?data.recordVisitAndAdministerWithCampus(patientId,symptoms,reason,remarks,staffId,medicines,
                 allergyConfirmed,user.getCampusId())
-            :delegate.recordVisitAndAdminister(patientId,symptoms,reason,remarks,staffId,medicines,allergyConfirmed));
-        if(allergyConfirmed)auditAllergyConfirmation(patientId);
-        return visit;
+            :delegate.recordVisitAndAdminister(patientId,symptoms,reason,remarks,staffId,medicines,allergyConfirmed),
+            record->"recordId="+record.getRecordId()+"; medicationCount="+(medicines==null?0:medicines.size()),
+            ()->{if(allergyConfirmed)auditAllergyConfirmation(patientId);},
+            medicines!=null&&!medicines.isEmpty()?User.DISPENSE:null);
     }
 
     @Override
     public List<MedicalRecord> getVisitHistory(String patientId) {
-        return call("getVisitHistory", () -> delegate.getVisitHistory(patientId));
+        return call("getVisitHistory", () -> delegate instanceof ClinicData data
+            ?data.getVisitHistory(patientId,User.ADMIN.equals(user.getRole())?null:user.getCampusId())
+            :delegate.getVisitHistory(patientId));
     }
 
     @Override
@@ -71,60 +78,56 @@ public final class SecuredClinicSystem implements ClinicSystem {
     @Override
     public MedicineTransaction dispenseMedicine(String patientId, String medicineName, int quantity, String staffId, boolean overrideConfirmed) {
         verifyStaff(staffId);
-        require(User.DISPENSE,"dispenseMedicine");
-        MedicineTransaction result = call("dispenseMedicine", () -> delegate instanceof ClinicData data
+        return clinicalMutation("dispenseMedicine", () -> delegate instanceof ClinicData data
             ?data.dispenseMedicineWithCampus(patientId,new MedicineProduct(medicineName,"",""),quantity,
                 staffId,overrideConfirmed?"Allergies reviewed by staff":"",user.getCampusId())
-            :delegate.dispenseMedicine(patientId,medicineName,quantity,staffId,overrideConfirmed));
-        if (overrideConfirmed) auditAllergyConfirmation(patientId);
-        return result;
+            :delegate.dispenseMedicine(patientId,medicineName,quantity,staffId,overrideConfirmed),
+            transaction->"transactionId="+transaction.getTransactionId()+"; quantity="+transaction.getQuantity(),
+            ()->{if(overrideConfirmed)auditAllergyConfirmation(patientId);});
     }
 
     @Override
     public void addMedicine(String name, int quantity, LocalDate expiry, String remarks) {
-        run("addMedicine", () -> delegate.addMedicine(name, quantity, expiry, remarks));
+        SecuredBatchOperations.save(delegate,user,log,name,quantity,expiry,remarks,false,false);
     }
     @Override
     public void addMedicine(MedicineProduct medicine,int quantity,LocalDate expiry,String remarks) {
-        run("addMedicine",()->delegate.addMedicine(medicine,quantity,expiry,remarks));
+        SecuredBatchOperations.save(delegate,user,log,medicine,quantity,expiry,remarks,false,false);
     }
 
     @Override
     public MedicineTransaction dispenseMedicine(String patientId, String medicineName, int quantity,
             String staffId, String overrideReason) {
         verifyStaff(staffId);
-        require(User.DISPENSE,"dispenseMedicine");
-        MedicineTransaction result = call("dispenseMedicine", () -> {
+        return clinicalMutation("dispenseMedicine", () -> {
             if(delegate instanceof ClinicData data) {
                 return data.dispenseMedicineWithCampus(patientId,new MedicineProduct(medicineName,"",""),
                     quantity,staffId,overrideReason,user.getCampusId());
             }
             return delegate.dispenseMedicine(patientId,medicineName,quantity,staffId,overrideReason);
-        });
-        if (overrideReason != null && !overrideReason.isBlank()) auditAllergyConfirmation(patientId);
-        return result;
+        },transaction->"transactionId="+transaction.getTransactionId()+"; quantity="+transaction.getQuantity(),
+            ()->{if(overrideReason!=null&&!overrideReason.isBlank())auditAllergyConfirmation(patientId);});
     }
 
     @Override
     public MedicineTransaction dispenseMedicine(String patientId,MedicineProduct medicine,int quantity,
             String staffId,boolean overrideConfirmed) {
         verifyStaff(staffId);
-        require(User.DISPENSE,"dispenseMedicine");
-        MedicineTransaction result=call("dispenseMedicine",()->delegate instanceof ClinicData data
+        return clinicalMutation("dispenseMedicine",()->delegate instanceof ClinicData data
             ?data.dispenseMedicineWithCampus(patientId,medicine,quantity,staffId,
                 overrideConfirmed?"Allergies reviewed by staff":"",user.getCampusId())
-            :delegate.dispenseMedicine(patientId,medicine,quantity,staffId,overrideConfirmed));
-        if(overrideConfirmed)auditAllergyConfirmation(patientId);
-        return result;
+            :delegate.dispenseMedicine(patientId,medicine,quantity,staffId,overrideConfirmed),
+            transaction->"transactionId="+transaction.getTransactionId()+"; quantity="+transaction.getQuantity(),
+            ()->{if(overrideConfirmed)auditAllergyConfirmation(patientId);});
     }
 
     @Override
     public void restockMedicine(String name, int quantity, LocalDate expiry) {
-        run("restockMedicine", () -> delegate.restockMedicine(name, quantity, expiry));
+        SecuredBatchOperations.save(delegate,user,log,name,quantity,expiry,"",true,false);
     }
     @Override
     public void restockMedicine(MedicineProduct medicine,int quantity,LocalDate expiry,String remarks) {
-        run("restockMedicine",()->delegate.restockMedicine(medicine,quantity,expiry,remarks));
+        SecuredBatchOperations.save(delegate,user,log,medicine,quantity,expiry,remarks,true,false);
     }
 
     public void restockMedicine(String name,int quantity,LocalDate expiry,String remarks) { SecuredBatchOperations.save(delegate,user,log,name,quantity,expiry,remarks,true,false); }
@@ -173,17 +176,20 @@ public final class SecuredClinicSystem implements ClinicSystem {
 
     @Override
     public List<Alert> detectOutbreaks() {
-        return call("detectOutbreaks", () -> delegate.detectOutbreaks());
+        return call("detectOutbreaks", () -> delegate instanceof ClinicData data
+            ?data.detectOutbreaks(campusScope()):delegate.detectOutbreaks());
     }
 
     @Override
     public Optional<Alert> detectRecurringVisit(String patientId) {
-        return call("detectRecurringVisit", () -> delegate.detectRecurringVisit(patientId));
+        return call("detectRecurringVisit", () -> delegate instanceof ClinicData data
+            ?data.detectRecurringVisit(patientId,campusScope()):delegate.detectRecurringVisit(patientId));
     }
 
     @Override
     public List<Alert> getAllAlerts() {
-        return call("getAllAlerts", () -> delegate.getAllAlerts());
+        return call("getAllAlerts", () -> delegate instanceof ClinicData data
+            ?data.getAllAlerts(campusScope()):delegate.getAllAlerts());
     }
 
     @Override
@@ -193,35 +199,49 @@ public final class SecuredClinicSystem implements ClinicSystem {
 
     @Override
     public List<MedicalRecord> searchRecords(String patientId, String symptom, String medicineName, LocalDate date, String section, String department) {
-        return call("searchRecords", () -> delegate.searchRecords(patientId, symptom, medicineName, date, section, department));
+        return call("searchRecords", () -> delegate instanceof ClinicData data
+            ?data.searchRecords(patientId,symptom,medicineName,date,section,department,campusScope())
+            :delegate.searchRecords(patientId,symptom,medicineName,date,section,department));
     }
 
     @Override
     public NotificationLog createGuardianNotification(String patientId, String transactionId, String reason) {
-        return call("createGuardianNotification", () -> delegate.createGuardianNotification(patientId, transactionId, reason));
+        return call("createGuardianNotification", () -> delegate instanceof ClinicData data
+            ?data.createGuardianNotificationWithCampus(patientId,transactionId,reason,user.getCampusId())
+            :delegate.createGuardianNotification(patientId,transactionId,reason));
     }
 
     @Override
     public void updateNotificationStatus(String notificationId, NotificationStatus status) {
         requireCampus();
-        run("updateNotificationStatus", () -> delegate.updateNotificationStatus(notificationId, status));
+        run("updateNotificationStatus", () -> {
+            if(delegate instanceof ClinicData data)
+                data.updateNotificationStatusForCampus(notificationId,status,user.getCampusId());
+            else delegate.updateNotificationStatus(notificationId,status);
+        });
     }
 
     @Override
     public List<NotificationLog> getNotifications(String patientId) {
-        return call("getNotifications", () -> delegate.getNotifications(patientId));
+        return call("getNotifications", () -> delegate instanceof ClinicData data
+            ?data.getNotificationsForCampus(patientId,user.getCampusId())
+            :delegate.getNotifications(patientId));
     }
 
     @Override
     public NotificationLog createEmergencyNotification(String patientId) {
-        return call("createEmergencyNotification",()->delegate.createEmergencyNotification(patientId));
+        return call("createEmergencyNotification",()->delegate instanceof ClinicData data
+            ?data.createEmergencyNotificationWithCampus(patientId,user.getCampusId())
+            :delegate.createEmergencyNotification(patientId));
     }
 
     @Override
     public NotificationLog beginNotificationAttempt(String id,Channel channel,LocalDateTime attemptedAt) {
         requireCampus();
         NotificationLog started=call("beginNotificationAttempt",
-            ()->delegate.beginNotificationAttempt(id,channel,attemptedAt));
+            ()->delegate instanceof ClinicData data
+                ?data.beginNotificationAttemptForCampus(id,channel,attemptedAt,user.getCampusId())
+                :delegate.beginNotificationAttempt(id,channel,attemptedAt));
         notificationChannels.put(id,channel);
         return started;
     }
@@ -235,9 +255,14 @@ public final class SecuredClinicSystem implements ClinicSystem {
         }
         Channel channel=notificationChannels.get(id);
         if(channel==null)throw new IllegalStateException("No active notification attempt.");
-        delegate.completeNotificationAttempt(id,status);
-        String action=status==NotificationStatus.SENT?"notification sent":"notification failed";
-        audit(action,"channel="+channel+"; notificationId="+id,true);
+        log.unitOfWork(()->{
+            if(delegate instanceof ClinicData data)
+                data.completeNotificationAttemptForCampus(id,status,user.getCampusId());
+            else delegate.completeNotificationAttempt(id,status);
+            String action=status==NotificationStatus.SENT?"notification sent":"notification failed";
+            audit(action,"channel="+channel+"; notificationId="+id,true);
+            return null;
+        });
         notificationChannels.remove(id);
     }
 
@@ -259,6 +284,13 @@ public final class SecuredClinicSystem implements ClinicSystem {
             audit("campus context denied","Clinical staff account has no assigned campus",false);
             throw new SecurityException("Your account has no assigned campus. Ask an administrator to assign one.");
         }
+        if(User.NURSE.equals(user.getRole())&&NurseCampus.forId(user.getCampusId()).isEmpty()) {
+            audit("campus context denied","Nurse account requires an approved UIC campus assignment",false);
+            throw new SecurityException("Your account needs an approved UIC campus assignment. Ask a Super Admin to update it.");
+        }
+    }
+    private String campusScope() {
+        return User.ADMIN.equals(user.getRole())?null:user.getCampusId();
     }
     private void auditAllergyConfirmation(String patientId) {
         int count=delegate.findPatient(patientId).orElseThrow().getAllergies().size();
@@ -272,8 +304,41 @@ public final class SecuredClinicSystem implements ClinicSystem {
             throw new SecurityException("Access denied.");
         }
         requireCampus();
-        audit(action,"Clinic operation",true);
-        return work.get();
+        try {
+            return log.unitOfWork(()->{
+                T result=work.get();
+                audit(action,"Clinic operation",true);
+                return result;
+            });
+        } catch(SecurityException denied) {
+            audit(action,"Access denied",false);
+            throw denied;
+        }
+    }
+
+    /** Clinical mutation events are written only after the domain operation succeeds. */
+    private <T> T clinicalMutation(String action,Supplier<T> work,
+            java.util.function.Function<T,String> details,String... additionalPermissions) {
+        return clinicalMutation(action,work,details,()->{},additionalPermissions);
+    }
+    private <T> T clinicalMutation(String action,Supplier<T> work,
+            java.util.function.Function<T,String> details,Runnable successAudit,String... additionalPermissions) {
+        boolean permitted=allowed(action);
+        if(permitted&&additionalPermissions!=null) {
+            for(String permission:additionalPermissions)
+                if(permission!=null&&!user.canAccess(permission)) { permitted=false;break; }
+        }
+        if(!permitted) {
+            audit(action,"Permission denied",false);
+            throw new SecurityException("Access denied.");
+        }
+        requireCampus();
+        return log.unitOfWork(()->{
+            T result=work.get();
+            audit(action,details.apply(result),true);
+            successAudit.run();
+            return result;
+        });
     }
 
     private void run(String action, Runnable work) {
@@ -286,8 +351,11 @@ public final class SecuredClinicSystem implements ClinicSystem {
             throw new SecurityException("Access denied.");
         }
         requireCampus();
-        audit(action,"Allergy count: "+count,true);
-        work.run();
+        log.unitOfWork(()->{
+            work.run();
+            audit(action,"Allergy count: "+count,true);
+            return null;
+        });
     }
 
     private void audit(String action, String details, boolean allowed) {
@@ -300,7 +368,7 @@ public final class SecuredClinicSystem implements ClinicSystem {
             return user.canAccess(User.REPORTS) || user.canAccess(User.VIEW_REPORTS);
         }
         String feature = switch (action) {
-            case "findPatient", "registerPatient", "addAllergy", "recordVisit",
+            case "findPatient", "registerPatient", "updatePatient", "addAllergy", "recordVisit",
                 "recordVisitAndAdminister",
                 "createGuardianNotification", "updateNotificationStatus", "getNotifications" -> User.RECORD_TRANSACTION;
             case "createEmergencyNotification" -> User.RECORD_TRANSACTION;

@@ -2,15 +2,12 @@ package clinic.app;
 
 import java.awt.Color;
 import java.awt.Font;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JTable;
-import javax.swing.Timer;
 import javax.swing.UIManager;
 
 public final class Theme {
@@ -18,11 +15,20 @@ public final class Theme {
     public static final Color BRAND = new Color(0xD6336C);
     public static final Color BRAND_DARK = new Color(0xA61E4D);
     public static final Color BRAND_TINT = new Color(0xFFF0F6);
-    public static final Color BRAND_BORDER = new Color(0xF8C9DB);
+    public static final Color BRAND_BORDER = new Color(0xF1B8CD);
     public static final Color INK = new Color(0x1F2933);
-    public static final Color MUTED = new Color(0x6B7280);
-    public static final Color LINE = new Color(0xDEE3E9);
-    public static final Color SUBTLE = new Color(0xF7F8FA);
+    public static final Color MUTED = new Color(0x667585);
+    public static final Color LINE = new Color(0xD9E1E8);
+    public static final Color SUBTLE = new Color(0xF4F6F8);
+    public static final Color NAV = new Color(0x192C3E);
+    public static final Color NAV_EDGE = new Color(0x2A4053);
+    public static final Color NAV_TEXT = new Color(0xF3F6F9);
+    public static final Color NAV_MUTED = new Color(0xB3C2CE);
+    public static final Color NAV_HOVER = new Color(0x22394E);
+    public static final Color NAV_SELECTED = new Color(0x2B455C);
+    public static final Color NAV_FOCUS = new Color(0xF4A8C1);
+    public static final Color DISABLED_BG = new Color(0xE9EDF1);
+    public static final Color DISABLED_BORDER = new Color(0xD4DBE2);
     public static final Color DANGER = new Color(0xC92A2A);
     public static final Color DANGER_TINT = new Color(0xFDEDED);
     public static final Color SUCCESS = new Color(0x2F9E44);
@@ -36,7 +42,7 @@ public final class Theme {
     public static final Color WARNING = new Color(0xF59F00);
     public static final Color BRAND_GLOW = new Color(0xFFF7FA);
     public static final Color HEADER_TINT = new Color(0xFFF8FB);
-    public static final Color ZEBRA = new Color(0xFFFAFC);
+    public static final Color ZEBRA = new Color(0xF9FBFD);
     public static final Color FOCUS = new Color(0xC2255C);
     public static final Color WARNING_TINT = new Color(0xFFF4DB);
     public static final Color SHADOW_COLOR = new Color(31, 41, 51, 9);
@@ -53,8 +59,6 @@ public final class Theme {
     public static final int SPACE_8 = 32;
     public static final int RADIUS_CARD = 16;
     public static final int RADIUS_PILL = 999;
-    public static final int MOTION_HOVER_MS = 160;
-    public static final int MOTION_FRAME_MS = 16;
     public static final String SAMPLE_CAMPUS = "Campus 1 (sample)";
 
     public static javax.swing.border.Border padding() { return BorderFactory.createEmptyBorder(20, 24, 20, 24); }
@@ -86,6 +90,7 @@ public final class Theme {
         UIManager.put("ComboBox.selectionForeground", INK);
         UIManager.put("Button.select", BRAND_DARK);
         UIManager.put("Button.disabledText", MUTED);
+        UIManager.put("Button.focus", FOCUS);
         UIManager.put("ScrollBar.width", 12);
     }
 
@@ -96,49 +101,52 @@ public final class Theme {
     public static JButton button(String text, boolean primary) {
         JButton button = new JButton(text);
         button.setFont(font(TYPE_BODY, Font.BOLD));
-        button.setForeground(primary ? Color.WHITE : BRAND_DARK);
-        button.setBackground(primary ? BRAND : WHITE);
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(primary ? BRAND : BRAND_BORDER),
-                BorderFactory.createEmptyBorder(0, 14, 0, 14)));
-        button.setFocusPainted(true);
+        button.setFocusPainted(false);
         button.setFocusTraversalKeysEnabled(true);
         button.setOpaque(true);
+        button.setContentAreaFilled(true);
+        button.setBorderPainted(true);
         button.setRolloverEnabled(true);
         button.setPreferredSize(new java.awt.Dimension(Math.max(100, button.getPreferredSize().width), CONTROL_HEIGHT));
         button.setMinimumSize(new java.awt.Dimension(0, CONTROL_HEIGHT));
-        installHover(button, primary ? BRAND : WHITE, primary ? BRAND_DARK : BRAND_GLOW);
+        button.getModel().addChangeListener(event -> updateButton(button, primary));
+        button.addPropertyChangeListener("enabled", event -> updateButton(button, primary));
+        button.addFocusListener(new FocusAdapter() {
+            @Override public void focusGained(FocusEvent event) { updateButton(button, primary); }
+            @Override public void focusLost(FocusEvent event) { updateButton(button, primary); }
+        });
+        updateButton(button, primary);
         return button;
     }
 
-    private static void installHover(JButton button, Color normal, Color hover) {
-        final long[] startedAt = {0L};
-        final boolean[] hovering = {false};
-        Timer timer = new Timer(MOTION_FRAME_MS, null);
-        timer.addActionListener(event -> {
-            float progress = Math.min(1f, (System.nanoTime() - startedAt[0]) / 1_000_000f / MOTION_HOVER_MS);
-            float amount = hovering[0] ? progress : 1f - progress;
-            button.setBackground(blend(normal, hover, amount));
-            if (progress >= 1f) timer.stop();
-        });
-        button.addMouseListener(new MouseAdapter() {
-            private void animate(boolean entered) {
-                if (!button.isEnabled()) return;
-                hovering[0] = entered;
-                startedAt[0] = System.nanoTime();
-                timer.restart();
-            }
-            @Override public void mouseEntered(MouseEvent event) { animate(true); }
-            @Override public void mouseExited(MouseEvent event) { animate(false); }
-        });
-    }
-
-    private static Color blend(Color from, Color to, float amount) {
-        float t = Math.max(0f, Math.min(1f, amount));
-        return new Color(
-            Math.round(from.getRed() + (to.getRed() - from.getRed()) * t),
-            Math.round(from.getGreen() + (to.getGreen() - from.getGreen()) * t),
-            Math.round(from.getBlue() + (to.getBlue() - from.getBlue()) * t));
+    private static void updateButton(JButton button, boolean primary) {
+        Color background;
+        Color foreground;
+        Color border;
+        boolean pressed = button.getModel().isArmed() && button.getModel().isPressed();
+        if (!button.isEnabled()) {
+            background = DISABLED_BG;
+            foreground = MUTED;
+            border = DISABLED_BORDER;
+        } else if (pressed) {
+            background = primary ? new Color(0x7E123B) : BRAND_BORDER;
+            foreground = primary ? WHITE : BRAND_DARK;
+            border = primary ? new Color(0x7E123B) : BRAND_DARK;
+        } else if (button.getModel().isRollover()) {
+            background = primary ? BRAND_DARK : BRAND_TINT;
+            foreground = primary ? WHITE : BRAND_DARK;
+            border = primary ? BRAND_DARK : BRAND_BORDER;
+        } else {
+            background = primary ? BRAND : WHITE;
+            foreground = primary ? WHITE : INK;
+            border = primary ? BRAND : LINE;
+        }
+        if (button.isFocusOwner()) border = FOCUS;
+        button.setBackground(background);
+        button.setForeground(foreground);
+        button.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(border, button.isFocusOwner() ? 2 : 1),
+            BorderFactory.createEmptyBorder(0, 13, 0, 13)));
     }
 
     public static void field(JComponent field) {

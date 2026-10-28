@@ -21,7 +21,7 @@ public final class DispenseChecks {
         return new DispenseWorkflow(new SecuredClinicSystem(store,nurse,audit),nurse,audit);
     }
     public static void main(String[] args) {
-        SchoolNurse nurse=new SchoolNurse("nurse-id","Synthetic nurse");nurse.setCampusId("C1");
+        SchoolNurse nurse=new SchoolNurse("nurse-id","Synthetic nurse");nurse.setCampusId("uic-bajada");
         AuditLog audit=new AuditLog();InMemoryClinicSystem db=store();
         PageResult<Medicine> medicines=db.dispensableMedicinePage(0,1000,null);
         check("dropdown source includes live names and zero stock",List.of("Ibuprofen:12","Paracetamol:20","Zero:0"),medicines.rows().stream().map(m->m.getName()+":"+m.getQuantity()).toList());

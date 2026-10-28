@@ -1,6 +1,7 @@
 package clinic.app.ui.consultations;
 
 import clinic.app.ApplicationContext;
+import clinic.app.ui.common.Actions;
 import clinic.app.ui.common.popup.FormField;
 import clinic.app.ui.common.popup.FormPopup;
 import clinic.app.ui.common.popup.MessagePopup;
@@ -20,10 +21,16 @@ public final class NewConsultationForm {
     public static void open(Component owner, ApplicationContext app, Runnable saved) {
         final ClinicSystem clinic;
         final String staffId;
+        final User sessionUser;
+        final long sessionVersion;
         try {
-            app.require(User.RECORD_TRANSACTION);
-            clinic = app.clinic();
-            staffId = app.current().getUserId();
+            synchronized(app.login) {
+                app.require(User.RECORD_TRANSACTION);
+                clinic = app.clinic();
+                sessionUser=app.current();
+                sessionVersion=app.login.getSessionVersion();
+                staffId = sessionUser.getUserId();
+            }
         } catch (RuntimeException error) {
             MessagePopup.error(owner, error);
             return;
@@ -45,27 +52,30 @@ public final class NewConsultationForm {
         FormPopup.showWithComponents(owner,"New Consultation",fields,components,(values,symptoms,controller)->{
             String patientId=values.get("Patient ID");
             try {
-                clinic.findPatient(patientId).orElseThrow(()->
-                    new IllegalArgumentException("Patient ID was not found. Enter a registered patient's ID."));
                 List<clinic.service.DispenseItem> requested=medicines==null?List.of():medicines.items();
-                boolean confirmed=false;
-                if(!requested.isEmpty()) {
-                    var profile=clinic.findPatient(patientId).orElseThrow();
-                    if(!profile.getAllergies().isEmpty()) {
-                        confirmed=AllergyConfirmPopup.show(owner,profile,requested);
-                        if(!confirmed)return;
+                controller.prepareAsync(()->clinic.findPatient(patientId).orElseThrow(()->
+                    new IllegalArgumentException("Patient ID was not found. Enter a registered patient's ID.")),profile->{
+                    if(!owner.isShowing()||!Actions.isCurrentSession(app.login,sessionVersion,sessionUser)) {
+                        controller.abort();
+                        return;
                     }
-                }
-                boolean allergyConfirmed=confirmed;
-                controller.saveAsync(()->{
-                    clinic.recordVisitAndAdminister(patientId,symptoms.get("Symptoms"),values.get("Concern"),
-                        values.get("Remarks"),staffId,requested,allergyConfirmed);
-                    return true;
+                    boolean confirmed=false;
+                    if(!requested.isEmpty()&&!profile.getAllergies().isEmpty()) {
+                        confirmed=AllergyConfirmPopup.show(owner,profile,requested);
+                        if(!confirmed) return;
+                    }
+                    boolean allergyConfirmed=confirmed;
+                    controller.saveAsync(()->{
+                        clinic.recordVisitAndAdminister(patientId,symptoms.get("Symptoms"),values.get("Concern"),
+                            values.get("Remarks"),staffId,requested,allergyConfirmed);
+                        return true;
+                    });
                 });
             } catch(RuntimeException error) {
                 MessagePopup.error(owner,error);
             }
         }, () -> {
+                if(!owner.isShowing()||!Actions.isCurrentSession(app.login,sessionVersion,sessionUser))return;
                 saved.run();
                 MessagePopup.info(owner, "Consultation saved.");
             });

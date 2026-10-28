@@ -33,7 +33,7 @@ public final class RestockPersistenceDemo {
             ClinicData data=ClinicRepository.create(db);
             check("Missing legacy remarks column migrates to empty",data.medicinePage(0,25,"").rows().get(0).getRemarks().equals(""));
             AuditLog audit=new AuditLog(new AdminRepository(db));
-            SchoolNurse nurse=new SchoolNurse("N-DEMO","Demo nurse");nurse.setCampusId("C1");
+            SchoolNurse nurse=new SchoolNurse("N-DEMO","Demo nurse");nurse.setCampusId("uic-bajada");
             SecuredClinicSystem secured=new SecuredClinicSystem(data,nurse,audit);
             secured.restockMedicine("Legacy medicine",2,future,"  delivery checked  ");
             secured.restockMedicine("Legacy medicine",3,future,null);

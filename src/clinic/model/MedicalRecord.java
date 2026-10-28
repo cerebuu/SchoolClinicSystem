@@ -4,7 +4,7 @@ import java.util.List;
 import clinic.util.*;
 public class MedicalRecord implements Formattable {
     private final String recordId, patientId, reason, assessment, medicationGiven, staffId;
-    private String campusId;
+    private final String campusId;
     private final List<String> symptoms;
     private final LocalDateTime visitDateTime;
     public MedicalRecord(String id, String patient, List<String> symptoms, String reason, String assessment, String medicine, String staff) {
@@ -24,7 +24,7 @@ public class MedicalRecord implements Formattable {
         this.assessment=assessment==null?"":assessment.trim();
         medicationGiven=medicine==null?"":medicine.trim();
         staffId=Validation.required(staff, "Staff ID");
-        setCampusId(campusId);
+        this.campusId=campusId==null||campusId.isBlank()?null:Validation.required(campusId,"Campus ID");
     }
     public String getRecordId() {
         return recordId;
@@ -44,9 +44,11 @@ public class MedicalRecord implements Formattable {
     public String getStaffId() {
         return staffId;
     }
-    public String getCampusId() { return campusId; }
-    public void setCampusId(String value) {
-        campusId=value==null||value.isBlank()?null:Validation.required(value,"Campus ID");
+    public final String getCampusId() { return campusId; }
+    /** Historical attribution is supplied at creation and cannot be reassigned. */
+    @Deprecated
+    public final void setCampusId(String value) {
+        throw new IllegalStateException("Consultation campus is fixed when the record is created.");
     }
     public List<String> getSymptoms() {
         return symptoms;

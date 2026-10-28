@@ -8,6 +8,9 @@ import java.util.List;
 public final class AccountRepository {
     private final Database database;
     public AccountRepository(Database database) { this.database=database; }
+    public <T> T unitOfWork(java.util.function.Supplier<T> work) {
+        return database.transaction(c->work.get());
+    }
     public record Account(User user, String hash, boolean active, int failures, long lockedUntil) {}
     public List<Account> load() {
         return database.transaction(c -> Sql.query(c,"SELECT * FROM accounts ORDER BY id", r -> {

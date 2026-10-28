@@ -1,4 +1,5 @@
 package clinic.app.ui.common.popup;
+import clinic.core.Login;
 public record FormField(String label, String initial, boolean required, boolean secret, String[] choices,
         int rows, int maxLength, java.util.function.Function<String,String> validator, boolean allergyInput) {
     public FormField(String label, String initial, boolean required, boolean secret, String[] choices,
@@ -50,7 +51,9 @@ public record FormField(String label, String initial, boolean required, boolean 
         return new FormField(label, value, true, false, null);
     }
     public static FormField password() {
-        return new FormField("Password", "", true, true, null);
+        return new FormField("Password", "", true, true, null, 0, 0, value ->
+            Login.passwordMeetsMinimum(value)?null:
+                "Password must contain at least "+Login.MIN_PASSWORD_CODE_POINTS+" characters.");
     }
     public static FormField choice(String label, String... choices) {
         return new FormField(label, choices[0], true, false, choices);

@@ -24,6 +24,7 @@ public class NotificationLog {
     private final GuardianMessageTemplates.MessageType messageType;
     private final String clinicContact;
     private final String recipientLabel, recipientContact;
+    private final String campusId;
     private Channel channel;
     private int attemptCount;
     private LocalDateTime lastAttemptTime;
@@ -45,6 +46,15 @@ public class NotificationLog {
     public NotificationLog(String notificationId,String patientId,String transactionId,String reason,
             LocalDateTime dateTime,String patientName,String medicineName,
             GuardianMessageTemplates.MessageType messageType,String clinicContact,String recipientLabel,String recipientContact) {
+        this(notificationId,patientId,transactionId,reason,dateTime,patientName,medicineName,
+            messageType,clinicContact,recipientLabel,recipientContact,null);
+    }
+
+    /** Campus-aware constructor; older callers retain their original null-campus behavior. */
+    public NotificationLog(String notificationId,String patientId,String transactionId,String reason,
+            LocalDateTime dateTime,String patientName,String medicineName,
+            GuardianMessageTemplates.MessageType messageType,String clinicContact,String recipientLabel,
+            String recipientContact,String campusId) {
         require(notificationId, "notification ID");
         require(patientId, "patient ID");
         require(reason, "reason");
@@ -71,6 +81,7 @@ public class NotificationLog {
         this.clinicContact = clinicContact;
         this.recipientLabel = recipientLabel;
         this.recipientContact = recipientContact;
+        this.campusId=campusId==null||campusId.isBlank()?null:clinic.util.Validation.required(campusId,"Campus ID");
     }
 
     public void markSent() {
@@ -80,7 +91,8 @@ public class NotificationLog {
     /** Detached snapshot: status changes must go through the authorized service. */
     public NotificationLog copy() {
         NotificationLog result = new NotificationLog(notificationId, patientId, transactionId,
-            reason, dateTime, patientName, medicineName, messageType, clinicContact, recipientLabel, recipientContact);
+            reason, dateTime, patientName, medicineName, messageType, clinicContact, recipientLabel,
+            recipientContact,campusId);
         result.restoreState(status, channel, attemptCount, lastAttemptTime);
         return result;
     }
@@ -141,6 +153,7 @@ public class NotificationLog {
     public String getPatientId() {
         return patientId;
     }
+    public String getCampusId() { return campusId; }
 
     public String getTransactionId() {
         return transactionId;

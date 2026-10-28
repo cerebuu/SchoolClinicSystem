@@ -23,18 +23,27 @@ public final class DispenseQueries {
         for(Medicine m:batches)if(!m.isExpired()&&m.getDisplayName().toLowerCase(Locale.ROOT).contains(q)) {
             String key=m.getProduct().key();
             Medicine old=grouped.get(key);
+            boolean earlier=old==null||m.getQuantity()>0&&old.getQuantity()==0
+                ||old!=null&&(m.getQuantity()>0)==(old.getQuantity()>0)
+                    &&m.getExpirationDate().isBefore(old.getExpirationDate());
             grouped.put(key,new Medicine(m.getProduct(),
                 Math.addExact(old==null?0:old.getQuantity(),m.getQuantity()),
-                old==null||m.getExpirationDate().isBefore(old.getExpirationDate())?m.getExpirationDate():old.getExpirationDate(),
+                earlier?m.getExpirationDate():old.getExpirationDate(),
                 m.getBatchDate(),"Available unexpired stock"));
         }
         return page(new ArrayList<>(grouped.values()),page,size);
     }
     public static PageResult<MedicineTransaction> transactions(Collection<MedicineTransaction> records,int page,int size,
             String query,LocalDateTime from,LocalDateTime to) {
+        return transactions(records,page,size,query,from,to,null);
+    }
+    public static PageResult<MedicineTransaction> transactions(Collection<MedicineTransaction> records,int page,int size,
+            String query,LocalDateTime from,LocalDateTime to,String campusId) {
+        if(page<0)throw new IllegalArgumentException("Invalid page.");
         String q=query(query);
         return page(records.stream().filter(t->(t.getPatientId().toLowerCase(Locale.ROOT).contains(q)
             ||t.getMedicineDisplayName().toLowerCase(Locale.ROOT).contains(q))
+            &&(campusId==null||campusId.equals(t.getCampusId()))
             &&(from==null||!t.getDateTime().isBefore(from))&&(to==null||t.getDateTime().isBefore(to)))
             .sorted(Comparator.comparing(MedicineTransaction::getDateTime).reversed()
                 .thenComparing(MedicineTransaction::getTransactionId)).toList(),page,size);

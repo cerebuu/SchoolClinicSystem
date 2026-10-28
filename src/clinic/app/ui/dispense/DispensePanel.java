@@ -17,6 +17,6 @@ public final class DispensePanel extends BasePanel {
         if(app.current().canAccess(User.RECORD_TRANSACTION))
             action("+ New consultation",true,()->NewConsultationForm.open(this,app,history::refresh));
         onRefresh(history::refresh);
-        refreshOn(app.changes,DataTopic.TRANSACTIONS);
+        refreshOn(app.changes,DataTopic.TRANSACTIONS,DataTopic.INVENTORY);
     }
 }

@@ -1,6 +1,6 @@
 # School Clinic Management System
 
-Java 21 and plain Swing with an embedded, encrypted H2 database. No database
+Java 17+ and plain Swing with an embedded, encrypted H2 database. No database
 server or Maven installation is required.
 
 ## Run
@@ -16,9 +16,16 @@ Or compile and launch manually:
 ```powershell
 cmd /c tools\dependencies.cmd
 $sources = @(Get-ChildItem src -Recurse -Filter *.java | ForEach-Object FullName)
-javac -encoding UTF-8 -cp "lib/*" -d out @sources
+javac --release 17 -encoding UTF-8 -cp "lib/*" -d out @sources
 java -cp "out;lib/*" clinic.app.Main
 ```
+
+On macOS or Linux, use `sh Run.sh` (or `sh Run.sh --demo` for isolated sample
+accounts). This verifies the same pinned dependencies, compiles with Java 17,
+and includes the logo resource. macOS selects the installed JDK 17 when
+`JAVA_HOME` is unset or points to an older runtime; set `JAVA_HOME` to choose a
+different JDK 17 or newer. Without a supported JDK, launch stops with a setup
+message.
 
 To start a specific role's interface, run its dedicated launcher instead:
 
@@ -27,9 +34,14 @@ java -cp "out;lib/*" clinic.app.SuperadminGUI
 java -cp "out;lib/*" clinic.app.NurseGUI
 ```
 
+Use a Java 17 or newer runtime to launch the application. Java 8 cannot run
+these classes.
+
 Both launchers show the shared sign-in screen and require an account of the selected role; they do not create or bypass authentication. Add `--demo` to either command to use the sample accounts (`AD001` / `admin123` for Superadmin and `N001` / `nurse123` for Nurse).
 
 Normal startup opens login and offers first-run administrator setup. Create an administrator, sign in, add staff accounts and campuses, then sign out and sign in with a staff account. Login routes administrators to a separate Superadmin workspace for account and campus management, system summaries, and the audit log. School nurses receive their own clinic-operations dashboard for patients, consultations, inventory, dispensing, notifications, and reports. Assistants and doctors use their permission-limited clinic workspace. The underlying service layer enforces role access independently of navigation.
+
+New administrator and staff passwords must contain at least eight characters. Existing accounts remain usable; this rule applies when creating an account.
 
 Normal startup stores data in an encrypted local H2 database at `data/scms` (or
 the path supplied with `-Dclinic.database=...`). The first launch downloads the
@@ -55,6 +67,12 @@ real sends and configured the provider.
 ```powershell
 cmd /c tools\verify.cmd
 ```
+
+On macOS/Linux use `sh tools/verify.sh`; for native windows use
+`sh tools/verify.sh --desktop`. These compile all sources and run in a printed
+temporary directory so screenshots and test databases do not overwrite the
+workspace or production data. The native checks include duplicate-submission
+and retry tests for interactive dialogs.
 
 This compiles production, demonstration, and check sources, then runs headless domain/security and Swing paging/navigation checks. Offscreen screenshots are saved under `verification`.
 

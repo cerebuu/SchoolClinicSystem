@@ -16,10 +16,10 @@ public final class PersistentDispenseChecks {
             clinic.registerPatient(new Student("p","Synthetic","own","CS",1,"A"));
             database.transaction(c->{
                 SqlTest.update(c,"INSERT INTO accounts(id,name,role,password_hash,active) VALUES('n','Nurse','NURSE','test',TRUE)");
-                SqlTest.update(c,"INSERT INTO medicine_batches VALUES(0,'Paracetamol',5,?,?, '')",LocalDate.now().plusDays(10),LocalDate.now());
-                SqlTest.update(c,"INSERT INTO medicine_batches VALUES(1,'Paracetamol',7,?,?, '')",LocalDate.now().plusDays(20),LocalDate.now());
-                SqlTest.update(c,"INSERT INTO medicine_batches VALUES(2,'Expired',20,?,?, '')",LocalDate.now().minusDays(1),LocalDate.now().minusDays(40));
-                SqlTest.update(c,"INSERT INTO medicine_batches VALUES(3,'Zero',0,?,?, '')",LocalDate.now().plusDays(4),LocalDate.now());
+                SqlTest.update(c,"INSERT INTO medicine_batches(ordinal,name,quantity,expiry,batch_date,remarks) VALUES(0,'Paracetamol',5,?,?, '')",LocalDate.now().plusDays(10),LocalDate.now());
+                SqlTest.update(c,"INSERT INTO medicine_batches(ordinal,name,quantity,expiry,batch_date,remarks) VALUES(1,'Paracetamol',7,?,?, '')",LocalDate.now().plusDays(20),LocalDate.now());
+                SqlTest.update(c,"INSERT INTO medicine_batches(ordinal,name,quantity,expiry,batch_date,remarks) VALUES(2,'Expired',20,?,?, '')",LocalDate.now().minusDays(1),LocalDate.now().minusDays(40));
+                SqlTest.update(c,"INSERT INTO medicine_batches(ordinal,name,quantity,expiry,batch_date,remarks) VALUES(3,'Zero',0,?,?, '')",LocalDate.now().plusDays(4),LocalDate.now());
                 for(int i=0;i<250;i++)SqlTest.update(c,"INSERT INTO dispensing(id,medicine,patient_id,staff_id,quantity,expiry,remarks,dispensed_at) VALUES(?,?,?,?,?,?,?,?)",
                     "t"+i,i%2==0?"Paracetamol":"Other","p","n",1,LocalDate.now().plusDays(20),"",LocalDateTime.now().minusSeconds(i));
                 return null;

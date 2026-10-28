@@ -20,7 +20,7 @@ public final class SuperadminShell extends JPanel {
         }
 
         add(new Navigator(List.of(
-            new NavItem("Superadmin dashboard", true, () -> new AdminDashboardPanel(app)),
+            new NavItem("Dashboard", true, () -> new AdminDashboardPanel(app)),
             new NavItem("Users", true, () -> new UserManagementPanel(app)),
             new NavItem("Campuses", true, () -> new CampusManagementPanel(app)),
             new NavItem("Audit log", true, () -> new AuditLogPanel(app))

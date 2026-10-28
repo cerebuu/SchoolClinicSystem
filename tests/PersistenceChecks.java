@@ -33,7 +33,7 @@ public final class PersistenceChecks {
             app.admin.saveCampus(new Campus("main","Main campus"),false);
             app.admin.saveCampus(new Campus("main","Updated campus"),true);
             rejects(IllegalArgumentException.class,()->app.admin.saveCampus(new Campus("main","Duplicate"),false),"duplicate campus");
-            SchoolNurse nurseAccount=new SchoolNurse("n","Nurse");nurseAccount.setCampusId("main");
+            SchoolNurse nurseAccount=new SchoolNurse("n","Nurse");nurseAccount.setCampusId("uic-main");
             NurseAssistant assistantAccount=new NurseAssistant("a","Assistant");assistantAccount.setCampusId("main");
             Doctor doctorAccount=new Doctor("d","Doctor","");doctorAccount.setCampusId("main");
             app.admin.addUser(nurseAccount,"nurse-password");
@@ -80,8 +80,10 @@ public final class PersistenceChecks {
             check(!app.login.needsSetup(),"bootstrap not repeated after restart");
             check(app.login.login("d","doctor-password").isEmpty(),"inactive account survives restart");
             check(app.login.login("root","admin-password").isPresent(),"password hash survives restart");
-            check(app.admin.userCount()==4&&app.admin.campusCount()==1,"admin counts survive restart");
-            check(app.admin.campuses(0,25,"").rows().get(0).name().equals("Updated campus"),"campus edit survives restart");
+            check(app.admin.userCount()==4&&app.admin.campusCount()==4,"admin counts and approved campus choices survive restart");
+            check(app.admin.campuses(0,25,"").rows().stream()
+                .anyMatch(campus->campus.id().equals("main")&&campus.name().equals("Updated campus")),
+                "campus edit survives restart");
             check(app.admin.audit(0,1000,"").total()>=auditCount,"audit survives restart");
             Doctor reactivatedDoctor=new Doctor("d","Reactivated doctor","");reactivatedDoctor.setCampusId("main");
             app.admin.updateUser(reactivatedDoctor,true);

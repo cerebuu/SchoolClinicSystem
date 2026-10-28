@@ -34,7 +34,8 @@ public final class SmsSender implements MessageSender {
             HttpResponse<String> response=client.send(request,HttpResponse.BodyHandlers.ofString());
             if(response.statusCode()<200||response.statusCode()>=300)
                 return SendResult.failure("SMS provider rejected the request. Check settings and retry.");
-            return SendResult.success("SMS sent.",provider.providerId(response.body()));
+            SmsProviderAdapter.Receipt receipt=provider.receipt(response.body());
+            return SendResult.success("SMS accepted by the provider.",receipt.messageId());
         } catch(InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             return SendResult.failure("SMS request was interrupted.");

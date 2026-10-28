@@ -21,7 +21,7 @@ database or mix a database with a different key. Then run:
 ```powershell
 cmd /c tools\dependencies.cmd
 $clinicSources = @(Get-ChildItem src -Recurse -Filter *.java | ForEach-Object FullName)
-javac -encoding UTF-8 -cp 'lib/*' -d out @clinicSources
+javac --release 17 -encoding UTF-8 -cp 'lib/*' -d out @clinicSources
 java '-Dclinic.database=data/team-starter/scms' -cp 'out;lib/*' clinic.app.Main
 ```
 
@@ -35,7 +35,7 @@ After compiling production sources and obtaining the H2 driver:
 
 ```powershell
 $clinicSources = @(Get-ChildItem src -Recurse -Filter *.java | ForEach-Object FullName)
-javac -encoding UTF-8 -cp 'lib/*' -d out-team @clinicSources tools/CreateTeamDatabase.java
+javac --release 17 -encoding UTF-8 -cp 'lib/*' -d out-team @clinicSources tools/CreateTeamDatabase.java
 java -cp 'out-team;lib/*' CreateTeamDatabase
 ```
 

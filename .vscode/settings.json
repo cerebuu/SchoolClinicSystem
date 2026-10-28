@@ -1,6 +1,5 @@
 {
   "java.project.sourcePaths": ["src", "demo", "tests"],
   "java.project.outputPath": "out",
-  "java.configuration.updateBuildConfiguration": "automatic",
-  "java.debug.settings.onBuildFailureProceed": true
+  "java.configuration.updateBuildConfiguration": "automatic"
 }

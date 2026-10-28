@@ -17,13 +17,13 @@ public final class NurseDashboardPanel extends BasePanel {
     private int generation;
     private final KpiCard patients;
     private final KpiCard consultations = new KpiCard("Today's consultations", "—", "Today");
-    private final KpiCard lowStock = new KpiCard("Low-stock items", "—", "Inventory watch");
-    private final KpiCard expiring = new KpiCard("Expiring soon", "—", "Next 30 days");
+    private final KpiCard lowStock = new KpiCard("Low-stock items", "—", "Shared inventory");
+    private final KpiCard expiring = new KpiCard("Expiring soon", "—", "Shared inventory");
     private final JLabel status = new JLabel("Loading today's clinic summary…");
 
     public NurseDashboardPanel(ApplicationContext app) {
         super("Nurse dashboard", app);
-        patients=new KpiCard("Registered patients","—",app.campusLabel());
+        patients=new KpiCard("Registered patients","—","Shared patient registry");
         if (!(app.current() instanceof SchoolNurse)
                 || !app.current().canAccess(User.RECORD_TRANSACTION)
                 || !app.current().canAccess(User.VIEW_STOCK)) {
@@ -31,12 +31,15 @@ public final class NurseDashboardPanel extends BasePanel {
         }
 
         DashboardContentPanel content = new DashboardContentPanel();
+        ResponsiveKpiGrid metrics = new ResponsiveKpiGrid(
+            patients, consultations, lowStock, expiring);
+        content.addSection(metrics);
         content.addSection(new RecentVisitsPanel(app, () -> {}));
         content.addSection(new MedicinePredictionsPanel(app));
         status.setForeground(Theme.MUTED);
         content.addSection(status);
         add(DashboardLayout.scrollPage(content), BorderLayout.CENTER);
-        action("Refresh", () -> load(app));
+        action("Refresh", this::refreshPage);
         onRefresh(() -> load(app));
         refreshOn(app.changes,clinic.app.DataTopic.PATIENTS,clinic.app.DataTopic.VISITS,clinic.app.DataTopic.INVENTORY);
     }

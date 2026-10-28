@@ -1,6 +1,8 @@
 package clinic.app.ui.dispense;
 import clinic.app.*;
 import clinic.app.ui.common.AsyncLoader;
+import clinic.app.ui.common.Actions;
+import clinic.model.User;
 import java.awt.*;
 import javax.swing.*;
 import javax.swing.event.*;
@@ -22,13 +24,31 @@ public final class PatientLookupField extends JPanel {
         lookup.addActionListener(e->{
             int version=++generation;String id=input.getText().trim();
             status.setForeground(Theme.MUTED);status.setText("Looking up patient...");
-            AsyncLoader.load(()->app.clinic().findPatient(id).orElseThrow(()->new IllegalArgumentException("Patient not found.")),p->{
-                if(version!=generation)return;
+            final clinic.core.ClinicSystem clinic;
+            final User sessionUser;
+            final long sessionVersion;
+            try {
+                synchronized(app.login) {
+                    sessionUser=app.current();
+                    sessionVersion=app.login.getSessionVersion();
+                    clinic=app.clinic();
+                }
+            } catch(RuntimeException failure) {
+                status.setForeground(Theme.DANGER);status.setText("Sign in is required before patient lookup.");
+                return;
+            }
+            AsyncLoader.load(()->clinic.findPatient(id).orElseThrow(()->new IllegalArgumentException("Patient not found.")),p->{
+                if(version!=generation||!isActiveSession(app,sessionVersion,sessionUser))return;
                 confirmed=p.getId();status.setForeground(Theme.INK);status.setText("Confirmed: "+p.getId()+" | "+p.getPatientType());
-            },error->{if(version==generation){status.setForeground(Theme.DANGER);status.setText("Patient not found or unavailable. Retry lookup.");}});
+            },error->{if(version==generation&&isActiveSession(app,sessionVersion,sessionUser)){
+                status.setForeground(Theme.DANGER);status.setText("Patient not found or unavailable. Retry lookup.");
+            }});
         });
         input.addActionListener(e->lookup.doClick());
     }
     public String patientId(){if(confirmed==null)throw new IllegalArgumentException("Find and confirm a patient first.");return confirmed;}
     public void clear(){input.setText("");}
+    private boolean isActiveSession(ApplicationContext app,long sessionVersion,User sessionUser) {
+        return isShowing()&&Actions.isCurrentSession(app.login,sessionVersion,sessionUser);
+    }
 }

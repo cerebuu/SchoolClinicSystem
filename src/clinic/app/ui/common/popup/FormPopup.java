@@ -83,7 +83,10 @@ public final class FormPopup {
         error.setFont(Theme.font(Theme.TYPE_CAPTION, java.awt.Font.PLAIN));
         bottom.add(error, BorderLayout.NORTH);
         bottom.add(buttons, BorderLayout.SOUTH);
+        SaveController controller=new SaveController(save,cancel,dialog,error,saved,inputs.values(),()->
+            inputs.values().forEach(c->{if(c instanceof JPasswordField p)p.setText("");}));
         save.addActionListener(e-> {
+            if(controller.busy)return;
             Map<String, String> values=new LinkedHashMap<>();
             Map<String,List<String>> selectedValues=new LinkedHashMap<>();
             for(FormField f:fields) {
@@ -129,9 +132,14 @@ public final class FormPopup {
                 fieldErrors.get(f.label()).setText(" ");
                 values.put(f.label(), v);
             }
-            SaveController controller=new SaveController(save,cancel,dialog,error,saved,values::clear,()->
-                inputs.values().forEach(c->{if(c instanceof JPasswordField p)p.setText("");}));
-            submit.submit(Collections.unmodifiableMap(values),Collections.unmodifiableMap(selectedValues),controller);
+            controller.begin(()->{values.clear();selectedValues.clear();});
+            try {
+                submit.submit(Collections.unmodifiableMap(values),Collections.unmodifiableMap(selectedValues),controller);
+            } catch(RuntimeException failure) {
+                controller.reset(MessagePopup.errorText(failure));
+            } finally {
+                if(controller.busy&&!controller.preparing&&!controller.saving)controller.reset("");
+            }
         });
         cancel.addActionListener(e->dialog.dispose());
         dialog.getRootPane().registerKeyboardAction(e -> {
@@ -166,14 +174,50 @@ public final class FormPopup {
         private final JDialog dialog;
         private final JLabel error;
         private final Runnable saved;
-        private final Runnable cleanup;
+        private Runnable cleanup=()->{};
         private final Runnable successCleanup;
-        private SaveController(JButton save,JButton cancel,JDialog dialog,JLabel error,Runnable saved,Runnable cleanup,Runnable successCleanup) {
-            this.save=save;this.cancel=cancel;this.dialog=dialog;this.error=error;this.saved=saved;this.cleanup=cleanup;this.successCleanup=successCleanup;
+        private final Collection<JComponent> inputs;
+        private final Map<Component,Boolean> enabledStates=new IdentityHashMap<>();
+        private boolean busy,preparing,saving;
+        private SaveController(JButton save,JButton cancel,JDialog dialog,JLabel error,Runnable saved,
+                Collection<JComponent> inputs,Runnable successCleanup) {
+            this.save=save;this.cancel=cancel;this.dialog=dialog;this.error=error;this.saved=saved;
+            this.inputs=inputs;this.successCleanup=successCleanup;
         }
-        public void saveAsync(java.util.concurrent.Callable<Boolean> work) {
+        private void begin(Runnable cleanup) {
+            this.cleanup=cleanup;busy=true;
             save.setEnabled(false);cancel.setEnabled(false);
             dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+            inputs.forEach(this::disable);
+        }
+        private void disable(Component component) {
+            enabledStates.put(component,component.isEnabled());
+            component.setEnabled(false);
+            if(component instanceof Container container)
+                for(Component child:container.getComponents())disable(child);
+        }
+        /** Holds one submission attempt through lookup, confirmation, and the final write. */
+        public <T> void prepareAsync(java.util.concurrent.Callable<T> work,Consumer<T> prepared) {
+            if(!busy||preparing||saving)return;
+            preparing=true;
+            error.setForeground(Theme.MUTED);error.setText("Checking...");
+            AsyncLoader.load(work,result->{
+                preparing=false;
+                try { prepared.accept(result); }
+                catch(RuntimeException failure) { reset(MessagePopup.errorText(failure)); }
+                finally { if(busy&&!saving&&!preparing)reset(""); }
+            },failure->{preparing=false;reset(MessagePopup.errorText(failure));});
+        }
+        /** Discard a pending form if the authenticated owner session has expired. */
+        public void abort() {
+            cleanup.run();cleanup=()->{};
+            successCleanup.run();
+            busy=false;preparing=false;saving=false;
+            dialog.dispose();
+        }
+        public void saveAsync(java.util.concurrent.Callable<Boolean> work) {
+            if(!busy||preparing||saving)return;
+            saving=true;
             error.setForeground(Theme.MUTED);error.setText("Saving...");
             AsyncLoader.load(work,ok->{
                 if(ok) {
@@ -182,9 +226,12 @@ public final class FormPopup {
                     dialog.dispose();
                     saved.run();
                 } else reset("");
-            },failure->{cleanup.run();reset(MessagePopup.errorText(failure));});
+            },failure->reset(MessagePopup.errorText(failure)));
         }
         private void reset(String message) {
+                cleanup.run();cleanup=()->{};
+                busy=false;preparing=false;saving=false;
+                enabledStates.forEach(Component::setEnabled);enabledStates.clear();
                 save.setEnabled(true);
                 cancel.setEnabled(true);
                 dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);

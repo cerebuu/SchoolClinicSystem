@@ -6,7 +6,6 @@ import clinic.app.ui.common.*;
 import clinic.app.ui.common.popup.MessagePopup;
 import clinic.model.User;
 import java.awt.BorderLayout;
-import java.awt.GridLayout;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import javax.swing.*;
@@ -20,8 +19,7 @@ public final class DashboardPanel extends BasePanel {
         KpiCard visits = new KpiCard("Consultations today", "—", "Today");
         KpiCard lowStock = new KpiCard("Low stock", "—", "Inventory watch");
         KpiCard expiring = new KpiCard("Expiring soon", "—", "Within 30 days");
-        JPanel metrics = new JPanel(new GridLayout(1, 4, Theme.SPACE_3, 0));
-        metrics.setOpaque(false);
+        ResponsiveKpiGrid metrics = new ResponsiveKpiGrid();
         JLabel loading = new JLabel("Loading clinic summary…");
         loading.setForeground(Theme.MUTED);
         metrics.add(loading);
@@ -45,7 +43,7 @@ public final class DashboardPanel extends BasePanel {
     }
 
     private void load(ApplicationContext app, KpiCard patients, KpiCard visits,
-                      KpiCard lowStock, KpiCard expiring, JPanel metrics, JLabel loading) {
+                      KpiCard lowStock, KpiCard expiring, ResponsiveKpiGrid metrics, JLabel loading) {
         int request = ++generation;
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime dayStart = LocalDate.now().atStartOfDay();

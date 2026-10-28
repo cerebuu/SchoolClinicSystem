@@ -13,7 +13,7 @@ final class Schema {
             try (ResultSet r = s.executeQuery("SELECT version FROM schema_version WHERE id=1")) {
                 if (r.next()) {
                     version=r.getInt(1);
-                    if (version < 1 || version > 9) throw new SQLException("Unsupported database schema version.");
+                    if (version < 1 || version > 11) throw new SQLException("Unsupported database schema version.");
                 }
             }
             if(version==0) {
@@ -86,6 +86,33 @@ final class Schema {
                 s.execute("ALTER TABLE visits ADD COLUMN IF NOT EXISTS campus_id VARCHAR(500)");
                 s.execute("ALTER TABLE dispensing ADD COLUMN IF NOT EXISTS campus_id VARCHAR(500)");
                 s.executeUpdate("UPDATE schema_version SET version=9 WHERE id=1");
+                version=9;
+            }
+            if(version==9) {
+                s.execute("""
+                    CREATE TABLE IF NOT EXISTS inventory_movements (
+                      seq BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                      id VARCHAR(500) NOT NULL UNIQUE,
+                      event_type VARCHAR(30) NOT NULL CHECK(event_type IN ('INITIAL_STOCK','RESTOCK','REFILL')),
+                      medicine VARCHAR(500) NOT NULL,
+                      strength VARCHAR(100) NOT NULL DEFAULT '',
+                      formulation VARCHAR(100) NOT NULL DEFAULT '',
+                      quantity INT NOT NULL CHECK(quantity>0),
+                      expiry DATE NOT NULL,
+                      batch_id VARCHAR(36),
+                      event_time TIMESTAMP(9) NOT NULL,
+                      actor_id VARCHAR(500) NOT NULL REFERENCES accounts(id),
+                      campus_id VARCHAR(500) NOT NULL)
+                    """);
+                s.execute("CREATE INDEX IF NOT EXISTS inventory_movement_campus_time ON inventory_movements(campus_id,event_time)");
+                s.execute("CREATE INDEX IF NOT EXISTS inventory_movement_medicine_time ON inventory_movements(medicine,event_time)");
+                s.executeUpdate("UPDATE schema_version SET version=10 WHERE id=1");
+                version=10;
+            }
+            if(version==10) {
+                s.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS campus_id VARCHAR(500)");
+                s.execute("CREATE INDEX IF NOT EXISTS notification_campus_time ON notifications(campus_id,created_at)");
+                s.executeUpdate("UPDATE schema_version SET version=11 WHERE id=1");
             }
         }
     }

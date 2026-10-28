@@ -23,6 +23,9 @@ public interface ClinicSystem {
     /** Register a new Student or Employee. Throws if the ID already exists. */
     void registerPatient(Patient patient);
 
+    /** Update editable profile details. The patient ID and type must match the existing profile. */
+    void updatePatient(String patientId, Patient profile);
+
     /** Allergies live on the Patient profile. */
     void addAllergy(String patientId, String allergy);
 

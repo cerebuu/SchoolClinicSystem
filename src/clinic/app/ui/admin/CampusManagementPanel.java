@@ -13,16 +13,9 @@ public final class CampusManagementPanel extends BasePanel {
         this.app=app;
         table=new PagedTablePanel<>(new CampusesTableModel(), app.admin::campuses);
         table.refreshOn(app.changes, clinic.app.DataTopic.CAMPUSES);
+        table.setRowActions(campus->List.of(new RowAction("Edit campus",()->form(campus))));
         add(table, BorderLayout.CENTER);
         action("Add campus", true, ()->form(null));
-        action("Edit campus", ()-> {
-            Campus c=table.selected();
-            if(c==null) {
-                MessagePopup.warning(this, "Select a campus.");
-                return;
-            }
-            form(c);
-        });
     }
     private void form(Campus campus) {
         List<FormField> fields=new ArrayList<>();

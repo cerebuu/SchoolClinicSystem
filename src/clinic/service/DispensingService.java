@@ -18,11 +18,12 @@ final class DispensingService {
         if(override&&reason.length()<10)throw new IllegalArgumentException("Enter an override reason of at least 10 characters.");
         clinic.findPatient(patient).orElseThrow(()->new IllegalArgumentException("Patient not found."));
         Validation.required(staff,"Staff");
+        String campus=campusId==null||campusId.isBlank()?null:Validation.required(campusId,"Campus ID");
         // Inventory enforces usable quantity and expiry independently of allergy overrides.
         List<BatchAllocation> allocations=inventory.dispenseAllocations(medicine,quantity);
         LocalDate expiry=allocations.get(0).expiry();
         MedicineTransaction t=new MedicineTransaction(UUID.randomUUID().toString(),medicine,patient,staff,quantity,expiry,
-            override?"Staff confirmation: "+reason:"",java.time.LocalDateTime.now(),visitId,allocations,campusId);
+            override?"Staff confirmation: "+reason:"",java.time.LocalDateTime.now(),visitId,allocations,campus);
         transactions.put(t.getTransactionId(),t);
         return t;
     }

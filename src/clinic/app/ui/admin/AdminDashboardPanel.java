@@ -3,8 +3,8 @@ package clinic.app.ui.admin;
 import clinic.app.ApplicationContext;
 import clinic.app.Theme;
 import clinic.app.ui.common.*;
+import clinic.app.ui.dashboard.ResponsiveKpiGrid;
 import java.awt.BorderLayout;
-import java.awt.GridLayout;
 import javax.swing.*;
 
 /** System totals and a searchable campus catalog. */
@@ -20,8 +20,7 @@ public final class AdminDashboardPanel extends BasePanel {
         super("Superadmin dashboard");
         JPanel content = new JPanel(new BorderLayout(Theme.GAP, Theme.SPACE_4));
         content.setOpaque(false);
-        JPanel metrics = new JPanel(new GridLayout(1, 4, Theme.SPACE_3, 0));
-        metrics.setOpaque(false);
+        ResponsiveKpiGrid metrics = new ResponsiveKpiGrid();
         metrics.add(users);
         metrics.add(campuses);
         metrics.add(auditToday);

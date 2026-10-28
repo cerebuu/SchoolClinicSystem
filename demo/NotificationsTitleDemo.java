@@ -21,7 +21,7 @@ public final class NotificationsTitleDemo {
             app.login.bootstrapAdministrator("root","Demo administrator","test-password");
             app.login.login("root","test-password").orElseThrow();
             app.admin.saveCampus(new clinic.model.Campus("C1","Campus 1"),false);
-            SchoolNurse nurse=new SchoolNurse("N1","Demo nurse");nurse.setCampusId("C1");
+            SchoolNurse nurse=new SchoolNurse("N1","Demo nurse");nurse.setCampusId("uic-bajada");
             app.admin.addUser(nurse,"test-password");
             app.login.logout();
             app.login.login("N1","test-password").orElseThrow();

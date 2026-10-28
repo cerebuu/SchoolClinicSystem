@@ -26,6 +26,7 @@ public class User {
     private String name;
     private String role;
     private String campusId;
+    private boolean campusAssignmentLocked;
 
     public User(String userId, String name, String role) {
         this.userId = clinic.util.Validation.required(userId, "User ID");
@@ -46,7 +47,22 @@ public class User {
     }
     public String getCampusId() { return campusId; }
     public void setCampusId(String value) {
+        if(campusAssignmentLocked)
+            throw new IllegalStateException("Change account campus assignments through user management.");
         campusId=value==null||value.isBlank()?null:clinic.util.Validation.required(value,"Campus ID");
+    }
+
+    /** A service-owned identity whose assignment cannot be changed through a returned reference. */
+    public final User immutableCopy() {
+        User copy;
+        if(getClass()==Administrator.class)copy=new Administrator(userId,name);
+        else if(getClass()==SchoolNurse.class)copy=new SchoolNurse(userId,name);
+        else if(getClass()==NurseAssistant.class)copy=new NurseAssistant(userId,name);
+        else if(getClass()==Doctor.class)copy=new Doctor(userId,name,((Doctor)this).getSpecialty());
+        else copy=new User(userId,name,role);
+        copy.campusId=campusId;
+        copy.campusAssignmentLocked=true;
+        return copy;
     }
 
     // Base users have no access. Each subclass overrides this with its own permissions.

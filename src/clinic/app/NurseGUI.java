@@ -1,5 +1,4 @@
 package clinic.app;
-
 import clinic.model.SchoolNurse;
 
 /** Dedicated launcher for the authenticated school nurse interface. */
