@@ -9,11 +9,12 @@
 - Audit details contain only `visit search performed`, never the search value.
 - The existing consultation button, shared form, and Section / Position column are preserved.
 
-Build and run (PowerShell, Java 21):
+Build and run (PowerShell, Java 17+):
 
 ```powershell
+cmd /c tools\dependencies.cmd
 $sources = @(Get-ChildItem src,tests,demo -Recurse -Filter *.java | ForEach-Object FullName)
-javac -d out-check @sources
+javac --release 17 -cp 'lib/*' -d out-check @sources
 java '-Djava.awt.headless=true' -cp out-check VisitSearchDemo
 java -cp out-check VisitSearchDemo --show
 ```

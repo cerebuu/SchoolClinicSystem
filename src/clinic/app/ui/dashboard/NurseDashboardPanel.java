@@ -9,44 +9,37 @@ import clinic.app.ui.common.popup.MessagePopup;
 import clinic.model.SchoolNurse;
 import clinic.model.User;
 import java.awt.BorderLayout;
-import java.awt.GridLayout;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import javax.swing.JLabel;
-import javax.swing.JPanel;
 
 public final class NurseDashboardPanel extends BasePanel {
     private int generation;
-    private final KpiCard patients = new KpiCard("Registered patients", "—", "Clinic records");
+    private final KpiCard patients;
     private final KpiCard consultations = new KpiCard("Today's consultations", "—", "Today");
-    private final KpiCard lowStock = new KpiCard("Low-stock items", "—", "Inventory watch");
-    private final KpiCard expiring = new KpiCard("Expiring soon", "—", "Next 30 days");
+    private final KpiCard lowStock = new KpiCard("Low-stock items", "—", "Shared inventory");
+    private final KpiCard expiring = new KpiCard("Expiring soon", "—", "Shared inventory");
     private final JLabel status = new JLabel("Loading today's clinic summary…");
 
     public NurseDashboardPanel(ApplicationContext app) {
-        super("Nurse dashboard", "Clinic records");
+        super("Nurse dashboard", app);
+        patients=new KpiCard("Registered patients","—","Shared patient registry");
         if (!(app.current() instanceof SchoolNurse)
                 || !app.current().canAccess(User.RECORD_TRANSACTION)
                 || !app.current().canAccess(User.VIEW_STOCK)) {
             throw new SecurityException("Nurse dashboard access denied.");
         }
 
-        JPanel content = new JPanel(new BorderLayout(0, Theme.SPACE_4));
-        content.setOpaque(false);
-        JPanel metrics = new JPanel(new GridLayout(1, 4, Theme.SPACE_3, 0));
-        metrics.setOpaque(false);
-        metrics.add(patients);
-        metrics.add(consultations);
-        metrics.add(lowStock);
-        metrics.add(expiring);
-        content.add(metrics, BorderLayout.NORTH);
-        javax.swing.JSplitPane views=new javax.swing.JSplitPane(javax.swing.JSplitPane.VERTICAL_SPLIT,
-            new RecentVisitsPanel(app, () -> {}),new MedicinePredictionsPanel(app));views.setResizeWeight(0.6);
-        content.add(views, BorderLayout.CENTER);
+        DashboardContentPanel content = new DashboardContentPanel();
+        ResponsiveKpiGrid metrics = new ResponsiveKpiGrid(
+            patients, consultations, lowStock, expiring);
+        content.addSection(metrics);
+        content.addSection(new RecentVisitsPanel(app, () -> {}));
+        content.addSection(new MedicinePredictionsPanel(app));
         status.setForeground(Theme.MUTED);
-        content.add(status, BorderLayout.SOUTH);
-        add(content, BorderLayout.CENTER);
-        action("Refresh", () -> load(app));
+        content.addSection(status);
+        add(DashboardLayout.scrollPage(content), BorderLayout.CENTER);
+        action("Refresh", this::refreshPage);
         onRefresh(() -> load(app));
         refreshOn(app.changes,clinic.app.DataTopic.PATIENTS,clinic.app.DataTopic.VISITS,clinic.app.DataTopic.INVENTORY);
     }

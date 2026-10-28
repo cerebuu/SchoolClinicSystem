@@ -1,0 +1,254 @@
+NURSE | Nurse dashboard | button[Refresh] | PASS
+NURSE | Nurse dashboard | button[+ New Consultation] | NEEDS MANUAL CHECK (desktop dialog)
+NURSE | Nurse dashboard | field[Search name or ID number] | PASS
+NURSE | Nurse dashboard | button[x] | PASS
+NURSE | Nurse dashboard | combo[Visit date scope] | PASS
+NURSE | Nurse dashboard | button[MetalComboBoxButton] | PASS
+NURSE | Nurse dashboard | button[Refresh] | PASS
+NURSE | Nurse dashboard | button[Refresh] | PASS
+NURSE | Nurse dashboard | table[null] | PASS
+NURSE | Nurse dashboard | scrollbar arrow | PASS
+NURSE | Nurse dashboard | scrollbar arrow | PASS
+NURSE | Nurse dashboard | scrollbar arrow | PASS
+NURSE | Nurse dashboard | scrollbar arrow | PASS
+NURSE | Nurse dashboard | button[Prev] | PASS (disabled for current state)
+NURSE | Nurse dashboard | button[Next] | PASS (disabled for current state)
+NURSE | Nurse dashboard | field[Search / filter] | PASS
+NURSE | Nurse dashboard | button[Refresh] | PASS
+NURSE | Nurse dashboard | table[null] | PASS
+NURSE | Nurse dashboard | scrollbar arrow | PASS
+NURSE | Nurse dashboard | scrollbar arrow | PASS
+NURSE | Nurse dashboard | scrollbar arrow | PASS
+NURSE | Nurse dashboard | scrollbar arrow | PASS
+NURSE | Nurse dashboard | button[Prev] | PASS (disabled for current state)
+NURSE | Nurse dashboard | button[Next] | PASS (disabled for current state)
+NURSE | Nurse dashboard | scrollbar arrow | PASS
+NURSE | Nurse dashboard | scrollbar arrow | PASS
+NURSE | Nurse dashboard | scrollbar arrow | PASS
+NURSE | Nurse dashboard | scrollbar arrow | PASS
+NURSE | AI Nurse Assistant | button[Clear conversation] | PASS
+NURSE | AI Nurse Assistant | button[Cancel request] | PASS (disabled for current state)
+NURSE | AI Nurse Assistant | text-area[null] | PASS
+NURSE | AI Nurse Assistant | scrollbar arrow | PASS
+NURSE | AI Nurse Assistant | scrollbar arrow | PASS
+NURSE | AI Nurse Assistant | scrollbar arrow | PASS
+NURSE | AI Nurse Assistant | scrollbar arrow | PASS
+NURSE | AI Nurse Assistant | button[I confirm this contains no student identifiers, records, or credentials.] | PASS
+NURSE | AI Nurse Assistant | text-area[Assistant status] | PASS
+NURSE | AI Nurse Assistant | text-area[Assistant question] | PASS
+NURSE | AI Nurse Assistant | scrollbar arrow | PASS
+NURSE | AI Nurse Assistant | scrollbar arrow | PASS
+NURSE | AI Nurse Assistant | scrollbar arrow | PASS
+NURSE | AI Nurse Assistant | scrollbar arrow | PASS
+NURSE | AI Nurse Assistant | button[Send] | NEEDS MANUAL CHECK (external send not invoked)
+NURSE | Patients | button[Register patient] | NEEDS MANUAL CHECK (desktop dialog)
+NURSE | Patients | field[Name / ID / section / position] | PASS
+NURSE | Patients | button[Refresh] | PASS
+NURSE | Patients | table[null] | PASS
+NURSE | Patients | table row-action menu / Shift+F10 | NEEDS MANUAL CHECK (desktop menu)
+NURSE | Patients | scrollbar arrow | PASS
+NURSE | Patients | scrollbar arrow | PASS
+NURSE | Patients | scrollbar arrow | PASS
+NURSE | Patients | scrollbar arrow | PASS
+NURSE | Patients | button[Prev] | PASS (disabled for current state)
+NURSE | Patients | button[Next] | PASS (disabled for current state)
+NURSE | Consultations | button[+ New Consultation] | NEEDS MANUAL CHECK (desktop dialog)
+NURSE | Consultations | field[Patient ID / concern] | PASS
+NURSE | Consultations | button[Refresh] | PASS
+NURSE | Consultations | table[null] | PASS
+NURSE | Consultations | table row-action menu / Shift+F10 | NEEDS MANUAL CHECK (desktop menu)
+NURSE | Consultations | scrollbar arrow | PASS
+NURSE | Consultations | scrollbar arrow | PASS
+NURSE | Consultations | scrollbar arrow | PASS
+NURSE | Consultations | scrollbar arrow | PASS
+NURSE | Consultations | button[Prev] | PASS (disabled for current state)
+NURSE | Consultations | button[Next] | PASS (disabled for current state)
+NURSE | Medication history | combo[Transaction date filter] | PASS
+NURSE | Medication history | button[MetalComboBoxButton] | PASS
+NURSE | Medication history | field[Medicine / patient / actor / batch] | PASS
+NURSE | Medication history | button[Refresh] | PASS
+NURSE | Medication history | table[null] | PASS
+NURSE | Medication history | table row-action menu / Shift+F10 | NEEDS MANUAL CHECK (desktop menu)
+NURSE | Medication history | scrollbar arrow | PASS
+NURSE | Medication history | scrollbar arrow | PASS
+NURSE | Medication history | scrollbar arrow | PASS
+NURSE | Medication history | scrollbar arrow | PASS
+NURSE | Medication history | button[Prev] | PASS (disabled for current state)
+NURSE | Medication history | button[Next] | PASS (disabled for current state)
+NURSE | Inventory | button[Add medicine] | NEEDS MANUAL CHECK (desktop dialog)
+NURSE | Inventory | button[Merge duplicates] | PASS
+NURSE | Inventory | field[Medicine / ATC code] | PASS
+NURSE | Inventory | button[Refresh] | PASS
+NURSE | Inventory | table[null] | PASS
+NURSE | Inventory | table row-action menu / Shift+F10 | NEEDS MANUAL CHECK (desktop menu)
+NURSE | Inventory | scrollbar arrow | PASS
+NURSE | Inventory | scrollbar arrow | PASS
+NURSE | Inventory | scrollbar arrow | PASS
+NURSE | Inventory | scrollbar arrow | PASS
+NURSE | Inventory | button[Prev] | PASS (disabled for current state)
+NURSE | Inventory | button[Next] | PASS (disabled for current state)
+NURSE | Notifications | button[Create notification] | NEEDS MANUAL CHECK (desktop dialog)
+NURSE | Notifications | button[Send] | NEEDS MANUAL CHECK (external send not invoked)
+NURSE | Notifications | button[Retry] | PASS (disabled for current state)
+NURSE | Notifications | button[Emergency notify] | NEEDS MANUAL CHECK (external send not invoked)
+NURSE | Notifications | button[View message] | NEEDS MANUAL CHECK (desktop dialog)
+NURSE | Notifications | button[Mark sent (manual)] | NEEDS MANUAL CHECK (desktop dialog)
+NURSE | Notifications | field[Search / filter] | PASS
+NURSE | Notifications | button[Refresh] | PASS
+NURSE | Notifications | scrollbar arrow | PASS
+NURSE | Notifications | scrollbar arrow | PASS
+NURSE | Notifications | scrollbar arrow | PASS
+NURSE | Notifications | scrollbar arrow | PASS
+NURSE | Notifications | button[Prev] | PASS (disabled for current state)
+NURSE | Notifications | button[Next] | PASS (disabled for current state)
+NURSE | Notifications | field[Alert / message] | PASS
+NURSE | Notifications | button[Refresh] | PASS
+NURSE | Notifications | table[null] | PASS
+NURSE | Notifications | scrollbar arrow | PASS
+NURSE | Notifications | scrollbar arrow | PASS
+NURSE | Notifications | scrollbar arrow | PASS
+NURSE | Notifications | scrollbar arrow | PASS
+NURSE | Notifications | button[Prev] | PASS (disabled for current state)
+NURSE | Notifications | button[Next] | PASS (disabled for current state)
+NURSE | Reports | button[Generate selected report] | NEEDS MANUAL CHECK (desktop dialog)
+NURSE | Reports | field[Search / filter] | PASS
+NURSE | Reports | button[Refresh] | PASS
+NURSE | Reports | table[null] | PASS
+NURSE | Reports | scrollbar arrow | PASS
+NURSE | Reports | scrollbar arrow | PASS
+NURSE | Reports | scrollbar arrow | PASS
+NURSE | Reports | scrollbar arrow | PASS
+NURSE | Reports | button[Prev] | PASS (disabled for current state)
+NURSE | Reports | button[Next] | PASS (disabled for current state)
+NURSE | summary | attempted=122 manual=15 | uncaught=none
+ASSISTANT | Dashboard | button[Refresh] | PASS
+ASSISTANT | Dashboard | button[+ New Consultation] | NEEDS MANUAL CHECK (desktop dialog)
+ASSISTANT | Dashboard | field[Search name or ID number] | PASS
+ASSISTANT | Dashboard | button[x] | PASS
+ASSISTANT | Dashboard | combo[Visit date scope] | PASS
+ASSISTANT | Dashboard | button[MetalComboBoxButton] | PASS
+ASSISTANT | Dashboard | button[Refresh] | PASS
+ASSISTANT | Dashboard | button[Refresh] | PASS
+ASSISTANT | Dashboard | scrollbar arrow | PASS
+ASSISTANT | Dashboard | scrollbar arrow | PASS
+ASSISTANT | Dashboard | scrollbar arrow | PASS
+ASSISTANT | Dashboard | scrollbar arrow | PASS
+ASSISTANT | Dashboard | button[Prev] | PASS (disabled for current state)
+ASSISTANT | Dashboard | button[Next] | PASS (disabled for current state)
+ASSISTANT | Dashboard | field[Search / filter] | PASS
+ASSISTANT | Dashboard | button[Refresh] | PASS
+ASSISTANT | Dashboard | table[null] | PASS
+ASSISTANT | Dashboard | scrollbar arrow | PASS
+ASSISTANT | Dashboard | scrollbar arrow | PASS
+ASSISTANT | Dashboard | scrollbar arrow | PASS
+ASSISTANT | Dashboard | scrollbar arrow | PASS
+ASSISTANT | Dashboard | button[Prev] | PASS (disabled for current state)
+ASSISTANT | Dashboard | button[Next] | PASS (disabled for current state)
+ASSISTANT | Dashboard | scrollbar arrow | PASS
+ASSISTANT | Dashboard | scrollbar arrow | PASS
+ASSISTANT | Dashboard | scrollbar arrow | PASS
+ASSISTANT | Dashboard | scrollbar arrow | PASS
+ASSISTANT | Patients | button[Register patient] | NEEDS MANUAL CHECK (desktop dialog)
+ASSISTANT | Patients | field[Name / ID / section / position] | PASS
+ASSISTANT | Patients | button[Refresh] | PASS
+ASSISTANT | Patients | table[null] | PASS
+ASSISTANT | Patients | table row-action menu / Shift+F10 | NEEDS MANUAL CHECK (desktop menu)
+ASSISTANT | Patients | scrollbar arrow | PASS
+ASSISTANT | Patients | scrollbar arrow | PASS
+ASSISTANT | Patients | scrollbar arrow | PASS
+ASSISTANT | Patients | scrollbar arrow | PASS
+ASSISTANT | Patients | button[Prev] | PASS (disabled for current state)
+ASSISTANT | Patients | button[Next] | PASS (disabled for current state)
+ASSISTANT | Consultations | button[+ New Consultation] | NEEDS MANUAL CHECK (desktop dialog)
+ASSISTANT | Consultations | field[Patient ID / concern] | PASS
+ASSISTANT | Consultations | button[Refresh] | PASS
+ASSISTANT | Consultations | scrollbar arrow | PASS
+ASSISTANT | Consultations | scrollbar arrow | PASS
+ASSISTANT | Consultations | scrollbar arrow | PASS
+ASSISTANT | Consultations | scrollbar arrow | PASS
+ASSISTANT | Consultations | button[Prev] | PASS (disabled for current state)
+ASSISTANT | Consultations | button[Next] | PASS (disabled for current state)
+ASSISTANT | Medication history | combo[Transaction date filter] | PASS
+ASSISTANT | Medication history | button[MetalComboBoxButton] | PASS
+ASSISTANT | Medication history | field[Medicine / patient / actor / batch] | PASS
+ASSISTANT | Medication history | button[Refresh] | PASS
+ASSISTANT | Medication history | scrollbar arrow | PASS
+ASSISTANT | Medication history | scrollbar arrow | PASS
+ASSISTANT | Medication history | scrollbar arrow | PASS
+ASSISTANT | Medication history | scrollbar arrow | PASS
+ASSISTANT | Medication history | button[Prev] | PASS (disabled for current state)
+ASSISTANT | Medication history | button[Next] | PASS (disabled for current state)
+ASSISTANT | Inventory | field[Medicine / ATC code] | PASS
+ASSISTANT | Inventory | button[Refresh] | PASS
+ASSISTANT | Inventory | table[null] | PASS
+ASSISTANT | Inventory | table row-action menu / Shift+F10 | NEEDS MANUAL CHECK (desktop menu)
+ASSISTANT | Inventory | scrollbar arrow | PASS
+ASSISTANT | Inventory | scrollbar arrow | PASS
+ASSISTANT | Inventory | scrollbar arrow | PASS
+ASSISTANT | Inventory | scrollbar arrow | PASS
+ASSISTANT | Inventory | button[Prev] | PASS (disabled for current state)
+ASSISTANT | Inventory | button[Next] | PASS (disabled for current state)
+ASSISTANT | Notifications | button[Create notification] | NEEDS MANUAL CHECK (desktop dialog)
+ASSISTANT | Notifications | button[Send] | NEEDS MANUAL CHECK (external send not invoked)
+ASSISTANT | Notifications | button[Retry] | PASS (disabled for current state)
+ASSISTANT | Notifications | button[Emergency notify] | NEEDS MANUAL CHECK (external send not invoked)
+ASSISTANT | Notifications | button[View message] | NEEDS MANUAL CHECK (desktop dialog)
+ASSISTANT | Notifications | button[Mark sent (manual)] | NEEDS MANUAL CHECK (desktop dialog)
+ASSISTANT | Notifications | field[Search / filter] | PASS
+ASSISTANT | Notifications | button[Refresh] | PASS
+ASSISTANT | Notifications | scrollbar arrow | PASS
+ASSISTANT | Notifications | scrollbar arrow | PASS
+ASSISTANT | Notifications | scrollbar arrow | PASS
+ASSISTANT | Notifications | scrollbar arrow | PASS
+ASSISTANT | Notifications | button[Prev] | PASS (disabled for current state)
+ASSISTANT | Notifications | button[Next] | PASS (disabled for current state)
+ASSISTANT | summary | attempted=81 manual=10 | uncaught=none
+DOCTOR | Reports | no clickable controls | NEEDS DECISION (empty state)
+DOCTOR | summary | attempted=1 manual=1 | uncaught=none
+ADMIN | Admin dashboard | button[Refresh] | PASS
+ADMIN | Admin dashboard | field[Campus ID / name] | PASS
+ADMIN | Admin dashboard | button[Refresh] | PASS
+ADMIN | Admin dashboard | table[null] | PASS
+ADMIN | Admin dashboard | scrollbar arrow | PASS
+ADMIN | Admin dashboard | scrollbar arrow | PASS
+ADMIN | Admin dashboard | scrollbar arrow | PASS
+ADMIN | Admin dashboard | scrollbar arrow | PASS
+ADMIN | Admin dashboard | button[Prev] | PASS (disabled for current state)
+ADMIN | Admin dashboard | button[Next] | PASS (disabled for current state)
+ADMIN | Users | button[Add user] | PASS
+ADMIN | Users | field[Search / filter] | PASS
+ADMIN | Users | button[Refresh] | PASS
+ADMIN | Users | table[null] | PASS
+ADMIN | Users | table row-action menu / Shift+F10 | NEEDS MANUAL CHECK (desktop menu)
+ADMIN | Users | scrollbar arrow | PASS
+ADMIN | Users | scrollbar arrow | PASS
+ADMIN | Users | scrollbar arrow | PASS
+ADMIN | Users | scrollbar arrow | PASS
+ADMIN | Users | button[Prev] | PASS (disabled for current state)
+ADMIN | Users | button[Next] | PASS (disabled for current state)
+ADMIN | Campuses | button[Add campus] | NEEDS MANUAL CHECK (desktop dialog)
+ADMIN | Campuses | field[Search / filter] | PASS
+ADMIN | Campuses | button[Refresh] | PASS
+ADMIN | Campuses | table[null] | PASS
+ADMIN | Campuses | table row-action menu / Shift+F10 | NEEDS MANUAL CHECK (desktop menu)
+ADMIN | Campuses | scrollbar arrow | PASS
+ADMIN | Campuses | scrollbar arrow | PASS
+ADMIN | Campuses | scrollbar arrow | PASS
+ADMIN | Campuses | scrollbar arrow | PASS
+ADMIN | Campuses | button[Prev] | PASS (disabled for current state)
+ADMIN | Campuses | button[Next] | PASS (disabled for current state)
+ADMIN | Audit log | field[User / nurse ID] | PASS
+ADMIN | Audit log | field[Campus ID] | PASS
+ADMIN | Audit log | field[Action] | PASS
+ADMIN | Audit log | field[Date] | PASS
+ADMIN | Audit log | button[Clear filters] | PASS
+ADMIN | Audit log | field[Quick search: user ID / campus / action / date / denied] | PASS
+ADMIN | Audit log | button[Refresh] | PASS
+ADMIN | Audit log | table[null] | PASS
+ADMIN | Audit log | scrollbar arrow | PASS
+ADMIN | Audit log | scrollbar arrow | PASS
+ADMIN | Audit log | scrollbar arrow | PASS
+ADMIN | Audit log | scrollbar arrow | PASS
+ADMIN | Audit log | button[Prev] | PASS (disabled for current state)
+ADMIN | Audit log | button[Next] | PASS
+ADMIN | summary | attempted=46 manual=3 | uncaught=none

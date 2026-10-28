@@ -15,62 +15,62 @@ public final class LoginPanel extends JPanel {
         super(new GridBagLayout());
         setOpaque(false);
         Card form=new Card();
-        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.setBorder(BorderFactory.createEmptyBorder(Theme.SPACE_8, Theme.SPACE_8,
-            Theme.SPACE_8, Theme.SPACE_8));
-        form.setPreferredSize(new Dimension(510, app.login.needsSetup() ? 520 : 460));
-        JLabel logo=new JLabel("  UIC School Clinic",
-            new IconPainter("dashboard", Theme.BRAND), JLabel.LEFT);
-        logo.setFont(Theme.font(Theme.TYPE_TITLE, Font.BOLD));
-        logo.setForeground(Theme.INK);
-        logo.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JLabel subtitle=new JLabel("Management System");
-        subtitle.setFont(Theme.font(Theme.TYPE_BODY, Font.PLAIN));
-        subtitle.setForeground(Theme.MUTED);
-        subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        form.setLayout(new GridBagLayout());
+        form.setBorder(BorderFactory.createEmptyBorder(Theme.SPACE_6, Theme.SPACE_8,
+            Theme.SPACE_6, Theme.SPACE_8));
+        form.setPreferredSize(new Dimension(560, app.login.needsSetup() ? 660 : 620));
+        JLabel seal=UicLogo.label(144);
+        JLabel appName=new JLabel("UIC School Clinic");
+        appName.setFont(Theme.font(Theme.TYPE_TITLE, Font.BOLD));
+        appName.setForeground(Theme.INK);
+        JLabel appSubtitle=new JLabel("Management System");
+        appSubtitle.setFont(Theme.font(Theme.TYPE_BODY, Font.PLAIN));
+        appSubtitle.setForeground(Theme.MUTED);
         JLabel signInTitle=new JLabel("Welcome back");
         signInTitle.setFont(Theme.font(Theme.TYPE_PAGE, Font.BOLD));
         signInTitle.setForeground(Theme.INK);
-        signInTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        form.add(logo);
-        form.add(Box.createVerticalStrut(Theme.SPACE_1));
-        form.add(subtitle);
-        form.add(Box.createVerticalStrut(Theme.SPACE_8));
-        form.add(signInTitle);
-        form.add(Box.createVerticalStrut(Theme.SPACE_4));
+        JLabel signInSubtitle=new JLabel("Sign in to access your clinic workspace.");
+        signInSubtitle.setFont(Theme.font(Theme.TYPE_BODY, Font.PLAIN));
+        signInSubtitle.setForeground(Theme.MUTED);
         JLabel idLabel=new JLabel("User ID");
         idLabel.setLabelFor(id);
-        idLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        form.add(idLabel);
         Theme.field(id);
+        id.getAccessibleContext().setAccessibleName("User ID");
         id.setMaximumSize(new Dimension(Integer.MAX_VALUE, Theme.FIELD_HEIGHT));
-        id.setAlignmentX(Component.LEFT_ALIGNMENT);
-        form.add(id);
-        form.add(Box.createVerticalStrut(Theme.SPACE_3));
         JLabel passwordLabel=new JLabel("Password");
         passwordLabel.setLabelFor(password);
-        passwordLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        form.add(passwordLabel);
         Theme.field(password);
+        password.getAccessibleContext().setAccessibleName("Password");
         password.setMaximumSize(new Dimension(Integer.MAX_VALUE, Theme.FIELD_HEIGHT));
-        password.setAlignmentX(Component.LEFT_ALIGNMENT);
-        form.add(password);
-        form.add(Box.createVerticalStrut(Theme.SPACE_4));
-        submit.setAlignmentX(Component.LEFT_ALIGNMENT);
         submit.setMaximumSize(new Dimension(Integer.MAX_VALUE, Theme.CONTROL_HEIGHT));
-        form.add(submit);
+        submit.getAccessibleContext().setAccessibleName("Sign in");
         JLabel state=new JLabel(app.storageDescription());
         state.setFont(Theme.font(Theme.TYPE_CAPTION, Font.PLAIN));
         state.setForeground(Theme.MUTED);
-        state.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel error=new JLabel(" ");
         error.setFont(Theme.font(Theme.TYPE_BODY, Font.BOLD));
         error.setForeground(Theme.DANGER);
-        error.setAlignmentX(Component.LEFT_ALIGNMENT);
         error.setName("Sign-in error");
-        form.add(Box.createVerticalStrut(Theme.SPACE_2));
-        form.add(error);
-        form.add(state);
+        JButton setup=app.login.needsSetup()?Theme.button("Create first administrator", false):null;
+        if(setup!=null) {
+            submit.setEnabled(false);
+            setup.setMaximumSize(new Dimension(Integer.MAX_VALUE, Theme.CONTROL_HEIGHT));
+            setup.getAccessibleContext().setAccessibleName("Create first administrator");
+        }
+        int row=0;
+        addRow(form, seal, row++, 0, Theme.SPACE_2, false, true);
+        addRow(form, appName, row++, 0, Theme.SPACE_1, false, true);
+        addRow(form, appSubtitle, row++, 0, Theme.SPACE_6, false, true);
+        addRow(form, signInTitle, row++, 0, Theme.SPACE_1, true, false);
+        addRow(form, signInSubtitle, row++, 0, Theme.SPACE_4, true, false);
+        addRow(form, idLabel, row++, 0, Theme.SPACE_1, true, false);
+        addRow(form, id, row++, 0, Theme.SPACE_2, true, false);
+        addRow(form, passwordLabel, row++, 0, Theme.SPACE_1, true, false);
+        addRow(form, password, row++, 0, Theme.SPACE_4, true, false);
+        addRow(form, submit, row++, 0, Theme.SPACE_2, true, false);
+        if(setup!=null) addRow(form, setup, row++, 0, Theme.SPACE_2, true, false);
+        addRow(form, error, row++, 0, Theme.SPACE_1, true, false);
+        addRow(form, state, row, 0, 0, true, false);
         GridBagConstraints cardConstraints = new GridBagConstraints();
         cardConstraints.gridx = 0;
         cardConstraints.gridy = 0;
@@ -115,13 +115,7 @@ public final class LoginPanel extends JPanel {
         submit.addActionListener(e->signIn.run());
         password.addActionListener(e->signIn.run());
         id.addActionListener(e->signIn.run());
-        if(app.login.needsSetup()) {
-            submit.setEnabled(false);
-            JButton setup=Theme.button("Create first administrator", false);
-            setup.setAlignmentX(Component.LEFT_ALIGNMENT);
-            setup.setMaximumSize(new Dimension(Integer.MAX_VALUE, Theme.CONTROL_HEIGHT));
-            form.add(Box.createVerticalStrut(Theme.SPACE_2));
-            form.add(setup);
+        if(setup!=null) {
             setup.addActionListener(e->FormPopup.show(this, "First-run administrator setup", java.util.List.of(FormField.text("ID"), FormField.text("Name"), FormField.password()), v->app.login.bootstrapAdministrator(v.get("ID"), v.get("Name"), v.get("Password")), ()-> {
                 setup.setVisible(false);
                 submit.setEnabled(true);
@@ -130,10 +124,22 @@ public final class LoginPanel extends JPanel {
         }
     }
 
+    private static void addRow(JPanel panel, Component component, int row,
+            int topInset, int bottomInset, boolean fillWidth, boolean centered) {
+        GridBagConstraints constraints=new GridBagConstraints();
+        constraints.gridx=0;
+        constraints.gridy=row;
+        constraints.weightx=1;
+        constraints.fill=fillWidth?GridBagConstraints.HORIZONTAL:GridBagConstraints.NONE;
+        constraints.anchor=centered?GridBagConstraints.CENTER:GridBagConstraints.WEST;
+        constraints.insets=new Insets(topInset,0,bottomInset,0);
+        panel.add(component,constraints);
+    }
+
     @Override
     protected void paintComponent(Graphics graphics) {
         Graphics2D g = (Graphics2D) graphics.create();
-        g.setPaint(new GradientPaint(0, 0, Theme.HEADER_TINT,
+        g.setPaint(new GradientPaint(0, 0, Theme.SUBTLE,
             getWidth(), getHeight(), Theme.BRAND_TINT));
         g.fillRect(0, 0, getWidth(), getHeight());
         g.dispose();

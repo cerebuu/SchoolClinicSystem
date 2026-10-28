@@ -21,7 +21,7 @@ database or mix a database with a different key. Then run:
 ```powershell
 cmd /c tools\dependencies.cmd
 $clinicSources = @(Get-ChildItem src -Recurse -Filter *.java | ForEach-Object FullName)
-javac -encoding UTF-8 -d out @clinicSources
+javac --release 17 -encoding UTF-8 -cp 'lib/*' -d out @clinicSources
 java '-Dclinic.database=data/team-starter/scms' -cp 'out;lib/*' clinic.app.Main
 ```
 
@@ -35,15 +35,16 @@ After compiling production sources and obtaining the H2 driver:
 
 ```powershell
 $clinicSources = @(Get-ChildItem src -Recurse -Filter *.java | ForEach-Object FullName)
-javac -encoding UTF-8 -d out-team @clinicSources tools/CreateTeamDatabase.java
+javac --release 17 -encoding UTF-8 -cp 'lib/*' -d out-team @clinicSources tools/CreateTeamDatabase.java
 java -cp 'out-team;lib/*' CreateTeamDatabase
 ```
 
 The helper refuses to overwrite an existing starter. The exact tables, constraints
 and migrations are defined in `src/clinic/persistence/Schema.java`. Populate patients
-and inventory first; visits need existing patients/staff, and notifications need a
-dispensing transaction belonging to the same patient. Prefer app workflows for
-medicine changes to preserve stock/transaction consistency.
+and inventory first; visits need existing patients/staff, and medicine notifications
+need a dispensing transaction belonging to the same patient. Emergency notifications
+are patient-linked and do not require a transaction. Prefer app workflows for medicine
+changes to preserve stock/transaction consistency.
 
 Database files and keys are ignored by Git. Sharing source code does not synchronize
 local databases; each teammate maintains a separate copy. Share a starter pair directly

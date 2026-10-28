@@ -1,8 +1,12 @@
 package clinic.core;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import clinic.notify.Channel;
+import clinic.model.MedicineProduct;
+import clinic.service.DispenseItem;
 
 import clinic.model.*;
 
@@ -19,12 +23,19 @@ public interface ClinicSystem {
     /** Register a new Student or Employee. Throws if the ID already exists. */
     void registerPatient(Patient patient);
 
+    /** Update editable profile details. The patient ID and type must match the existing profile. */
+    void updatePatient(String patientId, Patient profile);
+
     /** Allergies live on the Patient profile. */
     void addAllergy(String patientId, String allergy);
 
     // ---------- 2. Visits and records ----------
     MedicalRecord recordVisit(String patientId, List<String> symptoms,
                               String reason, String remarks, String staffId);
+
+    MedicalRecord recordVisitAndAdminister(String patientId, List<String> symptoms,
+                                           String reason, String remarks, String staffId,
+                                           List<DispenseItem> medicines, boolean allergyConfirmed);
 
     List<MedicalRecord> getVisitHistory(String patientId);
 
@@ -42,12 +53,18 @@ public interface ClinicSystem {
     MedicineTransaction dispenseMedicine(String patientId, String medicineName,
                                          int quantity, String staffId, String overrideReason);
 
+    MedicineTransaction dispenseMedicine(String patientId, MedicineProduct medicine,
+                                         int quantity, String staffId, boolean overrideConfirmed);
+
     // ---------- 4. Inventory ----------
     void addMedicine(String name, int quantity, LocalDate expiry, String remarks);
+    void addMedicine(MedicineProduct medicine, int quantity, LocalDate expiry, String remarks);
 
     void restockMedicine(String name, int quantity, LocalDate expiry);
+    void restockMedicine(MedicineProduct medicine, int quantity, LocalDate expiry, String remarks);
 
     int getStock(String medicineName);
+    int getStock(MedicineProduct medicine);
 
     List<Medicine> getLowStock();
 
@@ -77,4 +94,11 @@ public interface ClinicSystem {
     void updateNotificationStatus(String notificationId, NotificationStatus status);
 
     List<NotificationLog> getNotifications(String patientId);
+
+    NotificationLog createEmergencyNotification(String patientId);
+
+    NotificationLog beginNotificationAttempt(String notificationId, Channel channel,
+                                               LocalDateTime attemptedAt);
+
+    void completeNotificationAttempt(String notificationId, NotificationStatus status);
 }

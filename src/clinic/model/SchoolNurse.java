@@ -11,6 +11,6 @@ public class SchoolNurse extends User {
     @Override
     public boolean canAccess(String feature) {
         return isOneOf(feature, DISPENSE, RECORD_TRANSACTION, INVENTORY,
-                VIEW_STOCK, RESTOCK, RECORDS, REPORTS);
+                VIEW_STOCK, RESTOCK, RECORDS, REPORTS, SEND_NOTIFICATIONS);
     }
 }

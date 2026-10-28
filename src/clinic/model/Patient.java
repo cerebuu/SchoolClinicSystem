@@ -25,6 +25,34 @@ public class Patient extends Person {
         getMedicalHistory().forEach(result::addHistory);
         return result;
     }
+    /**
+     * Return the editable profile fields from {@code profile} while retaining this
+     * patient's immutable identity and clinical history.
+     */
+    public Patient withUpdatedProfile(Patient profile) {
+        Objects.requireNonNull(profile, "Patient profile is required.");
+        if (!getId().equals(profile.getId()))
+            throw new IllegalArgumentException("Patient ID cannot be changed.");
+        if (!patientType.equals(profile.patientType) || getClass() != profile.getClass())
+            throw new IllegalArgumentException("Patient type cannot be changed.");
+
+        Patient updated;
+        if (this instanceof Student current && profile instanceof Student replacement) {
+            updated = new Student(getId(), replacement.getName(), replacement.getContactInfo(),
+                replacement.getCourse(), replacement.getYearLevel(), replacement.getSection());
+        } else if (this instanceof Employee && profile instanceof Employee replacement) {
+            updated = new Employee(getId(), replacement.getName(), replacement.getContactInfo(),
+                replacement.getDepartment(), replacement.getPosition());
+        } else if (getClass() == Patient.class) {
+            updated = new Patient(getId(), profile.getName(), profile.getContactInfo(), patientType);
+        } else {
+            throw new IllegalArgumentException("Unsupported patient type.");
+        }
+        getAllergies().forEach(updated::addAllergy);
+        getMedicalHistory().forEach(updated::addHistory);
+        updated.setGuardianContact(profile.getGuardianContact());
+        return updated;
+    }
     public String getPatientType() {
         return patientType;
     }

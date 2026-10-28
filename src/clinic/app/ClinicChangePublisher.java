@@ -9,8 +9,10 @@ public final class ClinicChangePublisher {
             case "addMedicine","restockMedicine" -> bus.publish(INVENTORY,ALERTS);
             case "dispenseMedicine" -> bus.publish(INVENTORY,TRANSACTIONS,ALERTS);
             case "recordVisit" -> bus.publish(VISITS,ALERTS);
-            case "registerPatient","addAllergy" -> bus.publish(PATIENTS);
-            case "createGuardianNotification","updateNotificationStatus" -> bus.publish(NOTIFICATIONS,ALERTS);
+            case "recordVisitAndAdminister","recordVisitAndAdministerWithReason" -> bus.publish(VISITS,TRANSACTIONS,INVENTORY,ALERTS);
+            case "registerPatient","updatePatient","addAllergy" -> bus.publish(PATIENTS);
+            case "createGuardianNotification","createEmergencyNotification","updateNotificationStatus",
+                "beginNotificationAttempt","completeNotificationAttempt" -> bus.publish(NOTIFICATIONS,ALERTS);
             default -> { }
         }
     }

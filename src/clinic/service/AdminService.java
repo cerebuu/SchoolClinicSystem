@@ -13,34 +13,99 @@ public final class AdminService {
     public AdminService(Login login, AuditLog audit) {
         this.login=login;
         this.audit=audit;
+        seedNurseCampuses();
     }
     public AdminService(Login login, AuditLog audit, clinic.persistence.AdminRepository repository) {
-        this(login,audit);
+        this.login=login;
+        this.audit=audit;
         this.repository=repository;
         repository.campuses().forEach(c -> campuses.put(c.id(),c));
+        seedNurseCampuses();
+    }
+    /** Installs the approved choices additively; existing campus and account records are preserved. */
+    private void seedNurseCampuses() {
+        for(NurseCampus approved:NurseCampus.choices()) {
+            Campus expected=approved.campus();
+            Campus existing=campuses.get(approved.id());
+            if(existing==null) {
+                if(repository!=null)repository.installDefaultCampus(expected);
+                campuses.put(expected.id(),expected);
+            } else if(!expected.name().equals(existing.name())) {
+                throw new IllegalStateException("Campus ID "+approved.id()+" is reserved for "+expected.name()+".");
+            }
+        }
     }
     private User authorize(String action) {
         User u=login.getCurrentUser().orElse(null);
         boolean allowed=u!=null&&User.ADMIN.equals(u.getRole());
         // Auditing an audit/summary read would create an endless refresh -> audit -> refresh loop.
-        if(!allowed || (!action.equals("viewAudit")&&!action.equals("adminSummary")))
-            audit.record(LocalDateTime.now(), u==null?"unknown":u.getUserId(), u==null?"unknown":u.getName(), u==null?"unknown":u.getRole(), action, "administration", allowed);
+        if(!allowed || (!isMutation(action)&&!action.equals("viewAudit")&&!action.equals("adminSummary")))
+            audit.record(LocalDateTime.now(),u==null?"unknown":u.getUserId(),u==null?"unknown":u.getName(),
+                u==null?"unknown":u.getRole(),action,"administration",allowed,u==null?null:u.getCampusId());
         if(!allowed)throw new SecurityException("Administrator session required.");
         return u;
     }
+    private static boolean isMutation(String action) {
+        return action.equals("addUser")||action.equals("updateUser")||action.equals("saveCampus")||action.equals("resetStaffPassword");
+    }
+    private void completed(User actor,String action) {
+        audit.record(LocalDateTime.now(),actor.getUserId(),actor.getName(),actor.getRole(),
+            action,"administration",true,actor.getCampusId());
+    }
     public synchronized void addUser(User u, String password) {
         synchronized (login) {
-            authorize("addUser");
-            login.addUser(u, password);
+            User actor=authorize("addUser");
+            validateCampus(u);
+            login.addUser(u,password,audit,()->{
+                completed(actor,"addUser");
+                if(User.NURSE.equals(u.getRole()))recordNurseAssignment(actor,u.getUserId(),null,u.getCampusId());
+            });
             changed.accept("users");
         }
     }
     public synchronized void updateUser(User u, boolean active) {
         synchronized (login) {
-            authorize("updateUser");
-            login.updateUser(u, active);
+            User actor=authorize("updateUser");
+            validateCampus(u);
+            User previous=login.findUser(u.getUserId()).orElseThrow(()->new IllegalArgumentException("User not found."));
+            boolean assignmentChanged=(User.NURSE.equals(previous.getRole())||User.NURSE.equals(u.getRole()))
+                &&!Objects.equals(previous.getCampusId(),u.getCampusId());
+            login.updateUser(u,active,audit,()->{
+                completed(actor,"updateUser");
+                if(assignmentChanged)recordNurseAssignment(actor,u.getUserId(),previous.getCampusId(),u.getCampusId());
+            });
             changed.accept("users");
         }
+    }
+    public synchronized void resetStaffPassword(String id,String password) {
+        synchronized(login) {
+            User actor=authorize("resetStaffPassword");
+            login.resetStaffPassword(id,password,audit,()->completed(actor,"resetStaffPassword"));
+            changed.accept("users");
+        }
+    }
+    private String campusDescription(String id) {
+        if(id==null)return "Unassigned";
+        return NurseCampus.forId(id).map(NurseCampus::displayName)
+            .orElseGet(()->{
+                Campus legacy=campuses.get(id);
+                return legacy==null?"Unknown campus ("+id+")":legacy.name()+" ["+id+"]";
+            });
+    }
+    private void recordNurseAssignment(User actor,String nurseId,String previousId,String newId) {
+        String details="nurseId="+nurseId+"; previousCampus="+campusDescription(previousId)
+            +"; newCampus="+campusDescription(newId);
+        audit.record(LocalDateTime.now(),actor.getUserId(),actor.getName(),actor.getRole(),
+            "nurse campus assignment changed",details,true,actor.getCampusId());
+    }
+    private void validateCampus(User user) {
+        if(User.NURSE.equals(user.getRole())&&NurseCampus.forId(user.getCampusId()).isEmpty())
+            throw new IllegalArgumentException("Assign the nurse to UIC - Bajada, UIC - Annex, or UIC - Main.");
+        if(!User.ADMIN.equals(user.getRole())
+                &&(user.getCampusId()==null||!campuses.containsKey(user.getCampusId())))
+            throw new IllegalArgumentException("Assign a valid campus to every clinical staff account.");
+        if(user.getCampusId()!=null&&!campuses.containsKey(user.getCampusId()))
+            throw new IllegalArgumentException("Selected campus does not exist.");
     }
     public synchronized PageResult<User> users(int page, int size, String filter) {
         synchronized (login) {
@@ -50,10 +115,17 @@ public final class AdminService {
     }
     public synchronized void saveCampus(Campus campus, boolean edit) {
         synchronized (login) {
-            authorize("saveCampus");
+            User actor=authorize("saveCampus");
+            NurseCampus approved=NurseCampus.forId(campus.id()).orElse(null);
+            if(approved!=null&&!approved.displayName().equals(campus.name()))
+                throw new IllegalArgumentException("Approved nurse campus names cannot be changed.");
             if(edit&&!campuses.containsKey(campus.id()))throw new IllegalArgumentException("Campus not found.");
             if(!edit&&campuses.containsKey(campus.id()))throw new IllegalArgumentException("Campus ID already exists.");
-            if (repository != null) repository.save(campus,edit);
+            audit.unitOfWork(()->{
+                if (repository != null) repository.save(campus,edit);
+                completed(actor,"saveCampus");
+                return null;
+            });
             campuses.put(campus.id(), campus);
             changed.accept("campuses");
         }
@@ -64,6 +136,14 @@ public final class AdminService {
             String q=filter.toLowerCase(Locale.ROOT);
             return PageResult.select(campuses.values(), page, size, c->c.id().toLowerCase(Locale.ROOT).contains(q)||c.name().toLowerCase(Locale.ROOT).contains(q));
         }
+    }
+    public synchronized String campusName(String campusId) {
+        if(campusId!=null) {
+            var approved=NurseCampus.forId(campusId);
+            if(approved.isPresent())return approved.get().displayName();
+        }
+        Campus campus=campusId==null?null:campuses.get(campusId);
+        return campus==null?null:campus.name();
     }
     public synchronized PageResult<AuditEntry> audit(int page, int size, String query) {
         synchronized (login) {
@@ -95,11 +175,10 @@ public final class AdminService {
     public synchronized Summary summary() {
         synchronized (login) {
             authorize("adminSummary");
-            List<AuditEntry> entries = audit.getAll();
             java.time.LocalDate today = java.time.LocalDate.now();
+            AuditLog.AuditSummary auditSummary=audit.summary(today);
             return new Summary(login.userPage(0, 1, "").total(), campuses.size(),
-                entries.stream().filter(e -> e.getTimestamp().toLocalDate().equals(today)).count(),
-                entries.stream().filter(e -> !e.isAllowed()).count());
+                auditSummary.eventsToday(),auditSummary.denied());
         }
     }
     public record Summary(int users, int campuses, long eventsToday, long denied) {}

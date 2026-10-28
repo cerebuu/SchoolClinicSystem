@@ -3,6 +3,8 @@ import clinic.app.Theme;
 import clinic.app.ui.common.AsyncLoader;
 import clinic.app.ui.common.Card;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.*;
 import java.util.List;
 import java.util.function.Consumer;
@@ -22,6 +24,12 @@ public final class FormPopup {
     }
     public static void showInteractive(Component owner,String title,List<FormField> fields,
             Map<String,MultiSelectField> selections,InteractiveSubmit submit,Runnable saved) {
+        Map<String,JComponent> components=new LinkedHashMap<>();
+        components.putAll(selections);
+        showWithComponents(owner,title,fields,components,submit,saved);
+    }
+    public static void showWithComponents(Component owner,String title,List<FormField> fields,
+            Map<String,? extends JComponent> selections,InteractiveSubmit submit,Runnable saved) {
         JDialog dialog=PopupDialog.create(owner, title);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         Card form=new Card();
@@ -39,7 +47,8 @@ public final class FormPopup {
             if(input instanceof JComboBox<?> c)c.setSelectedItem(f.initial());
             input.getAccessibleContext().setAccessibleName(f.label());
             label.setLabelFor(input);
-            if(!(input instanceof MultiSelectField) && !(input instanceof LimitedTextArea) && !(input instanceof AllergyField)) {
+            if(!(input instanceof MultiSelectField) && !(input instanceof LimitedTextArea)
+                    && !(input instanceof AllergyField) && !(input instanceof FormValueComponent)) {
                 Theme.field(input);
                 input.setMaximumSize(new Dimension(Integer.MAX_VALUE, Theme.FIELD_HEIGHT));
             }
@@ -58,7 +67,9 @@ public final class FormPopup {
             fieldErrors.put(f.label(), fieldError);
             group.add(fieldError);
             group.setAlignmentX(Component.LEFT_ALIGNMENT);
-            group.setMaximumSize(new Dimension(Integer.MAX_VALUE, input instanceof MultiSelectField?290:input instanceof AllergyField?220:input instanceof LimitedTextArea?150:90));
+            int componentHeight=input instanceof MultiSelectField?290:input instanceof AllergyField?220:
+                input instanceof LimitedTextArea?150:input instanceof FormValueComponent?input.getPreferredSize().height+48:90;
+            group.setMaximumSize(new Dimension(Integer.MAX_VALUE,componentHeight));
             form.add(group);
             form.add(Box.createVerticalStrut(Theme.SPACE_2));
             inputs.put(f.label(), input);
@@ -74,7 +85,19 @@ public final class FormPopup {
         error.setFont(Theme.font(Theme.TYPE_CAPTION, java.awt.Font.PLAIN));
         bottom.add(error, BorderLayout.NORTH);
         bottom.add(buttons, BorderLayout.SOUTH);
+        SaveController controller=new SaveController(save,cancel,dialog,error,saved,inputs.values(),()->
+            inputs.values().forEach(c->{if(c instanceof JPasswordField p)p.setText("");}));
+        controller.watchReadiness();
+        dialog.addWindowListener(new WindowAdapter() {
+            @Override public void windowClosed(WindowEvent event) {
+                inputs.values().forEach(component->{
+                    if(component instanceof AutoCloseable closeable)try{closeable.close();}
+                    catch(Exception ignored) { }
+                });
+            }
+        });
         save.addActionListener(e-> {
+            if(controller.busy)return;
             Map<String, String> values=new LinkedHashMap<>();
             Map<String,List<String>> selectedValues=new LinkedHashMap<>();
             for(FormField f:fields) {
@@ -91,13 +114,23 @@ public final class FormPopup {
                     selectedValues.put(f.label(),selected);
                     continue;
                 }
+                if(c instanceof FormValueComponent custom && !custom.validateForm()) {
+                    fieldErrors.get(f.label()).setText(" ");
+                    c.scrollRectToVisible(new Rectangle(0,0,c.getWidth(),c.getHeight()));
+                    return;
+                }
                 String v;
                 if(c instanceof JPasswordField pw) {
                     char[] chars=pw.getPassword();
                     v=new String(chars);
                     Arrays.fill(chars, '\0');
                 }
-                else v=c instanceof AllergyField allergy?allergy.getText():c instanceof LimitedTextArea area?area.getText():c instanceof JTextField t?t.getText().trim():Objects.toString(((JComboBox<?>)c).getSelectedItem(), "");
+                else v=c instanceof FormValueComponent custom?custom.formValue()
+                    :c instanceof AllergyField allergy?allergy.getText()
+                    :c instanceof LimitedTextArea area?area.getText()
+                    :c instanceof JTextField t?t.getText().trim()
+                    :c instanceof JComboBox<?> combo?Objects.toString(combo.getSelectedItem(),"")
+                    :throwUnsupportedComponent(c);
                 String validation = f.validator().apply(v);
                 if (validation != null) {
                     fieldErrors.get(f.label()).setText(validation);
@@ -115,9 +148,14 @@ public final class FormPopup {
                 fieldErrors.get(f.label()).setText(" ");
                 values.put(f.label(), v);
             }
-            SaveController controller=new SaveController(save,cancel,dialog,error,saved,values::clear,()->
-                inputs.values().forEach(c->{if(c instanceof JPasswordField p)p.setText("");}));
-            submit.submit(Collections.unmodifiableMap(values),Collections.unmodifiableMap(selectedValues),controller);
+            controller.begin(()->{values.clear();selectedValues.clear();});
+            try {
+                submit.submit(Collections.unmodifiableMap(values),Collections.unmodifiableMap(selectedValues),controller);
+            } catch(RuntimeException failure) {
+                controller.reset(MessagePopup.errorText(failure));
+            } finally {
+                if(controller.busy&&!controller.preparing&&!controller.saving)controller.reset("");
+            }
         });
         cancel.addActionListener(e->dialog.dispose());
         dialog.getRootPane().registerKeyboardAction(e -> {
@@ -141,6 +179,9 @@ public final class FormPopup {
         dialog.setLocationRelativeTo(owner);
         dialog.setVisible(true);
     }
+    private static String throwUnsupportedComponent(JComponent component) {
+        throw new IllegalStateException("Unsupported custom form component: "+component.getClass().getName());
+    }
     @FunctionalInterface public interface InteractiveSubmit {
         void submit(Map<String,String> values,Map<String,List<String>> selections,SaveController controller);
     }
@@ -149,14 +190,50 @@ public final class FormPopup {
         private final JDialog dialog;
         private final JLabel error;
         private final Runnable saved;
-        private final Runnable cleanup;
+        private Runnable cleanup=()->{};
         private final Runnable successCleanup;
-        private SaveController(JButton save,JButton cancel,JDialog dialog,JLabel error,Runnable saved,Runnable cleanup,Runnable successCleanup) {
-            this.save=save;this.cancel=cancel;this.dialog=dialog;this.error=error;this.saved=saved;this.cleanup=cleanup;this.successCleanup=successCleanup;
+        private final Collection<JComponent> inputs;
+        private final Map<Component,Boolean> enabledStates=new IdentityHashMap<>();
+        private boolean busy,preparing,saving;
+        private SaveController(JButton save,JButton cancel,JDialog dialog,JLabel error,Runnable saved,
+                Collection<JComponent> inputs,Runnable successCleanup) {
+            this.save=save;this.cancel=cancel;this.dialog=dialog;this.error=error;this.saved=saved;
+            this.inputs=inputs;this.successCleanup=successCleanup;
         }
-        public void saveAsync(java.util.concurrent.Callable<Boolean> work) {
+        private void begin(Runnable cleanup) {
+            this.cleanup=cleanup;busy=true;
             save.setEnabled(false);cancel.setEnabled(false);
             dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+            inputs.forEach(this::disable);
+        }
+        private void disable(Component component) {
+            enabledStates.put(component,component.isEnabled());
+            component.setEnabled(false);
+            if(component instanceof Container container)
+                for(Component child:container.getComponents())disable(child);
+        }
+        /** Holds one submission attempt through lookup, confirmation, and the final write. */
+        public <T> void prepareAsync(java.util.concurrent.Callable<T> work,Consumer<T> prepared) {
+            if(!busy||preparing||saving)return;
+            preparing=true;
+            error.setForeground(Theme.MUTED);error.setText("Checking...");
+            AsyncLoader.load(work,result->{
+                preparing=false;
+                try { prepared.accept(result); }
+                catch(RuntimeException failure) { reset(MessagePopup.errorText(failure)); }
+                finally { if(busy&&!saving&&!preparing)reset(""); }
+            },failure->{preparing=false;reset(MessagePopup.errorText(failure));});
+        }
+        /** Discard a pending form if the authenticated owner session has expired. */
+        public void abort() {
+            cleanup.run();cleanup=()->{};
+            successCleanup.run();
+            busy=false;preparing=false;saving=false;
+            dialog.dispose();
+        }
+        public void saveAsync(java.util.concurrent.Callable<Boolean> work) {
+            if(!busy||preparing||saving)return;
+            saving=true;
             error.setForeground(Theme.MUTED);error.setText("Saving...");
             AsyncLoader.load(work,ok->{
                 if(ok) {
@@ -165,14 +242,28 @@ public final class FormPopup {
                     dialog.dispose();
                     saved.run();
                 } else reset("");
-            },failure->{cleanup.run();reset(MessagePopup.errorText(failure));});
+            },failure->reset(MessagePopup.errorText(failure)));
         }
         private void reset(String message) {
-                save.setEnabled(true);
+                cleanup.run();cleanup=()->{};
+                busy=false;preparing=false;saving=false;
+                enabledStates.forEach(Component::setEnabled);enabledStates.clear();
                 cancel.setEnabled(true);
                 dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
                 error.setForeground(message.isBlank()?Theme.MUTED:Theme.DANGER);
                 error.setText(message.isBlank()?" ":message);
+                refreshSaveEnabled();
+        }
+        private void watchReadiness() {
+            inputs.stream().filter(component->component instanceof FormValueComponent).forEach(component->
+                component.addPropertyChangeListener(FormValueComponent.READY_PROPERTY,event->refreshSaveEnabled()));
+            refreshSaveEnabled();
+        }
+        private void refreshSaveEnabled() {
+            if(busy)return;
+            boolean ready=inputs.stream().filter(component->component instanceof FormValueComponent)
+                .map(component->(FormValueComponent)component).allMatch(FormValueComponent::isFormReady);
+            save.setEnabled(ready);
         }
     }
 }

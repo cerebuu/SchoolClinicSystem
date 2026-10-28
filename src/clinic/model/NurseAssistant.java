@@ -11,6 +11,6 @@ public class NurseAssistant extends User {
     // Restocking, reports, and user management are denied.
     @Override
     public boolean canAccess(String feature) {
-        return isOneOf(feature, RECORD_TRANSACTION, DISPENSE, VIEW_STOCK);
+        return isOneOf(feature, RECORD_TRANSACTION, DISPENSE, VIEW_STOCK, SEND_NOTIFICATIONS);
     }
 }

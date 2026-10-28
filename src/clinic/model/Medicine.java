@@ -5,15 +5,26 @@ import clinic.util.Validation;
 public class Medicine {
     private final String batchId;
     private final String name;
+    private String atcPrimary;
+    private String atcSecondary;
     private String remarks;
     private LocalDate expirationDate, batchDate;
     private int quantity;
     public Medicine(String name, int quantity, LocalDate expiry, LocalDate batch, String remarks) {
-        this(UUID.randomUUID().toString(),name,quantity,expiry,batch,remarks);
+        this(UUID.randomUUID().toString(),new MedicineProduct(name,"",""),quantity,expiry,batch,remarks);
     }
     public Medicine(String batchId,String name,int quantity,LocalDate expiry,LocalDate batch,String remarks) {
+        this(batchId,new MedicineProduct(name,"",""),quantity,expiry,batch,remarks);
+    }
+    public Medicine(MedicineProduct product,int quantity,LocalDate expiry,LocalDate batch,String remarks) {
+        this(UUID.randomUUID().toString(),product,quantity,expiry,batch,remarks);
+    }
+    public Medicine(String batchId,MedicineProduct product,int quantity,LocalDate expiry,LocalDate batch,String remarks) {
         this.batchId=java.util.UUID.fromString(Validation.required(batchId,"Batch ID")).toString();
-        this.name=Validation.required(name, "Medicine");
+        MedicineProduct validProduct=java.util.Objects.requireNonNull(product);
+        this.name=validProduct.name();
+        this.atcPrimary=validProduct.atcPrimary();
+        this.atcSecondary=validProduct.atcSecondary();
         if(quantity<0||expiry==null||batch==null)throw new IllegalArgumentException("Valid stock and dates required.");
         this.quantity=quantity;
         expirationDate=expiry;
@@ -23,6 +34,16 @@ public class Medicine {
     public String getName() {
         return name;
     }
+    public void setAtcCodes(MedicineProduct product) {
+        if(!getProduct().key().equals(product.key()))throw new IllegalArgumentException("Medicine name must match.");
+        if(!product.atcPrimary().isBlank()||!product.atcSecondary().isBlank()) {
+            atcPrimary=product.atcPrimary();atcSecondary=product.atcSecondary();
+        }
+    }
+    public String getAtcPrimary() { return atcPrimary; }
+    public String getAtcSecondary() { return atcSecondary; }
+    public MedicineProduct getProduct() { return new MedicineProduct(name,atcPrimary,atcSecondary); }
+    public String getDisplayName() { return getProduct().displayName(); }
     public String getBatchId() { return batchId; }
     public String getRemarks() {
         return remarks;

@@ -16,17 +16,17 @@ public final class PersistentDispenseChecks {
             clinic.registerPatient(new Student("p","Synthetic","own","CS",1,"A"));
             database.transaction(c->{
                 SqlTest.update(c,"INSERT INTO accounts(id,name,role,password_hash,active) VALUES('n','Nurse','NURSE','test',TRUE)");
-                SqlTest.update(c,"INSERT INTO medicine_batches VALUES(0,'Paracetamol',5,?,?, '')",LocalDate.now().plusDays(10),LocalDate.now());
-                SqlTest.update(c,"INSERT INTO medicine_batches VALUES(1,'Paracetamol',7,?,?, '')",LocalDate.now().plusDays(20),LocalDate.now());
-                SqlTest.update(c,"INSERT INTO medicine_batches VALUES(2,'Expired',20,?,?, '')",LocalDate.now().minusDays(1),LocalDate.now().minusDays(40));
-                SqlTest.update(c,"INSERT INTO medicine_batches VALUES(3,'Zero',0,?,?, '')",LocalDate.now().plusDays(4),LocalDate.now());
+                SqlTest.update(c,"INSERT INTO medicine_batches(ordinal,name,quantity,expiry,batch_date,remarks) VALUES(0,'Paracetamol',5,?,?, '')",LocalDate.now().plusDays(10),LocalDate.now());
+                SqlTest.update(c,"INSERT INTO medicine_batches(ordinal,name,quantity,expiry,batch_date,remarks) VALUES(1,'Paracetamol',7,?,?, '')",LocalDate.now().plusDays(20),LocalDate.now());
+                SqlTest.update(c,"INSERT INTO medicine_batches(ordinal,name,quantity,expiry,batch_date,remarks) VALUES(2,'Expired',20,?,?, '')",LocalDate.now().minusDays(1),LocalDate.now().minusDays(40));
+                SqlTest.update(c,"INSERT INTO medicine_batches(ordinal,name,quantity,expiry,batch_date,remarks) VALUES(3,'Zero',0,?,?, '')",LocalDate.now().plusDays(4),LocalDate.now());
                 for(int i=0;i<250;i++)SqlTest.update(c,"INSERT INTO dispensing(id,medicine,patient_id,staff_id,quantity,expiry,remarks,dispensed_at) VALUES(?,?,?,?,?,?,?,?)",
                     "t"+i,i%2==0?"Paracetamol":"Other","p","n",1,LocalDate.now().plusDays(20),"",LocalDateTime.now().minusSeconds(i));
                 return null;
             });
             PageResult<Medicine> meds=clinic.dispensableMedicinePage(0,1000,null);
-            check("SQL medicine grouping/filtering",List.of("Paracetamol:12","Zero:0"),meds.rows().stream().map(m->m.getName()+":"+m.getQuantity()).toList());
-            check("SQL medicine count/page cap",List.of(2,100,0),List.of(meds.total(),meds.size(),meds.page()));
+            check("SQL medicine grouping/filtering",List.of("Expired:0","Paracetamol:12","Zero:0"),meds.rows().stream().map(m->m.getName()+":"+m.getQuantity()).toList());
+            check("SQL medicine count/page cap",List.of(3,100,0),List.of(meds.total(),meds.size(),meds.page()));
             check("SQL medicine partial search",1,clinic.dispensableMedicinePage(0,25,"para").total());
             PageResult<MedicineTransaction> first=clinic.transactionPage(0,25,"P",LocalDateTime.now().minusDays(1),null);
             check("SQL transaction search and date count",25,first.rows().size());

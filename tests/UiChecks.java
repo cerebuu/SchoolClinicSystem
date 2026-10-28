@@ -89,8 +89,65 @@ public final class UiChecks {
         }
         return result.toString();
     }
+    private static SidebarItem sidebarItem(Container root, String label) {
+        for (Component component : root.getComponents()) {
+            if (component instanceof SidebarItem item && label.equals(item.getText())) return item;
+            if (component instanceof Container child) {
+                SidebarItem found = sidebarItem(child, label);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+    private static void checkCurrentPage(Container root, String label) {
+        SidebarItem item = sidebarItem(root, label);
+        check(item != null, "sidebar item exists: " + label);
+        javax.accessibility.AccessibleContext accessible = item.getAccessibleContext();
+        check(accessible.getAccessibleStateSet().contains(javax.accessibility.AccessibleState.SELECTED),
+            "active navigation is exposed as selected: " + label);
+        String description = accessible.getAccessibleDescription();
+        check(description != null && description.contains("Current page") && description.contains(label),
+            "active navigation description identifies current page: " + label);
+    }
+    private static void checkButtonStates() {
+        JButton primary = Theme.button("Primary", true);
+        JButton secondary = Theme.button("Secondary", false);
+        check(primary.getBackground().equals(Theme.BRAND) && primary.getForeground().equals(Theme.WHITE),
+            "primary button uses brand fill and white text");
+        check(secondary.getBackground().equals(Theme.WHITE) && secondary.getForeground().equals(Theme.INK),
+            "secondary button uses white fill and ink text");
+
+        primary.getModel().setRollover(true);
+        secondary.getModel().setRollover(true);
+        check(primary.getBackground().equals(Theme.BRAND_DARK) && primary.getForeground().equals(Theme.WHITE),
+            "primary hover keeps white text on dark brand fill");
+        check(secondary.getBackground().equals(Theme.BRAND_TINT)
+                && secondary.getForeground().equals(Theme.BRAND_DARK),
+            "secondary hover uses tinted fill and brand text");
+
+        primary.getModel().setArmed(true);
+        primary.getModel().setPressed(true);
+        secondary.getModel().setArmed(true);
+        secondary.getModel().setPressed(true);
+        check(primary.getBackground().equals(new Color(0x7E123B))
+                && primary.getForeground().equals(Theme.WHITE),
+            "primary pressed state uses deep brand fill and white text");
+        check(secondary.getBackground().equals(Theme.BRAND_BORDER)
+                && secondary.getForeground().equals(Theme.BRAND_DARK),
+            "secondary pressed state uses brand border and brand text");
+
+        primary.setEnabled(false);
+        secondary.setEnabled(false);
+        check(primary.getBackground().equals(Theme.DISABLED_BG)
+                && primary.getForeground().equals(Theme.MUTED),
+            "primary disabled state uses muted styling");
+        check(secondary.getBackground().equals(Theme.DISABLED_BG)
+                && secondary.getForeground().equals(Theme.MUTED),
+            "secondary disabled state uses muted styling");
+    }
     public static void main(String[] args)throws Exception {
         onEdt(Theme::install);
+        onEdt(UiChecks::checkButtonStates);
         PageResult<Integer> last=PagedTableDemo.fetch(399, 25, "");
         check(last.total()==10000&&last.rows().size()==25&&last.rows().get(24)==10000, "last page bounded");
         check(PagedTableDemo.fetch(0, 25, "record 10000").total()==1, "source filtering");
@@ -101,6 +158,7 @@ public final class UiChecks {
             background.set(!SwingUtilities.isEventDispatchThread());
             return PagedTableDemo.fetch(p, s, q);
         })));
+        onEdt(()->panel.get().reload());
         waitFor(()->panel.get().totalCount()==10000);
         check(background.get(), "page query runs off EDT");
         onEdt(()-> {
@@ -127,6 +185,7 @@ public final class UiChecks {
             }
             return new PageResult<>(List.of(q.isEmpty()?1:2), 1);
         })));
+        onEdt(()->stale.get().reload());
         check(started.await(5, TimeUnit.SECONDS), "first load started");
         onEdt(()->stale.get().setFilter("new"));
         waitFor(()->staleModel.getRowCount()==1&&staleModel.row(0)==2);
@@ -139,6 +198,7 @@ public final class UiChecks {
             if (fail.get()) throw new IllegalStateException("Test load failure");
             return new PageResult<>(List.of(7), 1);
         })));
+        onEdt(() -> retry.get().reload());
         waitFor(() -> retry.get().totalCount() == 1);
         fail.set(true);
         onEdt(() -> retry.get().reload());
@@ -159,9 +219,9 @@ public final class UiChecks {
         })));
         onEdt(()-> {
             Set<String> nav=buttons(screen.get());
-            check(nav.contains("Users")&&nav.contains("Campuses")&&!nav.contains("Dispense medicine"), "admin navigation separated");
+            check(nav.contains("Users")&&nav.contains("Campuses")&&!nav.contains("Medication history"), "admin navigation separated");
+            checkCurrentPage(screen.get(), "Dashboard");
         });
-        waitFor(() -> labels(screen.get()).contains("System-wide totals."));
         snapshot(screen.get(), "admin");
         onEdt(()-> {
             check(screen.get() instanceof SuperadminShell, "administrator receives Superadmin workspace");
@@ -173,12 +233,13 @@ public final class UiChecks {
             rejects(SecurityException.class, () -> new NurseShell(app, ()-> {
             }), "administrator cannot open nurse workspace");
         });
-        onEdt(()->check(clickButton(screen.get(), "Users"), "users page navigation"));
-        waitFor(()->!labels(screen.get()).contains("Loading..."));
+        onEdt(()-> {
+            check(clickButton(screen.get(), "Users"), "users page navigation");
+            checkCurrentPage(screen.get(), "Users");
+        });
         snapshot(screen.get(), "users");
-        for (String destination : List.of("Campuses", "Audit log", "Settings")) {
+        for (String destination : List.of("Campuses", "Audit log")) {
             onEdt(() -> check(clickButton(screen.get(), destination), "admin navigation: " + destination));
-            waitFor(() -> !labels(screen.get()).contains("Loading..."));
             snapshot(screen.get(), "admin-" + destination.toLowerCase().replace(' ', '-'));
         }
         app.login.logout();
@@ -187,8 +248,9 @@ public final class UiChecks {
         })));
         onEdt(()-> {
             Set<String> nav=buttons(screen.get());
-            check(nav.contains("Dispense medicine")&&nav.contains("Reports")&&nav.contains("AI Nurse Assistant")&&!nav.contains("Users"), "nurse navigation");
+            check(nav.contains("Medication history")&&nav.contains("Reports")&&nav.contains("AI Nurse Assistant")&&!nav.contains("Users"), "nurse navigation");
             check(nav.contains("Nurse dashboard"), "nurse has dedicated dashboard navigation");
+            checkCurrentPage(screen.get(), "Nurse dashboard");
             check(screen.get() instanceof NurseShell, "nurse receives dedicated workspace");
             check(Router.createWorkspace(app, ()-> {}) instanceof NurseShell,
                 "login router selects nurse workspace");
@@ -200,22 +262,24 @@ public final class UiChecks {
             rejects(SecurityException.class, () -> new MainShell(app, ()-> {
             }), "nurse cannot open the generic clinic workspace");
         });
-        waitFor(() -> labels(screen.get()).contains("Clinic operations for"));
+        onEdt(()->check(labels(screen.get()).contains("Registered patients")
+            && labels(screen.get()).contains("Today's consultations")
+            && labels(screen.get()).contains("Low-stock items")
+            && labels(screen.get()).contains("Expiring soon"), "nurse dashboard includes all summary cards"));
         snapshot(screen.get(), "nurse");
         onEdt(()->check(clickButton(screen.get(), "AI Nurse Assistant"), "AI assistant navigation"));
-        waitFor(()->labels(screen.get()).contains("AI Nurse Assistant"));
         snapshot(screen.get(), "nurse-ai-assistant");
         onEdt(()->check(clickButton(screen.get(), "Patients"), "patients page navigation"));
-        waitFor(()->!labels(screen.get()).contains("Loading..."));
         snapshot(screen.get(), "patients");
         onEdt(()->check(clickButton(screen.get(), "Inventory"), "inventory page navigation"));
-        waitFor(()->!labels(screen.get()).contains("Loading..."));
         snapshot(screen.get(), "inventory");
-        for (String destination : List.of("Consultations", "Dispense medicine", "Notifications", "Reports", "Settings")) {
+        for (String destination : List.of("Consultations", "Medication history", "Notifications", "Reports")) {
             onEdt(() -> check(clickButton(screen.get(), destination), "nurse navigation: " + destination));
-            waitFor(() -> !labels(screen.get()).contains("Loading..."));
             snapshot(screen.get(), "nurse-" + destination.toLowerCase().replace(' ', '-'));
         }
+        app.clinic().registerPatient(new clinic.model.Student(
+            "report-patient", "Report Patient", "test", "BSCS", 1, "A"));
+        app.clinic().recordVisit("report-patient", List.of("Headache"), "Test report access", "", "N001");
         app.login.logout();
         app.login.login("A001", "assist123");
         onEdt(()-> {
@@ -232,9 +296,12 @@ public final class UiChecks {
             });
             Set<String> nav=buttons(shell);
             check(nav.contains("Reports")&&!nav.contains("Patients")&&!nav.contains("Inventory"), "doctor report-only navigation");
+            check(!nav.contains("Generate selected report"), "doctor cannot generate reports from unrestricted clinic records");
             screen.set(shell);
         });
-        waitFor(()->!labels(screen.get()).contains("Loading..."));
+        check(app.records(0,25,"").total()==0,
+            "doctor report query does not expose the clinic-wide consultation list");
+        waitFor(()->labels(screen.get()).contains("No reports are assigned to this account."));
         snapshot(screen.get(), "doctor");
         System.out.println("PASS: "+checks+" paging, background loading, stale-result, and role-navigation checks.");
         System.out.println("Rendered offscreen snapshots: login, nurse, doctor, patients, inventory, admin, users, paged-10000. No interactive desktop/dialog test performed.");

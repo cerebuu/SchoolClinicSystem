@@ -30,6 +30,31 @@ public final class IconPainter implements Icon {
         g.setColor(color);
         g.setStroke(new BasicStroke(1.7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         switch (name) {
+            case "add" -> {
+                g.drawOval(1, 1, 16, 16);
+                g.drawLine(9, 5, 9, 13);
+                g.drawLine(5, 9, 13, 9);
+            }
+            case "edit" -> {
+                g.rotate(-Math.PI / 4, 9, 9);
+                g.drawRoundRect(7, 1, 4, 13, 2, 2);
+                g.drawLine(7, 15, 11, 15);
+                g.drawLine(7, 17, 11, 17);
+            }
+            case "refresh" -> {
+                g.drawArc(3, 3, 12, 12, 40, 285);
+                g.drawLine(12, 2, 16, 3);
+                g.drawLine(12, 2, 12, 6);
+            }
+            case "cancel", "clear" -> {
+                g.drawOval(1, 1, 16, 16);
+                g.drawLine(6, 6, 12, 12);
+                g.drawLine(12, 6, 6, 12);
+            }
+            case "view" -> {
+                g.drawOval(1, 4, 16, 10);
+                g.fillOval(7, 7, 4, 4);
+            }
             case "dashboard", "admin dashboard", "superadmin dashboard", "nurse dashboard" -> {
                 g.drawRoundRect(2, 2, 6, 6, 2, 2);
                 g.drawRoundRect(10, 2, 6, 6, 2, 2);

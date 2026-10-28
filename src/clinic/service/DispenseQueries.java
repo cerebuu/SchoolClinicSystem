@@ -19,22 +19,35 @@ public final class DispenseQueries {
     }
     public static PageResult<Medicine> medicines(List<Medicine> batches,int page,int size,String query) {
         String q=query(query);
+        LocalDate today=LocalDate.now();
         Map<String,Medicine> grouped=new TreeMap<>();
-        for(Medicine m:batches)if(!m.isExpired()&&m.getName().toLowerCase(Locale.ROOT).contains(q)) {
-            String key=m.getName().toLowerCase(Locale.ROOT);
+        for(Medicine m:batches)if((m.getName()+" "+m.getProduct().atcLabel()).toLowerCase(Locale.ROOT).contains(q)) {
+            String key=m.getProduct().key();
             Medicine old=grouped.get(key);
-            grouped.put(key,new Medicine(old==null?m.getName():old.getName(),
-                Math.addExact(old==null?0:old.getQuantity(),m.getQuantity()),
-                old==null||m.getExpirationDate().isBefore(old.getExpirationDate())?m.getExpirationDate():old.getExpirationDate(),
+            int usable=m.isExpired()?0:m.getQuantity();
+            int oldUsable=old==null?0:old.getQuantity();
+            boolean hasUsable=usable>0,oldHasUsable=oldUsable>0;
+            boolean earlier=old==null||hasUsable&&!oldHasUsable
+                ||hasUsable==oldHasUsable&&m.getExpirationDate().isBefore(old.getExpirationDate());
+            int total=Math.addExact(oldUsable,usable);
+            grouped.put(key,new Medicine(old!=null&&!old.getProduct().atcPrimary().isBlank()?old.getProduct():m.getProduct(),
+                total,
+                earlier?m.getExpirationDate():old.getExpirationDate(),
                 m.getBatchDate(),"Available unexpired stock"));
         }
         return page(new ArrayList<>(grouped.values()),page,size);
     }
     public static PageResult<MedicineTransaction> transactions(Collection<MedicineTransaction> records,int page,int size,
             String query,LocalDateTime from,LocalDateTime to) {
+        return transactions(records,page,size,query,from,to,null);
+    }
+    public static PageResult<MedicineTransaction> transactions(Collection<MedicineTransaction> records,int page,int size,
+            String query,LocalDateTime from,LocalDateTime to,String campusId) {
+        if(page<0)throw new IllegalArgumentException("Invalid page.");
         String q=query(query);
         return page(records.stream().filter(t->(t.getPatientId().toLowerCase(Locale.ROOT).contains(q)
-            ||t.getMedicineName().toLowerCase(Locale.ROOT).contains(q))
+            ||t.getMedicineDisplayName().toLowerCase(Locale.ROOT).contains(q))
+            &&(campusId==null||campusId.equals(t.getCampusId()))
             &&(from==null||!t.getDateTime().isBefore(from))&&(to==null||t.getDateTime().isBefore(to)))
             .sorted(Comparator.comparing(MedicineTransaction::getDateTime).reversed()
                 .thenComparing(MedicineTransaction::getTransactionId)).toList(),page,size);

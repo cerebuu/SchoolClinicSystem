@@ -112,7 +112,7 @@ Prepared October 26, 2026 from the current implementation. Each slide below is a
 ## Slide 11: Technology, Persistence, and Security
 
 **Content:**
-- Java 21 with plain Java Swing/AWT; the project uses javac and Windows CMD/PowerShell launchers, not Maven or Gradle.
+- Java 17+ with plain Java Swing/AWT; the project uses javac and Windows CMD/PowerShell launchers, not Maven or Gradle.
 - Embedded H2 2.5.252 JDBC database; normal startup stores records locally under data/scms unless clinic.database overrides the path.
 - Database file encryption uses H2 AES mode with a separately stored local key file; keep the database and matching key together.
 - Passwords use salted PBKDF2WithHmacSHA256; sign-in tracks failed attempts and temporary lockout. Role checks and audit logging are implemented in services.

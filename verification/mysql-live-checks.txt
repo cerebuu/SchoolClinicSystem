@@ -1,0 +1,10 @@
+Server: MySQL 9.7.1
+PASS: schema 12, patients=70, batches=7, recent visits=4 (unscoped repository).
+PASS: MySQL generated keys, Unicode text, LocalDateTime, DATE, BOOLEAN, CONCAT, casts, LIMIT/OFFSET.
+PASS: unsupported-version/incomplete-schema guards and retryable column/index metadata checks.
+PASS: repository searches/paging, legacy medicine names, account loading; existing base rows/hashes unchanged.
+MANUAL CHECK BLOCKED: N001 has no campus; legacy visits have no campus. Administrator assignment and approved visit backfill are required for nurse-scoped UI access.
+PASS: schema 12, patients=70, batches=7, recent visits=4 (unscoped repository).
+PASS: repository searches/paging, legacy medicine names, account loading; existing base rows/hashes unchanged.
+MANUAL CHECK BLOCKED: N001 has no campus; legacy visits have no campus. Administrator assignment and approved visit backfill are required for nurse-scoped UI access.
+PASS: production application startup selects MySQL without seeding existing tables.

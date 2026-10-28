@@ -12,7 +12,17 @@ public final class GuardianMessageTemplates {
         MEDICINE_GIVEN,
         SENT_HOME,
         FOLLOW_UP_NEEDED,
-        EMERGENCY
+        EMERGENCY;
+
+        public String displayName() {
+            return switch(this) {
+                case CLINIC_VISIT -> "Visit";
+                case MEDICINE_GIVEN -> "Medicine given";
+                case SENT_HOME -> "Sent home";
+                case FOLLOW_UP_NEEDED -> "Follow-up";
+                case EMERGENCY -> "Emergency";
+            };
+        }
     }
 
     private GuardianMessageTemplates() {

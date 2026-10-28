@@ -13,7 +13,9 @@ public final class MedicinePredictionsPanel extends JPanel {
             var rows=medicines.rows().stream().map(m->new MedicinePrediction(m.getName(),m.getQuantity(),clinic.estimateDaysRemaining(m.getName()))).toList();
             return new PageResult<>(rows,medicines.total(),page,size);
         });
+        table.setDashboardViewport(DashboardLayout.VISIBLE_ROWS,DashboardLayout.ROW_HEIGHT);
         table.refreshOn(app.changes,DataTopic.INVENTORY,DataTopic.TRANSACTIONS);
         add(table,BorderLayout.CENTER);
+        DashboardLayout.sizeCard(this);
     }
 }

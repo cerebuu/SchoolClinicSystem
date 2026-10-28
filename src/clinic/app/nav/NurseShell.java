@@ -32,10 +32,10 @@ public final class NurseShell extends JPanel {
             new NavItem("AI Nurse Assistant", true, () -> new AiNurseAssistantPanel(app)),
             new NavItem("Patients", true, () -> new PatientsPanel(app)),
             new NavItem("Consultations", true, () -> new ConsultationsPanel(app)),
-            new NavItem("Dispense medicine", true, () -> new DispensePanel(app)),
+            new NavItem("Medication history", true, () -> new DispensePanel(app)),
             new NavItem("Inventory", true, () -> new InventoryPanel(app)),
             new NavItem("Notifications", true, () -> new NotificationsPanel(app)),
             new NavItem("Reports", true, () -> new ReportsPanel(app))
-        ), logout, user, false), BorderLayout.CENTER);
+        ), logout, user, false,app.campusLabel()), BorderLayout.CENTER);
     }
 }

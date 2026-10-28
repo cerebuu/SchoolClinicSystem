@@ -1,13 +1,13 @@
-package clinic.ai;
+package clinic.util;
 
 import java.util.*;
 
 /** Bounded JSON reader for provider responses. No evaluation, reflection, or lenient recovery. */
-final class Json {
+public final class Json {
     private final String source;
     private int pos;
     private Json(String source) { this.source = source; }
-    static Object parse(String source) {
+    public static Object parse(String source) {
         if (source == null || source.length() > 262144) throw new IllegalArgumentException("Invalid JSON size");
         Json parser = new Json(source);
         Object value = parser.value(0);
@@ -15,7 +15,7 @@ final class Json {
         if (parser.pos != source.length()) throw new IllegalArgumentException("Trailing JSON");
         return value;
     }
-    static String quote(String value) {
+    public static String quote(String value) {
         StringBuilder out = new StringBuilder("\"");
         for (char c : value.toCharArray()) {
             switch (c) {

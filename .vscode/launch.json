@@ -3,6 +3,21 @@
   "configurations": [
     {
       "type": "java",
+      "name": "NurseGUI (Demo, Java 17)",
+      "request": "launch",
+      "mainClass": "clinic.app.NurseGUI",
+      "args": ["--demo"],
+      "projectName": "SchoolClinicSystem"
+    },
+    {
+      "type": "java",
+      "name": "SuperadminGUI",
+      "request": "launch",
+      "mainClass": "clinic.app.SuperadminGUI",
+      "projectName": "SchoolClinicSystem"
+    },
+    {
+      "type": "java",
       "name": "Main",
       "request": "launch",
       "mainClass": "clinic.app.Main",
@@ -13,9 +28,7 @@
       "name": "Run UIC Clinic UI (Demo)",
       "request": "launch",
       "mainClass": "clinic.app.GUI",
-      "args": [
-        "--demo"
-      ],
+      "args": ["--demo"],
       "projectName": "SchoolClinicSystem"
     }
   ]

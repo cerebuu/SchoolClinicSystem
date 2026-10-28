@@ -1,20 +1,20 @@
 package clinic.app.ui.inventory;
 import clinic.model.*;
 import clinic.app.ui.common.PagedTableModel;
-public final class InventoryTableModel extends PagedTableModel<Medicine> {
+public final class InventoryTableModel extends PagedTableModel<InventoryProductRow> {
     @Override public Object key(int index) {
-        return row(index).getBatchId();
+        return row(index).key();
     }
     public InventoryTableModel() {
-        super("Medicine", "Quantity", "Expiry", "Batch date", "Remarks");
+        super("Medicine", "ATC code", "Eligible quantity", "Next expiry", "Batches");
     }
-    protected Object value(Medicine r, int c) {
+    protected Object value(InventoryProductRow r, int c) {
         return switch(c) {
-            case 0 -> r.getName();
-            case 1 -> r.getQuantity();
-            case 2 -> r.getExpirationDate();
-            case 3 -> r.getBatchDate();
-            case 4 -> r.getRemarks();
+            case 0 -> r.product().name();
+            case 1 -> r.product();
+            case 2 -> r.eligibleQuantity()==0?"Out of stock":r.eligibleQuantity();
+            case 3 -> r.nextExpiry()==null?"—":r.nextExpiry();
+            case 4 -> r.batches().size();
             default -> "";
         };
     }

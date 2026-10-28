@@ -1,0 +1,366 @@
+Using installed JDK 17 because JAVA_HOME does not contain a supported JDK.
+Verification output: /var/folders/wp/kx172lmx0q1cyppdq7wbkcd40000gn/T//scms-checks.ifev5U
+Running clinic.app.ui.common.UicLogoChecks
+PASS: 27 UIC logo checks.
+Running clinic.app.ui.common.PatientLookupFieldChecks
+FIELD unknown ID | Patient ID=6767 | Status=No patient with this ID | Save enabled=false | lookup count=1
+FIELD valid student | Patient ID=S-1 | Status=Patient found · Student · Section: CS-2A · Guardian contact: +63 9** *** **67 | Save enabled=true | lookup count=2
+FIELD student without guardian | Patient ID=S-2 | Status=No contact on file. Add one in the patient profile first. | Save enabled=false | lookup count=3
+FIELD employee contact | Patient ID=E-1 | Status=Patient found · Employee · Position: Nurse · Employee contact (own): j***@gmail.com | Save enabled=true | lookup count=4
+FIELD rapid typing | Patient ID=S-1 | Status=Patient found · Student · Section: CS-2A · Guardian contact: +63 9** *** **67 | Save enabled=true | lookup count=1
+FIELD stale result ignored | Patient ID=E-1 | Status=Patient found · Employee · Position: Nurse · Employee contact (own): j***@gmail.com | Save enabled=true | lookup count=2
+FIELD Enter lookup | Patient ID=S-1 | Status=Patient found · Student · Section: CS-2A · Guardian contact: +63 9** *** **67 | Save enabled=true | lookup count=1
+PASS: 9 patient lookup field checks.
+Running clinic.app.ui.notifications.NotificationWorkflowChecks
+FIELD transaction picker | Patient ID=S-1 | choices=[e7fbd9ab-5aa2-479d-a15b-d0f87644ab91 Paracetamol 500mg × 1, 9a15eb70-02a5-41c5-917f-9db8d5cb484f Paracetamol 500mg × 1] | None available=true | medicine-given Save without transaction=false
+FIELD medicine-given saved | Patient ID=S-1 | Transaction ID=e7fbd9ab-5aa2-479d-a15b-d0f87644ab91 | Type=Medicine given | Save enabled=true with selected transaction
+FIELD visit saved | Patient ID=S-1 | Transaction ID=None | Type=Visit | Save enabled=true
+PASS: 11 notification workflow checks.
+Running clinic.core.PasswordFormatChecks
+PASS: 12 password-format checks (current Base64, legacy literal/hex salts, wrong passwords, malformed input). No rehash.
+Running clinic.persistence.JdbcValueChecks
+PASS: H2 generated keys, Unicode text, LocalDateTime, DATE, BOOLEAN, CONCAT, casts, LIMIT/OFFSET.
+PASS: H2 fallback/configuration and JDBC value checks.
+Running MedicineCatalogChecks
+PASS headers mapped by name, blank rows skipped, names deduplicated
+PASS prefix before contains; Philippines first within rank
+PASS case-insensitive ATC search
+PASS missing required header fails clearly
+PASS WHO numeric flag mapped
+PASS Philippines zero mapped to false
+PASS search capped at fifty
+PASS picker rejects unknown free text inline
+PASS shared picker ATC field is read-only
+PASS catalog selection shows both ATC codes
+PASS duplicate matching uses normalized name only
+PASS legacy names retain embedded dosage text
+PASS ATC codes persist with stock
+PASS both ATC codes persist with transaction
+PASS legacy name-only rows load with blank ATC
+PASS legacy storage fields are not shown or misread as ATC
+PASS stock update preserves retired storage columns
+PASS: 17 medicine catalog checks.
+Running DomainChecks
+PASS: 56 domain, authentication, authorization, and integrity checks.
+Running FeatureChecks
+Outbreak: 3 same-section visits in 48h | expected=1 | actual=1
+Outbreak: 2 visits | expected=0 | actual=0
+Outbreak: 3 different sections | expected=0 | actual=0
+Outbreak: employee department | expected=true | actual=true
+Outbreak: student and employee groups separate | expected=0 | actual=0
+Pattern: null input | expected=0 | actual=0
+Pattern: unknown patient | expected=false | actual=false
+Pattern: unknown symptom | expected=0 | actual=0
+Pattern: outside window/future excluded | expected=0 | actual=0
+Recurring: 3 same symptom in 14d | expected=true | actual=true
+Recurring: same reason different symptoms | expected=true | actual=true
+Recurring: unrelated visits | expected=false | actual=false
+Forecast: 30 units / (60 / 30 days) | expected=15.0 | actual=15.0
+Forecast: zero usage | expected=Infinity | actual=Infinity
+Forecast: unknown medicine | expected=IllegalArgumentException | actual=IllegalArgumentException
+Stock: expired excluded | expected=0 | actual=0
+Expiry: usable batches sorted | expected=[Soon, Later] | actual=[Soon, Later]
+Expiry: expired separately reported | expected=true | actual=true
+Forecast: stock unchanged | expected=30 | actual=30
+Low stock: threshold aggregated | expected=true | actual=true
+Recorded allergies require generic confirmation | expected=[Patient has allergies on record. Staff confirmation required.] | actual=[Patient has allergies on record. Staff confirmation required.]
+Safety: expired | expected=true | actual=true
+Safety: out of stock | expected=[Patient has allergies on record. Staff confirmation required., Empty: out of stock] | actual=[Patient has allergies on record. Staff confirmation required., Empty: out of stock]
+Safety: unknown patient | expected=[Patient not found.] | actual=[Patient not found.]
+Safety: unknown medicine | expected=[Patient has allergies on record. Staff confirmation required., Medicine not found: missing] | actual=[Patient has allergies on record. Staff confirmation required., Medicine not found: missing]
+Every medicine requires staff review for recorded allergies | expected=[Patient has allergies on record. Staff confirmation required.] | actual=[Patient has allergies on record. Staff confirmation required.]
+Dispense: allergy without override | expected=IllegalStateException | actual=IllegalStateException
+Dispense: allergy override | expected=1 | actual=1
+Dispense: expired even with override | expected=IllegalStateException | actual=IllegalStateException
+Dispense: out of stock even with override | expected=IllegalStateException | actual=IllegalStateException
+Dispense: expired batch unchanged | expected=8 | actual=8
+Notification: created | expected=PENDING | actual=PENDING
+Notification: dedicated guardian contact | expected=guardian-p | actual=guardian-p
+Notification: free-text clinical details omitted | expected=false | actual=false
+Notification: sent | expected=SENT | actual=SENT
+Notification: repeated SENT | expected=IllegalArgumentException | actual=IllegalArgumentException
+Notification: invalid ID | expected=IllegalArgumentException | actual=IllegalArgumentException
+Notification: unknown patient | expected=IllegalArgumentException | actual=IllegalArgumentException
+Notification: newest first | expected=09b7611e-041d-4e9a-a8f0-b8181982f42c | actual=09b7611e-041d-4e9a-a8f0-b8181982f42c
+Notification: detached status | expected=PENDING | actual=PENDING
+Notification: missing guardian (null) | expected=No guardian contact on file | actual=No guardian contact on file
+Notification: missing guardian (blank) | expected=No guardian contact on file | actual=No guardian contact on file
+Notification: employee own contact | expected=true | actual=true
+Formatter: MedicalRecord | expected=true | actual=true
+Formatter: MedicineTransaction | expected=true | actual=true
+Formatter: Alert | expected=true | actual=true
+Formatter: arbitrary Formattable | expected=true | actual=true
+Formatter: null | expected=IllegalArgumentException | actual=IllegalArgumentException
+Alerts: all four feature types | expected=[RECURRING_VISIT, OUTBREAK, EXPIRING, LOW_STOCK] | actual=[EXPIRING, RECURRING_VISIT, LOW_STOCK, OUTBREAK]
+Alerts: newest first | expected=true | actual=true
+Alerts: no patient names or clinical free text | expected=false | actual=false
+Patient: copy preserves guardian contact | expected=guardian-p | actual=guardian-p
+Patient: old constructor defaults null | expected=null | actual=null
+PASS: 53 feature checks.
+Running DispenseChecks
+dropdown source includes live names and zero stock | expected=[Ibuprofen:12, Paracetamol:20, Zero:0] | actual=[Ibuprofen:12, Paracetamol:20, Zero:0]
+expired medicine hidden | expected=false | actual=false
+out-of-stock item is present for disabled choice | expected=0 | actual=0
+page size capped | expected=100 | actual=100
+page metadata and count | expected=[0, 100, 3] | actual=[0, 100, 3]
+case-insensitive partial query | expected=[Paracetamol] | actual=[Paracetamol]
+merge same medicine rows | expected=[Paracetamol x 5] | actual=[Paracetamol x 5]
+dispense four one row | expected=1 | actual=1
+recorded transaction 4 units | expected=4 | actual=4
+two medicines dispense | expected=2 | actual=2
+one combined warning set | expected=1 | actual=1
+cancel dispenses nothing | expected=3 | actual=3
+override dispenses both | expected=2 | actual=2
+second-row shortage dispenses none | expected=0 | actual=0
+second-row shortage names medicine | expected=true | actual=true
+second-row shortage leaves data unchanged | expected=5 | actual=5
+override cannot dispense expired | expected=true | actual=true
+partial failure reports one done | expected=1 | actual=1
+partial failure reports one remaining | expected=1 | actual=1
+partial audit action and user | expected=[dispense partially completed, nurse-id] | actual=[dispense partially completed, nurse-id]
+partial audit counts only | expected=true | actual=true
+partial audit details | expected=true | actual=true
+10,000 transactions filtered and paged | expected=[25, 1100] | actual=[25, 1100]
+transactions newest first | expected=true | actual=true
+out-of-range page empty | expected=0 | actual=0
+10,000-row filtered query ms: 40
+Running PersistentDispenseChecks
+SQL medicine grouping/filtering | expected=[Paracetamol:12, Zero:0] | actual=[Paracetamol:12, Zero:0]
+SQL medicine count/page cap | expected=[2, 100, 0] | actual=[2, 100, 0]
+SQL medicine partial search | expected=1 | actual=1
+SQL transaction search and date count | expected=25 | actual=25
+SQL transaction page cap and metadata | expected=[100, 0] | actual=[100, 0]
+SQL transactions newest first | expected=true | actual=true
+SQL out-of-range page | expected=[0, 250, 500, 25] | actual=[0, 250, 500, 25]
+PASS: persistent dispense query checks.
+Running GuardianPersistenceChecks
+Migration: old guardian defaults null | expected=null | actual=null
+Migration: own contact preserved | expected=own-contact | actual=own-contact
+Persistence: guardian saved | expected=guardian-separate | actual=guardian-separate
+Reopen: guardian retained | expected=guardian-separate | actual=guardian-separate
+Reopen: patient own contact separate | expected=student-own | actual=student-own
+Reopen: old guardian still null | expected=null | actual=null
+Reopen: notification recipient retained | expected=guardian-separate | actual=guardian-separate
+Reopen: notification SENT retained | expected=SENT | actual=SENT
+Reopen: same notification | expected=af861b2b-3988-4b16-8ab4-ef079ac472f6 | actual=af861b2b-3988-4b16-8ab4-ef079ac472f6
+Reopen: employee contact labeled | expected=true | actual=true
+Reopen: clinical reason excluded | expected=false | actual=false
+Reopen: emergency supports no transaction | expected=null | actual=null
+Reopen: emergency type retained | expected=EMERGENCY | actual=EMERGENCY
+Reopen: failed status retained | expected=FAILED | actual=FAILED
+Reopen: channel retained | expected=SMS | actual=SMS
+Reopen: attempt count retained | expected=1 | actual=1
+Reopen: attempt time retained | expected=2026-10-28T21:28:04.052122 | actual=2026-10-28T21:28:04.052122
+Reopen: emergency id retained | expected=18fe1607-b466-4720-be51-08c3a4b11b59 | actual=18fe1607-b466-4720-be51-08c3a4b11b59
+PASS: 18 guardian persistence and migration checks.
+Running NotifierChecks
+Saved email and phone allow channel switching | expected=[EMAIL, SMS] | actual=[EMAIL, SMS]
+MASKED EMAIL | g***@gmail.com
+EMAIL PREVIEW | School Clinic: Demo email was given Demo medicine on 2026-10-28 21:29. Contact: the school clinic
+OUTBOX [SIMULATED] channel=EMAIL | recipient=g***@gmail.com | SUCCESS
+Student guardian email status | expected=SENT | actual=SENT
+Student guardian email sent | PASS
+Philippine mobile normalization | expected=+639171234567 | actual=+639171234567
+MASKED SMS | +63 9** *** **67
+SMS PREVIEW | School Clinic: Demo phone was given Demo medicine on 2026-10-28 21:29. Contact: the school clinic
+OUTBOX [SIMULATED] channel=SMS | recipient=***67 | SUCCESS
+SMS body characters <= 160 | expected=true | actual=true
+Student guardian SMS sent | PASS
+Employee uses own contact | expected=employee.contact@private.test | actual=employee.contact@private.test
+Employee contact is labeled | PASS
+OUTBOX [SIMULATED] channel=EMAIL | recipient=e***@private.test | SUCCESS
+Employee email sent | PASS
+No guardian fallback to student's own contact | PASS
+Missing guardian status unchanged | expected=PENDING | actual=PENDING
+Invalid saved contact returns clear error | PASS
+Invalid contact status unchanged | expected=PENDING | actual=PENDING
+First provider failure | expected=false | actual=false
+First failure persisted | expected=FAILED | actual=FAILED
+Cooldown refuses immediate retry | PASS
+Retry after cooldown reaches provider | expected=false | actual=false
+Third failure persisted | expected=false | actual=false
+Fourth attempt blocked | PASS
+Maximum provider calls | expected=3 | actual=3
+OUTBOX [SIMULATED] channel=EMAIL | recipient=g***@gmail.com | SUCCESS
+Emergency notice sends in simulated mode | PASS
+EMERGENCY CONFIRMATION | UI requires the confirmation checkbox; not exercised in this headless run.
+OUTBOX [SIMULATED] channel=SMS | recipient=***67 | SUCCESS
+Nurse assistant can send | PASS
+DOCTOR cannot send | PASS
+ADMIN cannot send | PASS
+LIVE without settings fails safely | PASS
+LIVE CONFIG | LIVE email settings are incomplete.
+Audit includes channel and notification ID | PASS
+Failed send audit is redacted | PASS
+Audit excludes contacts and patient names | PASS
+Notification audit excludes message content | PASS
+OUTBOX [SIMULATED] channel=EMAIL | recipient=r***@example.test | SUCCESS
+Notifications table refreshes after send | expected=true | actual=true
+OUTBOX [SIMULATED] channel=EMAIL | recipient=r***@example.test | SUCCESS
+Notifications table refreshes after every send | expected=true | actual=true
+SMS truncation has a clear 160-character rule | PASS
+SIMULATED OUTBOX ENTRIES | 7
+PASS: 32 notifier checks.
+Running clinic.notify.SmsSenderChecks
+PASS: 14 SMS provider response checks.
+Running UiChecks
+PASS: 54 paging, background loading, stale-result, and role-navigation checks.
+Rendered offscreen snapshots: login, nurse, doctor, patients, inventory, admin, users, paged-10000. No interactive desktop/dialog test performed.
+Running RowActionUiChecks
+PASS: 13 row action UI checks.
+Running DashboardConsultationChecks
+PASS recent visits: newest first; page sizes 25 and 15; filtering before paging.
+PASS permissions: assistant sees own visits only; doctor and administrator reads/writes denied.
+Running ConsultationAdministrationChecks
+PASS: memory visit stores trusted campus
+PASS: medicine transaction links to consultation
+PASS: duplicate products merge and allocate across batches
+PASS: FEFO allocation is ordered by expiry
+PASS: memory transaction stores trusted campus
+PASS: different medicine names retain separate stock
+PASS: insufficient stock rejects composite operation (IllegalStateException)
+PASS: failed composite operation leaves visits and transactions unchanged
+PASS: unassigned clinical user is blocked (SecurityException)
+PASS: consultation without medicines saves without an administration
+PASS: one consultation deducts each distinct medicine independently
+PASS: all administrations link to the same consultation
+PASS: a shortage in the second medicine rejects the entire consultation (IllegalStateException)
+PASS: second-medicine shortage preserves both stocks and consultation count
+PASS: persistent visit and transaction store assigned campus
+PASS: persistent consultation link and batch allocation save
+PASS: campus attribution survives restart
+PASS: consultation link and allocated quantities survive restart
+PASS: FEFO stock decrement survives restart
+PASS: failure saving the second administration rolls back the transaction (StorageException)
+PASS: database rollback removes the new visit and both administrations
+PASS: database rollback restores both medicine stock deductions
+PASS: retry after rollback saves both linked medicine administrations
+PASS: 23 consultation administration checks.
+Running VisitSearchDemo
+Showing visits this week (Oct 26 - Nov 1)
+SEARCH 'Cruz' / This week: 2 visits
+  2022-001 | Ana Cruz | 2026-10-28 21:29
+  2022-001 | Ana Cruz | 2026-10-26 00:00
+SEARCH '2022' / This week: 3 visits
+  2022-001 | Ana Cruz | 2026-10-28 21:29
+  2022-002 | Juan Mendoza | 2026-10-28 21:29
+  2022-001 | Ana Cruz | 2026-10-26 00:00
+SEARCH 'xyz' / This week: 0 visits
+SEARCH 'Cruz' / All: 3 visits
+  2022-001 | Ana Cruz | 2026-10-28 21:29
+  2022-001 | Ana Cruz | 2026-10-26 00:00
+  2020-003 | Pedro Cruz | 2026-09-28 21:29
+PASS: 10,004 stored visits; pages retain at most 25 rows; name/ID/date filters precede paging.
+PASS: Monday boundary, Today/All scopes, no results, future exclusion, and search audit privacy.
+Running PersistenceChecks
+PASS: 49 persistence, restart, foreign-key, transaction rollback, and authorization checks.
+Isolated database evidence: verification/persistence-db-1073204696086052992/clinic
+Running PatientEditChecks
+Patient edit checks passed: 21
+Running AuditRepositoryChecks
+PASS: 389 SQL audit page, filter, ordering, and summary checks.
+Running InventoryAuditChecks
+Inventory audit checks passed: 4
+Running ClinicalAuditChecks
+PASS: successful visit emits exactly one success event
+PASS: visit success identifies its record and symptom count
+PASS: visit success carries trusted campus
+PASS: visit success audit excludes patient identifiers and clinical free text
+PASS: failed visit is rejected
+PASS: failed visit adds no completed mutation event
+PASS: successful dispense emits exactly one success event
+PASS: dispense success identifies transaction and quantity
+PASS: dispense success carries trusted campus
+PASS: dispense success audit excludes patient identifiers and clinical free text
+PASS: insufficient-stock dispense is rejected
+PASS: failed dispense adds no completed mutation event
+PASS: successful combined workflow emits one completion event
+PASS: combined workflow audit records counts only
+PASS: combined workflow carries trusted campus
+PASS: combined workflow audit excludes patient identifiers and clinical free text
+PASS: search records only returns current campus
+PASS: C2 search returns C2 visits
+PASS: recurring-visit detection excludes other campus visits
+PASS: recurring-visit detection sees current campus visits
+PASS: outbreak detection excludes other campus visits
+PASS: outbreak detection counts current campus visits
+PASS: aggregate alerts scope clinical visits to campus
+PASS: aggregate alerts retain shared inventory warnings
+PASS: failed combined workflow is rejected
+PASS: failed combined workflow records no visit
+PASS: failed combined workflow records no dispense
+PASS: failed combined workflow adds no completion event
+PASS: dispense permission denial remains enforced
+PASS: permission denial remains auditable
+PASS: 30 clinical audit checks.
+Running CampusQueryChecks
+Campus query checks passed: 48
+Running MedicationHistoryChecks
+Medication history checks passed: 41
+Running ConcurrentDispenseChecks
+PASS: 8 concurrent dispensing and consultation integrity checks.
+Running AuthenticationAuditChecks
+PASS: 50 authentication audit checks.
+Running NotificationCampusChecks
+PASS: new memory notification records actor campus
+PASS: second memory notification records its own campus
+PASS: C1 notification page excludes C2 and null legacy rows
+PASS: C2 patient notification lookup is scoped
+PASS: unscoped legacy notification remains stored
+PASS: C1 cannot manually mark C2 notification sent
+PASS: C1 cannot start a C2 send attempt
+PASS: cross-campus attempt leaves C2 retry state unchanged
+PASS: C1 cannot complete a C2 send attempt
+PASS: rejected cross-campus completion leaves notification pending
+PASS: clinical campus cannot mutate legacy null-campus notification
+PASS: C1 persistent notification is tagged
+PASS: C2 persistent notification is tagged
+PASS: C2 listing sees only its own notification
+PASS: C1 listing hides C2 notification
+PASS: C1 patient lookup hides C2 notification
+PASS: persistent C1 cannot update C2 notification
+PASS: persistent C1 cannot begin C2 send
+PASS: Notifier rejects C2 notification from C1
+PASS: rejected send does not alter C2 retry state
+PASS: same-campus send still succeeds
+PASS: successful send attempt survives through current session
+PASS: successful send keeps selected channel
+PASS: recipient contact remains available to the sender
+PASS: C1 page after restart contains its assigned notification only
+PASS: campus survives restart
+PASS: successful status survives restart
+PASS: attempt count survives restart
+PASS: attempt channel survives restart
+PASS: legacy null-campus row cannot be mutated by C1 after restart
+PASS: Notifier hides legacy null-campus row
+PASS: C2 page after restart contains its assigned notification
+PASS: legacy campus remains null
+PASS: legacy notification state remains intact
+PASS: legacy attempt count remains intact
+PASS: 35 notification campus checks.
+Running BackendWorkflowRegressionChecks
+PASS: 37 backend workflow regressions.
+Running SecurityMutationChecks
+PASS: 58 security mutation checks.
+Running NurseCampusAssignmentChecks
+PASS: 15 nurse campus assignment checks.
+Running MedicineSelectionUiChecks
+PASS: 10 medicine selection UI checks.
+Running clinic.app.ui.consultations.ConsultationMedicineUiChecks
+PASS: untouched empty row is ignored and does not block Save
+FORM untouched row | selected=None | quantity=1 | rows=1 | medicines=[]
+PASS: dropdown shows full medicine name and current stock
+LAYOUT 1000x700 window | panel=468x220 | dropdown=java.awt.Rectangle[x=0,y=0,width=450,height=42] quantity=java.awt.Rectangle[x=35,y=0,width=70,height=42] Remove=java.awt.Rectangle[x=364,y=0,width=82,height=42] | all visible=true
+PASS: 1000x700 window keeps dropdown, quantity, and Remove visible
+LAYOUT small window | panel=312x240 | dropdown=java.awt.Rectangle[x=0,y=0,width=294,height=42] quantity=java.awt.Rectangle[x=35,y=0,width=70,height=42] Remove=java.awt.Rectangle[x=208,y=0,width=82,height=42] | all visible=true
+PASS: small window keeps dropdown, quantity, and Remove visible
+INFO medicine selection and quantity entry are exercised by native DesktopChecks.
+PASS: quantity without medicine shows inline error under its row
+FORM quantity without medicine | quantity=2 | inline=[Choose a medicine from the list or remove this row.] | Save permitted=false
+PASS: 5 consultation medicine UI checks.
+Running clinic.app.ui.common.ActionsSessionChecks
+PASS: 6 async session ownership checks.
+Running clinic.ai.AiChecks
+PASS: 76 AI parsing, simulated HTTP, privacy-error, and session checks (no live provider call).
+Running clinic.ai.AiConfigChecks
+PASS: 22 lookup, malformed-config, Swing error, disabled-send, and consent checks; no network calls.

@@ -1,6 +1,7 @@
 package clinic.ai;
 
 import clinic.app.ApplicationContext;
+import clinic.util.Json;
 import java.net.*;
 import java.net.http.*;
 import java.time.Duration;
@@ -44,6 +45,29 @@ public final class AiChecks {
             rejects(AiServiceException.class,()->service.ask("x".repeat(3501)));
             rejects(AiServiceException.class,()->service.ask("contact@example.org"));
             check(client.calls==before);
+            rejectsCredential(service,client,"Please help with password=synthetic-password-42","synthetic-password-42");
+            rejectsCredential(service,client,"API key: synthetic-api-key-42","synthetic-api-key-42");
+            rejectsCredential(service,client,"secret='synthetic-secret-42'","synthetic-secret-42");
+            rejectsCredential(service,client,"token: synthetic-token-42","synthetic-token-42");
+            rejectsCredential(service,client,"authorization=synthetic-authorization-42","synthetic-authorization-42");
+            rejectsCredential(service,client,"AWS_SECRET_ACCESS_KEY=synthetic-aws-secret-42","synthetic-aws-secret-42");
+            rejectsCredential(service,client,"PRIVATE_KEY='synthetic-private-key-42'","synthetic-private-key-42");
+            rejectsCredential(service,client,"GEMINI_API_KEY=synthetic-gemini-key-42","synthetic-gemini-key-42");
+            rejectsCredential(service,client,"-----BEGIN PRIVATE KEY-----\nsynthetic-key-data",
+                "-----BEGIN PRIVATE KEY-----");
+            rejectsCredential(service,client,"Authorization: Bearer synthetic-bearer-token-42","synthetic-bearer-token-42");
+            rejectsCredential(service,client,"Bearer synthetic-bearer-token-42","synthetic-bearer-token-42");
+            String basicValue=java.util.Base64.getEncoder().encodeToString(
+                "synthetic-user:synthetic-password".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            rejectsCredential(service,client,"Authorization: Basic "+basicValue,basicValue);
+            rejectsCredential(service,client,"AIza1234567890123456789012345678901234","AIza1234567890123456789012345678901234");
+            rejectsCredential(service,client,"sk-12345678901234567890123456789012","sk-12345678901234567890123456789012");
+            check(service.ask("How do I reset my password?").equals("Hello ☺ nurse"));
+            check(service.ask("What is an API key used for?").equals("Hello ☺ nurse"));
+            check(service.ask("Explain bearer authentication in general terms.").equals("Hello ☺ nurse"));
+            check(service.ask("What does an Authorization: Bearer header mean?").equals("Hello ☺ nurse"));
+            check(service.ask("What does Basic authentication mean?").equals("Hello ☺ nurse"));
+            check(service.ask("What does an Authorization: Basic header mean?").equals("Hello ☺ nurse"));
             for(int code:List.of(400,401,403,404,429,500)) {
                 client.status=code;client.body="{\"error\":{\"message\":\"fixture-secret private patient text\"}}";
                 try { service.ask("General question");throw new AssertionError(); }
@@ -61,6 +85,15 @@ public final class AiChecks {
             rejects(SecurityException.class,()->newSession.ask("General question"));
         }
         System.out.println("PASS: "+checks+" AI parsing, simulated HTTP, privacy-error, and session checks (no live provider call).");
+    }
+    private static void rejectsCredential(GeminiAiService service,FakeClient client,String question,String secret) throws Exception {
+        int calls=client.calls;
+        try { service.ask(question); throw new AssertionError("Credential-like question should be blocked."); }
+        catch(AiServiceException error) {
+            check(error.getMessage().contains("Remove passwords, API keys, secrets, tokens"));
+            check(!error.getMessage().contains(secret));
+        }
+        check(client.calls==calls);
     }
     private static final class FakeClient extends HttpClient {
         int status=200,calls; String body=OK; HttpRequest last; java.io.IOException failure; Runnable duringSend=()->{};

@@ -6,7 +6,6 @@ import clinic.app.ui.common.*;
 import clinic.app.ui.common.popup.MessagePopup;
 import clinic.model.User;
 import java.awt.BorderLayout;
-import java.awt.GridLayout;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import javax.swing.*;
@@ -14,30 +13,28 @@ import javax.swing.*;
 public final class DashboardPanel extends BasePanel {
     private int generation;
     public DashboardPanel(ApplicationContext app) {
-        super("Clinic dashboard", "Clinic records");
+        super("Clinic dashboard", app);
         boolean canRecord = app.current().canAccess(User.RECORD_TRANSACTION);
         KpiCard patients = new KpiCard("Registered patients:", "—", "Loading clinic totals");
         KpiCard visits = new KpiCard("Consultations today", "—", "Today");
         KpiCard lowStock = new KpiCard("Low stock", "—", "Inventory watch");
         KpiCard expiring = new KpiCard("Expiring soon", "—", "Within 30 days");
-        JPanel metrics = new JPanel(new GridLayout(1, 4, Theme.SPACE_3, 0));
-        metrics.setOpaque(false);
+        ResponsiveKpiGrid metrics = new ResponsiveKpiGrid();
         JLabel loading = new JLabel("Loading clinic summary…");
         loading.setForeground(Theme.MUTED);
         metrics.add(loading);
-        JPanel content = new JPanel(new BorderLayout(Theme.SPACE_4, Theme.SPACE_4));
-        content.setOpaque(false);
-        content.add(metrics, BorderLayout.NORTH);
+        DashboardContentPanel content = new DashboardContentPanel();
+        content.addSection(metrics);
         if (canRecord) {
-            RecentVisitsPanel recent=new RecentVisitsPanel(app, () -> {});
+            RecentVisitsPanel recent = new RecentVisitsPanel(app, () -> {});
+            content.addSection(recent);
             if(app.current().canAccess(User.VIEW_STOCK)) {
-                JSplitPane dashboardTables=new JSplitPane(JSplitPane.VERTICAL_SPLIT,recent,new MedicinePredictionsPanel(app));
-                dashboardTables.setResizeWeight(0.6);content.add(dashboardTables,BorderLayout.CENTER);
-            } else content.add(recent, BorderLayout.CENTER);
+                content.addSection(new MedicinePredictionsPanel(app));
+            }
         }
-        else content.add(new EmptyState("Clinic summary unavailable",
-            "This account does not have permission to view clinic totals."), BorderLayout.CENTER);
-        add(content, BorderLayout.CENTER);
+        else content.addSection(new EmptyState("Clinic summary unavailable",
+            "This account does not have permission to view clinic totals."));
+        add(DashboardLayout.scrollPage(content), BorderLayout.CENTER);
         if (canRecord) {
             onRefresh(() -> load(app, patients, visits, lowStock, expiring, metrics, loading));
             action("Refresh", () -> load(app, patients, visits, lowStock, expiring, metrics, loading));
@@ -46,7 +43,7 @@ public final class DashboardPanel extends BasePanel {
     }
 
     private void load(ApplicationContext app, KpiCard patients, KpiCard visits,
-                      KpiCard lowStock, KpiCard expiring, JPanel metrics, JLabel loading) {
+                      KpiCard lowStock, KpiCard expiring, ResponsiveKpiGrid metrics, JLabel loading) {
         int request = ++generation;
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime dayStart = LocalDate.now().atStartOfDay();

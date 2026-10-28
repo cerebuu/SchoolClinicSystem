@@ -1,0 +1,14 @@
+# Copy to notifier.properties to configure. SIMULATED is offline and costs nothing.
+mode=SIMULATED
+
+# LIVE email uses an app password, never an account password.
+email.smtp.host=
+email.smtp.port=587
+email.username=
+email.appPassword=
+email.from=
+
+# LIVE SMS uses Semaphore's HTTP API. Provider credentials are never logged.
+sms.endpoint=https://api.semaphore.co/api/v4/messages
+sms.apiKey=
+sms.senderName=

@@ -38,6 +38,7 @@ public final class RecentVisitsPanel extends Card {
                     clinic.findPatient(visit.getPatientId()).orElse(null))).toList();
                 return new PageResult<>(rows, visits.total());
             }, "Search name or ID number", false);
+        table.setDashboardViewport(DashboardLayout.VISIBLE_ROWS, DashboardLayout.ROW_HEIGHT);
         table.setEmptyMessage(query -> period.emptyMessage(query));
         table.refreshOn(app.changes,clinic.app.DataTopic.VISITS,clinic.app.DataTopic.PATIENTS);
         add(table, BorderLayout.CENTER);
@@ -73,5 +74,6 @@ public final class RecentVisitsPanel extends Card {
         create.addActionListener(event -> NewConsultationForm.open(this, app, () -> {
         }));
         titleRow.add(create, BorderLayout.EAST);
+        DashboardLayout.sizeCard(this);
     }
 }

@@ -11,6 +11,7 @@ import clinic.service.AuditLog;
 // This class is responsible for checking user IDs and passwords and tracking who is logged in.
 public class Login {
 
+    public static final int MIN_PASSWORD_CODE_POINTS=8;
     private static final int MAX_FAILED_ATTEMPTS = 3;
     private static final long LOCK_MILLIS = 60_000L;
     private final Map<String, User> users = new HashMap<>();
@@ -29,7 +30,7 @@ public class Login {
         this(audit, System::currentTimeMillis);
         this.repository = repository;
         for (var account : repository.load()) {
-            users.put(account.user().getUserId(), account.user());
+            users.put(account.user().getUserId(), account.user().immutableCopy());
             passwords.put(account.user().getUserId(), account.hash());
             if (!account.active()) inactive.add(account.user().getUserId());
             if(account.failures()>0) failedAttempts.put(account.user().getUserId(),account.failures());
@@ -59,9 +60,17 @@ public class Login {
 
     /** Register a user with a password. Throws if the ID is already taken. */
     public synchronized void addUser(User user, String password) {
+        addUser(user,password,auditLog,()->{});
+    }
+
+    /** Stage the account cache until the durable write and its completion audit both commit. */
+    public synchronized void addUser(User user,String password,AuditLog transactionAudit,Runnable completed) {
+        java.util.Objects.requireNonNull(completed);
         if (user == null || password == null || password.isBlank()) {
             throw new IllegalArgumentException("User and password are required.");
         }
+        if(!passwordMeetsMinimum(password))
+            throw new IllegalArgumentException("Password must contain at least "+MIN_PASSWORD_CODE_POINTS+" characters.");
         if (!users.isEmpty()) requireAdmin();
         else if (!(user instanceof Administrator)) throw new SecurityException("Create an administrator first.");
         if (users.containsKey(user.getUserId())) {
@@ -69,10 +78,15 @@ public class Login {
         }
         clinic.util.Validation.required(user.getUserId(), "User ID");
         clinic.util.Validation.required(user.getName(), "Name");
+        validateNurseCampus(user);
         String userId = user.getUserId();
         String hashed = PasswordHasher.hash(password);
-        if (repository != null) repository.insert(user, hashed);
-        users.put(userId, user);
+        User stored=user.immutableCopy();
+        commitAccount(transactionAudit,()->{
+            if (repository != null) repository.insert(stored, hashed);
+            completed.run();
+        });
+        users.put(userId, stored);
         passwords.put(userId, hashed);
     }
 
@@ -119,9 +133,14 @@ public class Login {
     }
 
     public synchronized void logout() {
+        User endingSession=currentUser;
         sessionChanged.run();
         currentUser = null;
         sessionVersion++;
+        if(endingSession!=null&&auditLog!=null) {
+            auditLog.record(java.time.LocalDateTime.now(),endingSession.getUserId(),endingSession.getName(),
+                endingSession.getRole(),"logout","SESSION_ENDED",true,endingSession.getCampusId());
+        }
     }
 
     public synchronized long getSessionVersion() { return sessionVersion; }
@@ -143,9 +162,15 @@ public class Login {
         Login login = new Login(auditLog);
         login.addUser(new Administrator("AD001", "Admin Cy"), "admin123");
         login.login("AD001", "admin123");
-        login.addUser(new SchoolNurse("N001", "Nurse Ann"), "nurse123");
-        login.addUser(new NurseAssistant("A001", "Assistant Bo"), "assist123");
-        login.addUser(new Doctor("D001", "Dr. Di", "Pediatrics"), "doctor123");
+        SchoolNurse nurse=new SchoolNurse("N001","Nurse Ann");
+        nurse.setCampusId("uic-bajada");
+        login.addUser(nurse,"nurse123");
+        NurseAssistant assistant=new NurseAssistant("A001","Assistant Bo");
+        assistant.setCampusId("C1");
+        login.addUser(assistant,"assist123");
+        Doctor doctor=new Doctor("D001","Dr. Di","Pediatrics");
+        doctor.setCampusId("C1");
+        login.addUser(doctor,"doctor123");
         login.logout();
         return login;
     }
@@ -163,14 +188,61 @@ public class Login {
                 || u.getName().toLowerCase(java.util.Locale.ROOT).contains(query));
     }
     public synchronized boolean isActive(String id) { requireAdmin(); return !inactive.contains(id); }
+    /** Read an account for an authorized administrator workflow. Returned users are immutable snapshots. */
+    public synchronized Optional<User> findUser(String id) {
+        requireAdmin();
+        return Optional.ofNullable(users.get(id));
+    }
     public synchronized void updateUser(User replacement, boolean active) {
+        updateUser(replacement,active,auditLog,()->{});
+    }
+
+    /** Completion runs inside the durable unit; the cached identity changes only after commit. */
+    public synchronized void updateUser(User replacement,boolean active,AuditLog transactionAudit,Runnable completed) {
+        java.util.Objects.requireNonNull(completed);
         requireAdmin();
         if (!users.containsKey(replacement.getUserId())) throw new IllegalArgumentException("User not found.");
         if (currentUser.getUserId().equals(replacement.getUserId()))
             throw new IllegalArgumentException("Use another administrator to change your account.");
-        if (repository != null) repository.update(replacement, active);
-        users.put(replacement.getUserId(), replacement);
+        validateNurseCampus(replacement);
+        User stored=replacement.immutableCopy();
+        commitAccount(transactionAudit,()->{
+            if (repository != null) repository.update(stored, active);
+            completed.run();
+        });
+        users.put(replacement.getUserId(), stored);
         if (active) inactive.remove(replacement.getUserId()); else inactive.add(replacement.getUserId());
+    }
+    /** Cache changes only after the durable password reset and completion audit commit. */
+    public synchronized void resetStaffPassword(String id,String password,AuditLog transactionAudit,Runnable completed) {
+        requireAdmin();
+        User target=users.get(id);
+        if(target==null)throw new IllegalArgumentException("User not found.");
+        if(!java.util.Set.of(User.NURSE,User.DOCTOR,User.ASSISTANT).contains(target.getRole()))
+            throw new IllegalArgumentException("Password reset is available for nurses, doctors, and assistants.");
+        if(!passwordMeetsMinimum(password))throw new IllegalArgumentException("Password must contain at least eight characters.");
+        String hash=PasswordHasher.hash(password);
+        commitAccount(transactionAudit,()->{
+            if(repository!=null)repository.resetPassword(id,hash);
+            completed.run();
+        });
+        passwords.put(id,hash);
+        failedAttempts.remove(id);
+        lockedUntil.remove(id);
+    }
+    private static void validateNurseCampus(User user) {
+        if(User.NURSE.equals(user.getRole())&&NurseCampus.forId(user.getCampusId()).isEmpty())
+            throw new IllegalArgumentException("Assign the nurse to UIC - Bajada, UIC - Annex, or UIC - Main.");
+    }
+    public static boolean passwordMeetsMinimum(String password) {
+        return password!=null&&password.codePointCount(0,password.length())>=MIN_PASSWORD_CODE_POINTS;
+    }
+    private void commitAccount(AuditLog transactionAudit,Runnable work) {
+        Supplier<Void> mutation=()->{work.run();return null;};
+        // Keep audit-before-database lock order, also used by audit reads and clinical mutations.
+        if(transactionAudit!=null)transactionAudit.unitOfWork(mutation);
+        else if(repository!=null)repository.unitOfWork(mutation);
+        else work.run();
     }
     private void requireAdmin() {
         if (currentUser == null || !User.ADMIN.equals(currentUser.getRole()))
@@ -185,6 +257,6 @@ public class Login {
         String name = knownUser ? user.getName() : "unknown";
         String role = knownUser ? user.getRole() : "unknown";
         auditLog.record(java.time.LocalDateTime.now(), auditUserId, name, role,
-                "login", result, "SUCCESS".equals(result));
+                "login", result, "SUCCESS".equals(result),knownUser?user.getCampusId():null);
     }
 }
