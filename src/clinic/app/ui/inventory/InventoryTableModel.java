@@ -12,7 +12,7 @@ public final class InventoryTableModel extends PagedTableModel<InventoryProductR
         return switch(c) {
             case 0 -> r.product().name();
             case 1 -> r.product();
-            case 2 -> r.eligibleQuantity();
+            case 2 -> r.eligibleQuantity()==0?"Out of stock":r.eligibleQuantity();
             case 3 -> r.nextExpiry()==null?"—":r.nextExpiry();
             case 4 -> r.batches().size();
             default -> "";

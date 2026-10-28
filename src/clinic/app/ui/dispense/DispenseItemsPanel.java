@@ -4,6 +4,7 @@ import clinic.app.ApplicationContext;
 import clinic.app.Theme;
 import clinic.app.ui.common.popup.MessagePopup;
 import clinic.app.ui.common.popup.FormValueComponent;
+import clinic.model.Patient;
 import clinic.service.DispenseItem;
 import clinic.service.DispenseWorkflow;
 import java.awt.BorderLayout;
@@ -16,6 +17,7 @@ import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.ScrollPaneConstants;
 
 public final class DispenseItemsPanel extends JPanel implements FormValueComponent {
@@ -24,6 +26,8 @@ public final class DispenseItemsPanel extends JPanel implements FormValueCompone
     private final JScrollPane scroll;
     private final ApplicationContext app;
     private final boolean optionalRows;
+    private final JTextArea allergyNotice=new JTextArea(2,32);
+    private Patient patient;
 
     public DispenseItemsPanel(ApplicationContext app) {
         this(app, false);
@@ -35,6 +39,13 @@ public final class DispenseItemsPanel extends JPanel implements FormValueCompone
         this.app = app;
         this.optionalRows = optionalRows;
         setOpaque(false);
+        allergyNotice.setEditable(false);allergyNotice.setFocusable(false);allergyNotice.setLineWrap(true);
+        allergyNotice.setName("recorded-allergy-notice");
+        allergyNotice.setWrapStyleWord(true);allergyNotice.setOpaque(true);allergyNotice.setBackground(Theme.WARNING_TINT);
+        allergyNotice.setForeground(Theme.MUTED);allergyNotice.setFont(Theme.font(Theme.TYPE_CAPTION,java.awt.Font.PLAIN));
+        allergyNotice.setBorder(BorderFactory.createEmptyBorder(Theme.SPACE_2,Theme.SPACE_2,Theme.SPACE_2,Theme.SPACE_2));
+        allergyNotice.setText("Select a patient to check allergies.");
+        add(allergyNotice,BorderLayout.NORTH);
         list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
         list.setBackground(Theme.WHITE);
         scroll = new JScrollPane(list, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
@@ -45,15 +56,16 @@ public final class DispenseItemsPanel extends JPanel implements FormValueCompone
         scroll.setWheelScrollingEnabled(true);
         add(scroll, BorderLayout.CENTER);
         JButton add = Theme.button("+ Add medicine", false);
-        add.addActionListener(event -> addRow());
+        add.addActionListener(event -> addRow(false));
         add(add, BorderLayout.SOUTH);
-        addRow();
+        addRow(true);
     }
 
-    private void addRow() {
+    private void addRow(boolean initialRow) {
         DispenseItemRow[] holder = new DispenseItemRow[1];
         holder[0] = new DispenseItemRow(app, () -> merge(holder[0]), this::updateListHeight,
-            () -> remove(holder[0]), optionalRows);
+            () -> remove(holder[0]), optionalRows,initialRow);
+        holder[0].setPatient(patient);
         rows.add(holder[0]);
         list.add(holder[0]);
         updateListHeight();
@@ -74,7 +86,8 @@ public final class DispenseItemsPanel extends JPanel implements FormValueCompone
         int viewportHeight = Math.max(DispenseLayout.ITEM_ROW_HEIGHT, visibleHeight - 1);
         scroll.setPreferredSize(new Dimension(0, viewportHeight));
         scroll.setMinimumSize(new Dimension(0, DispenseLayout.ITEM_ROW_HEIGHT));
-        int sectionHeight = viewportHeight + Theme.CONTROL_HEIGHT + Theme.GAP + Theme.SPACE_1;
+        int noticeHeight=allergyNotice.getPreferredSize().height+Theme.GAP;
+        int sectionHeight = viewportHeight + Theme.CONTROL_HEIGHT + Theme.GAP + Theme.SPACE_1+noticeHeight;
         setMinimumSize(new Dimension(0, sectionHeight));
         setPreferredSize(new Dimension(0, sectionHeight));
         setMaximumSize(new Dimension(Integer.MAX_VALUE, sectionHeight));
@@ -113,20 +126,39 @@ public final class DispenseItemsPanel extends JPanel implements FormValueCompone
     @Override public String formValue() { return ""; }
 
     @Override public boolean validateForm() {
-        return !optionalRows || validateOptionalRows();
+        return validateRows();
     }
 
     public boolean validateOptionalRows() {
-        if (!optionalRows) return true;
+        return validateRows();
+    }
+
+    private boolean validateRows() {
         boolean valid = true;
-        for (DispenseItemRow row : rows) valid = row.validateOptional() && valid;
+        for (DispenseItemRow row : rows) valid = row.validate(optionalRows) && valid;
         if (!valid) {
             DispenseItemRow firstInvalid = rows.stream().filter(row -> !row.validationError().isBlank())
                 .findFirst().orElse(null);
-            if (firstInvalid != null) scroll.getViewport().scrollRectToVisible(firstInvalid.getBounds());
+            if (firstInvalid != null) {
+                firstInvalid.scrollValidationErrorIntoView(list);
+                javax.swing.SwingUtilities.invokeLater(firstInvalid::focusInvalidField);
+            }
         }
         return valid;
     }
+
+    public void setPatient(Patient value) {
+        patient=value;
+        if(value==null)allergyNotice.setText("Select a patient to check allergies.");
+        else if(value.getAllergies().isEmpty())allergyNotice.setText("No recorded allergies.");
+        else allergyNotice.setText("Recorded allergies: "+String.join(", ",value.getAllergies())
+            +". The app does not check medicine ingredients.");
+        allergyNotice.setForeground(value!=null&&!value.getAllergies().isEmpty()?Theme.WARNING:Theme.MUTED);
+        rows.forEach(row->row.setPatient(value));
+        updateListHeight();
+    }
+
+    public Patient patient() { return patient; }
 
     public String validationErrors() {
         return rows.stream().map(DispenseItemRow::validationError)
@@ -135,7 +167,7 @@ public final class DispenseItemsPanel extends JPanel implements FormValueCompone
 
     public void clear() {
         for (DispenseItemRow row : List.copyOf(rows)) remove(row);
-        addRow();
+        addRow(true);
     }
 
     public void refresh() {

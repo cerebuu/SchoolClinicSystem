@@ -24,6 +24,7 @@ while read -r scms_name scms_path scms_expected; do
     }
 done <<'ARTIFACTS'
 h2-2.5.252.jar com/h2database/h2/2.5.252 90b11dc413da82070ef15fc943282c1408e6ffd34fa68998335fea8603b5ff20
+mysql-connector-j-8.4.0.jar com/mysql/mysql-connector-j/8.4.0 d77962877d010777cff997015da90ee689f0f4bb76848340e1488f2b83332af5
 angus-mail-2.0.3.jar org/eclipse/angus/angus-mail/2.0.3 6b5b6fc2ba633c53733d829c56cae51d343fb1eadee3e17b8eea01a49edc72d3
 angus-core-2.0.3.jar org/eclipse/angus/angus-core/2.0.3 83eee7977cc1bed492861d5eba6d0f27a0c777f5a36a0a07937be266dab510d5
 angus-activation-2.0.2.jar org/eclipse/angus/angus-activation/2.0.2 6dd3bcffc22bce83b07376a0e2e094e4964a3195d4118fb43e380ef35436cc1e

@@ -25,8 +25,8 @@ public final class PersistentDispenseChecks {
                 return null;
             });
             PageResult<Medicine> meds=clinic.dispensableMedicinePage(0,1000,null);
-            check("SQL medicine grouping/filtering",List.of("Paracetamol:12","Zero:0"),meds.rows().stream().map(m->m.getName()+":"+m.getQuantity()).toList());
-            check("SQL medicine count/page cap",List.of(2,100,0),List.of(meds.total(),meds.size(),meds.page()));
+            check("SQL medicine grouping/filtering",List.of("Expired:0","Paracetamol:12","Zero:0"),meds.rows().stream().map(m->m.getName()+":"+m.getQuantity()).toList());
+            check("SQL medicine count/page cap",List.of(3,100,0),List.of(meds.total(),meds.size(),meds.page()));
             check("SQL medicine partial search",1,clinic.dispensableMedicinePage(0,25,"para").total());
             PageResult<MedicineTransaction> first=clinic.transactionPage(0,25,"P",LocalDateTime.now().minusDays(1),null);
             check("SQL transaction search and date count",25,first.rows().size());

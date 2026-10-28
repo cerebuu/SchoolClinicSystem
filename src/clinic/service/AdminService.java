@@ -28,7 +28,7 @@ public final class AdminService {
             Campus expected=approved.campus();
             Campus existing=campuses.get(approved.id());
             if(existing==null) {
-                if(repository!=null)repository.save(expected,false);
+                if(repository!=null)repository.installDefaultCampus(expected);
                 campuses.put(expected.id(),expected);
             } else if(!expected.name().equals(existing.name())) {
                 throw new IllegalStateException("Campus ID "+approved.id()+" is reserved for "+expected.name()+".");
@@ -46,7 +46,7 @@ public final class AdminService {
         return u;
     }
     private static boolean isMutation(String action) {
-        return action.equals("addUser")||action.equals("updateUser")||action.equals("saveCampus");
+        return action.equals("addUser")||action.equals("updateUser")||action.equals("saveCampus")||action.equals("resetStaffPassword");
     }
     private void completed(User actor,String action) {
         audit.record(LocalDateTime.now(),actor.getUserId(),actor.getName(),actor.getRole(),
@@ -74,6 +74,13 @@ public final class AdminService {
                 completed(actor,"updateUser");
                 if(assignmentChanged)recordNurseAssignment(actor,u.getUserId(),previous.getCampusId(),u.getCampusId());
             });
+            changed.accept("users");
+        }
+    }
+    public synchronized void resetStaffPassword(String id,String password) {
+        synchronized(login) {
+            User actor=authorize("resetStaffPassword");
+            login.resetStaffPassword(id,password,audit,()->completed(actor,"resetStaffPassword"));
             changed.accept("users");
         }
     }

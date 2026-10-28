@@ -18,14 +18,18 @@ cd "$scms_checks"
 scms_classpath="$scms_checks/classes:$scms_root/lib/*"
 echo "Running clinic.app.ui.common.UicLogoChecks"
 "$scms_java" -Djava.awt.headless=true -cp "$scms_classpath" clinic.app.ui.common.UicLogoChecks
+echo "Running clinic.app.ui.common.PatientLookupFieldChecks"
+"$scms_java" -Djava.awt.headless=true -cp "$scms_classpath" clinic.app.ui.common.PatientLookupFieldChecks
+echo "Running clinic.app.ui.notifications.NotificationWorkflowChecks"
+"$scms_java" -Djava.awt.headless=true -cp "$scms_classpath" clinic.app.ui.notifications.NotificationWorkflowChecks
 if [ "${1:-}" = --desktop ]; then
     "$scms_java" -cp "$scms_classpath" PopupSubmissionChecks
     "$scms_java" -cp "$scms_classpath" DesktopChecks --persistent
     exit
 fi
-for scms_check in DomainChecks FeatureChecks DispenseChecks PersistentDispenseChecks \
+for scms_check in AdminPasswordResetChecks clinic.core.ResetPasswordChecks clinic.core.PasswordFormatChecks clinic.persistence.JdbcValueChecks MedicineCatalogChecks DomainChecks FeatureChecks DispenseChecks PersistentDispenseChecks \
     GuardianPersistenceChecks NotifierChecks clinic.notify.SmsSenderChecks UiChecks RowActionUiChecks DashboardConsultationChecks \
-    ConsultationAdministrationChecks VisitSearchDemo PersistenceChecks PatientEditChecks \
+    ConsultationAdministrationChecks ConsultationEnhancementChecks VisitSearchDemo PersistenceChecks PatientEditChecks \
     AuditRepositoryChecks InventoryAuditChecks ClinicalAuditChecks CampusQueryChecks \
     MedicationHistoryChecks ConcurrentDispenseChecks AuthenticationAuditChecks NotificationCampusChecks \
     BackendWorkflowRegressionChecks SecurityMutationChecks NurseCampusAssignmentChecks MedicineSelectionUiChecks \

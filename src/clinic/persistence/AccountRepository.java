@@ -35,4 +35,12 @@ public final class AccountRepository {
     public void attempts(String id, int count, long until) {
         database.transaction(c -> Sql.update(c,"UPDATE accounts SET failed_attempts=?,locked_until=? WHERE id=?",count,until,id));
     }
+    /** Offline recovery only: preserves activation, role, campus, and every other account. */
+    public void resetPassword(String id,String hash) {
+        database.transaction(c -> {
+            if(Sql.update(c,"UPDATE accounts SET password_hash=?,failed_attempts=0,locked_until=0 WHERE id=?",hash,id)!=1)
+                throw new IllegalArgumentException("Account not found.");
+            return null;
+        });
+    }
 }

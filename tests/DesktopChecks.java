@@ -442,6 +442,11 @@ public final class DesktopChecks {
             } catch (Exception e) { throw new RuntimeException(e); }
         });
     }
+    private static void dialogScreenshot(JDialog dialog,String name) throws Exception {
+        Rectangle[] bounds={null};edt(()->bounds[0]=dialog.getBounds());
+        java.awt.image.BufferedImage image=new Robot().createScreenCapture(bounds[0]);
+        javax.imageio.ImageIO.write(image,"png",Path.of("verification",name+".png").toFile());
+    }
     public static void main(String[] args) throws Exception {
         if (GraphicsEnvironment.isHeadless()) throw new IllegalStateException("Desktop required");
         try {
@@ -619,6 +624,15 @@ public final class DesktopChecks {
             form("Add medicine batch", Map.of("Medicine", "Test medicine", "Quantity", "10", "Expiry (YYYY-MM-DD)", LocalDate.now().plusDays(90).toString()));
             row();
             JDialog administration = newConsultationWithMedicine("p1", "Administer test medicine", "Test medicine", 2);
+            waitFor(()->components(administration).stream().anyMatch(c->c instanceof JLabel label
+                &&"medicine-safety".equals(label.getName())&&label.getText().contains("No allergy conflict found")));
+            JTextField selectedName=components(administration).stream().filter(c->c instanceof JTextField field
+                &&"Search medicines".equals(field.getAccessibleContext().getAccessibleName()))
+                .map(c->(JTextField)c).findFirst().orElseThrow();
+            check("Test medicine".equals(selectedName.getText())&&"Test medicine".equals(selectedName.getToolTipText()),
+                "selected medicine name remains full and has a tooltip at normal popup width");
+            check(button(administration,"Remove").isShowing(),"medicine Remove control remains visible in the popup");
+            dialogScreenshot(administration,"consultation-medicine-row");
             doubleSubmit(administration,"consultation");
             dismissInfo();
             check(app.clinic().getStock("Test medicine") == 8, "consultation administration changes stock");
@@ -705,25 +719,30 @@ public final class DesktopChecks {
             click(awaitDialog("Confirm"), "OK");
             waitFor(() -> app.clinic().getNotifications("p1").get(0).getStatus() == NotificationStatus.SENT);
             check(true, "notification creation, preview, and confirmed status update");
-            app.clinic().addAllergy("p1", "Test medicine");
-            JDialog canceledAdministration = newConsultationWithMedicine("p1", "Cancelled allergy check", "Test medicine", 2);
+            app.clinic().addAllergy("p1", "Penicillin");
+            app.clinic().addMedicine(new MedicineProduct("Amoxicillin 500mg","J01CA04",""),10,
+                LocalDate.now().plusDays(90),"");
+            JDialog canceledAdministration = newConsultationWithMedicine("p1", "Cancelled allergy check", "Amoxicillin 500mg", 2);
             click(canceledAdministration, "Save");
-            JDialog warning = awaitDialog("Confirm allergies before dispensing");
-            edt(() -> check(!button(warning, "Dispense").isEnabled(), "dispensing requires checkbox confirmation"));
+            JDialog warning = awaitDialog("Review allergy warning");
+            edt(() -> check(!button(warning, "Confirm and save").isEnabled(), "dispensing requires review and a written reason"));
             click(warning, "Cancel");
             waitFor(() -> !warning.isShowing());
-            click(canceledAdministration, "Cancel");
-            waitFor(() -> !canceledAdministration.isShowing());
-            check(app.clinic().getStock("Test medicine") == 8, "cancel safety warning preserves stock");
-            JDialog confirmedAdministration = newConsultationWithMedicine("p1", "Confirmed allergy check", "Test medicine", 2);
+            check(canceledAdministration.isShowing()&&app.clinic().getStock("Amoxicillin 500mg")==10
+                &&app.clinic().getVisitHistory("p1").size()==2,"cancelled warning saves nothing and keeps consultation fields open");
+            click(canceledAdministration, "Cancel");waitFor(() -> !canceledAdministration.isShowing());
+            JDialog confirmedAdministration = newConsultationWithMedicine("p1", "Confirmed allergy check", "Amoxicillin 500mg", 2);
             click(confirmedAdministration, "Save");
-            final JDialog override = awaitDialog("Confirm allergies before dispensing");
+            final JDialog override = awaitDialog("Review allergy warning");
             edt(() -> components(override).stream().filter(c -> c instanceof JCheckBox box
-                && box.getText().equals("I have checked and it is safe to dispense"))
+                && box.getText().equals("I have reviewed the recorded allergies and medicine details"))
                 .map(c -> (JCheckBox)c).findFirst().orElseThrow().doClick());
-            click(override, "Dispense");
+            edt(()->components(override).stream().filter(c->c instanceof JTextArea area
+                &&"override-reason".equals(area.getName())).map(c->(JTextArea)c).findFirst().orElseThrow()
+                .setText("Reviewed allergies and verified the prescribed medicine."));
+            click(override, "Confirm and save");
             dismissInfo();
-            check(app.clinic().getStock("Test medicine") == 6, "documented override dispenses medicine");
+            check(app.clinic().getStock("Amoxicillin 500mg") == 8, "written allergy override dispenses medicine");
             click(frame, "Inventory");
             waitFor(() -> table() != null && Integer.valueOf(6).equals(table().getValueAt(0, column(table(),"Eligible quantity"))));
             check(true, "cached inventory reloads after dispensing");

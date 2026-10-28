@@ -11,6 +11,8 @@ public interface ClinicData extends ClinicSystem {
         String staffId,String campusId);
     MedicalRecord recordVisitAndAdministerWithCampus(String patientId,List<String> symptoms,String reason,
         String remarks,String staffId,List<DispenseItem> medicines,boolean allergyConfirmed,String campusId);
+    MedicalRecord recordVisitAndAdministerWithReason(String patientId,List<String> symptoms,String reason,
+        String remarks,String staffId,List<DispenseItem> medicines,String overrideReason,String campusId);
     MedicineTransaction dispenseMedicineWithCampus(String patientId,MedicineProduct medicine,int quantity,
         String staffId,String overrideReason,String campusId);
     void restockMedicine(String name, int quantity, java.time.LocalDate expiry, String remarks);

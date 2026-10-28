@@ -9,7 +9,7 @@ import java.util.function.Supplier;
 import clinic.notify.Channel;
 
 /** Permission and privacy-safe audit boundary around the clinic domain. */
-public final class SecuredClinicSystem implements ClinicSystem {
+public final class SecuredClinicSystem implements ClinicSystem,ConsultationWorkflow {
     private final ClinicSystem delegate;
     private final User user;
     private final AuditLog log;
@@ -61,6 +61,21 @@ public final class SecuredClinicSystem implements ClinicSystem {
             record->"symptomCount="+(symptoms==null?0:symptoms.size())
                 +"; medicationCount="+(medicines==null?0:medicines.size()),
             ()->{if(allergyConfirmed)auditConfirmationCount(patientId);},
+            medicines!=null&&!medicines.isEmpty()?User.DISPENSE:null);
+    }
+
+    @Override
+    public MedicalRecord recordVisitAndAdministerWithReason(String patientId,List<String> symptoms,String reason,
+            String remarks,String staffId,List<DispenseItem> medicines,String overrideReason) {
+        verifyStaff(staffId);
+        String safeReason=overrideReason==null?"":overrideReason.trim();
+        return clinicalMutation("recordVisitAndAdminister",()->delegate instanceof ClinicData data
+            ?data.recordVisitAndAdministerWithReason(patientId,symptoms,reason,remarks,staffId,medicines,
+                safeReason,user.getCampusId())
+            :delegate.recordVisitAndAdminister(patientId,symptoms,reason,remarks,staffId,medicines,!safeReason.isBlank()),
+            record->"symptomCount="+(symptoms==null?0:symptoms.size())
+                +"; medicationCount="+(medicines==null?0:medicines.size()),
+            ()->{if(!safeReason.isBlank())auditConfirmationCount(patientId);},
             medicines!=null&&!medicines.isEmpty()?User.DISPENSE:null);
     }
 

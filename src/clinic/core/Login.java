@@ -213,6 +213,23 @@ public class Login {
         users.put(replacement.getUserId(), stored);
         if (active) inactive.remove(replacement.getUserId()); else inactive.add(replacement.getUserId());
     }
+    /** Cache changes only after the durable password reset and completion audit commit. */
+    public synchronized void resetStaffPassword(String id,String password,AuditLog transactionAudit,Runnable completed) {
+        requireAdmin();
+        User target=users.get(id);
+        if(target==null)throw new IllegalArgumentException("User not found.");
+        if(!java.util.Set.of(User.NURSE,User.DOCTOR,User.ASSISTANT).contains(target.getRole()))
+            throw new IllegalArgumentException("Password reset is available for nurses, doctors, and assistants.");
+        if(!passwordMeetsMinimum(password))throw new IllegalArgumentException("Password must contain at least eight characters.");
+        String hash=PasswordHasher.hash(password);
+        commitAccount(transactionAudit,()->{
+            if(repository!=null)repository.resetPassword(id,hash);
+            completed.run();
+        });
+        passwords.put(id,hash);
+        failedAttempts.remove(id);
+        lockedUntil.remove(id);
+    }
     private static void validateNurseCampus(User user) {
         if(User.NURSE.equals(user.getRole())&&NurseCampus.forId(user.getCampusId()).isEmpty())
             throw new IllegalArgumentException("Assign the nurse to UIC - Bajada, UIC - Annex, or UIC - Main.");

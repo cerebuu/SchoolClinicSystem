@@ -14,6 +14,7 @@ import java.util.*;
 public final class ClinicRepository {
     private static final Set<String> WRITES = Set.of("registerPatient", "updatePatient", "addAllergy", "recordVisit",
         "recordVisitWithCampus","recordVisitAndAdminister","recordVisitAndAdministerWithCampus",
+        "recordVisitAndAdministerWithReason",
         "dispenseMedicine", "addMedicine", "restockMedicine", "mergeMedicineBatch", "mergeDuplicateMedicineBatches", "refillBatch",
         "saveInventoryBatch","refillInventoryBatch",
         "dispenseMedicineWithCampus",
@@ -75,10 +76,10 @@ public final class ClinicRepository {
                         :Sql.query(connection,sql,r->visit(connection,r),args[0],campusId);
                 }
                 if(method.getName().equals("getStock")&&args[0] instanceof MedicineProduct product)return Sql.query(connection,
-                    "SELECT COALESCE(SUM(CAST(quantity AS BIGINT)),0) FROM medicine_batches WHERE LOWER(TRIM(name))=LOWER(TRIM(?)) AND expiry>=?",
+                    "SELECT COALESCE(SUM(quantity),0) FROM medicine_batches WHERE LOWER(TRIM(name))=LOWER(TRIM(?)) AND expiry>=?",
                     row->Math.toIntExact(row.getLong(1)),product.name(),LocalDate.now()).get(0);
                 if(method.getName().equals("getStock")) return Sql.query(connection,
-                    "SELECT COALESCE(SUM(CAST(quantity AS BIGINT)),0) FROM medicine_batches WHERE LOWER(name)=LOWER(?) AND expiry>=?",
+                    "SELECT COALESCE(SUM(quantity),0) FROM medicine_batches WHERE LOWER(name)=LOWER(?) AND expiry>=?",
                     row -> Math.toIntExact(row.getLong(1)),args[0],LocalDate.now()).get(0);
                 InMemoryClinicSystem.State before = load(connection);
                 InMemoryClinicSystem domain = new InMemoryClinicSystem(before);
@@ -340,12 +341,12 @@ public final class ClinicRepository {
         int size=DispenseQueries.size(requestedSize);
         if(page<0)throw new IllegalArgumentException("Invalid page.");
         String normalized=DispenseQueries.query(query);
-        String base=" FROM (SELECT id,dispensed_at AS event_time,'DISPENSE' AS event_type,medicine,atc_primary,atc_secondary,quantity,staff_id AS actor_id,campus_id,patient_id,visit_id,expiry,CAST(NULL AS VARCHAR(500)) AS batch_id,CAST(remarks AS VARCHAR) AS remarks FROM dispensing"
-            +" UNION ALL SELECT id,event_time,event_type,medicine,atc_primary,atc_secondary,quantity,actor_id,campus_id,CAST(NULL AS VARCHAR(500)) AS patient_id,CAST(NULL AS VARCHAR(500)) AS visit_id,expiry,batch_id,'' AS remarks FROM inventory_movements) h WHERE 1=1";
+        String base=" FROM (SELECT id,dispensed_at AS event_time,'DISPENSE' AS event_type,medicine,atc_primary,atc_secondary,quantity,staff_id AS actor_id,campus_id,patient_id,visit_id,expiry,NULL AS batch_id,remarks FROM dispensing"
+            +" UNION ALL SELECT id,event_time,event_type,medicine,atc_primary,atc_secondary,quantity,actor_id,campus_id,NULL AS patient_id,NULL AS visit_id,expiry,batch_id,'' AS remarks FROM inventory_movements) h WHERE 1=1";
         String where=base;
         List<Object> args=new ArrayList<>();
         if(!normalized.isEmpty()) {
-            where+=" AND LOCATE(?,LOWER(id || ' ' || event_type || ' ' || medicine || ' ' || atc_primary || ' ' || atc_secondary || ' ' || actor_id || ' ' || COALESCE(campus_id,'') || ' ' || COALESCE(patient_id,'') || ' ' || COALESCE(batch_id,'')))>0";
+            where+=" AND LOCATE(?,LOWER(CONCAT(id,' ',event_type,' ',medicine,' ',atc_primary,' ',atc_secondary,' ',actor_id,' ',COALESCE(campus_id,''),' ',COALESCE(patient_id,''),' ',COALESCE(batch_id,''))))>0";
             args.add(normalized);
         }
         if(from!=null){where+=" AND event_time>=?";args.add(from);}

@@ -1,0 +1,372 @@
+UIC School Clinic Management System — feature and control audit
+Audit date: 2026-10-28
+Baseline: before fixes in the current task. Source audit was completed manually.
+
+Audit method and evidence
+-------------------------
+The attachment requested one subagent for each workspace area. Three agents were
+started for Login (A), Nurse workspace (B), and Superadmin workspace (C), but
+all errored when the agent service reported its usage limit. Areas A-C and the
+remaining areas D-F were then audited directly from source. No agent completed a
+per-control report. That limitation is explicit here; no imagined click results
+are marked WORKS.
+
+Before source edits, `env -u SCMS_DB_URL -u SCMS_DB_USER -u SCMS_DB_PASSWORD
+sh tools/verify.sh` completed with exit code 0 using isolated temporary/in-memory
+fixtures. Existing checks inspected include
+AuthenticationAuditChecks, SecurityMutationChecks, NurseCampusAssignmentChecks,
+ConsultationMedicineUiChecks, MedicineSelectionUiChecks, DispenseChecks,
+PersistentDispenseChecks, MedicationHistoryChecks, ClinicalAuditChecks,
+InventoryAuditChecks, CampusQueryChecks, BackendWorkflowRegressionChecks,
+DesktopChecks, DomainChecks, FeatureChecks, and UiChecks.
+
+System save path (baseline)
+---------------------------
+NewConsultationForm first validates the optional medicine panel, reads the
+registered patient in FormPopup.SaveController.prepareAsync, then calls
+`verifyStock` and one `ClinicSystem.recordVisitAndAdminister(...)` call in
+saveAsync. `SecuredClinicSystem` authorizes the visit and, when medicine rows are
+present, DISPENSE permission; it calls the `ClinicData` campus-aware combined
+operation. The in-memory implementation checks all requested items and aggregate
+quantities before adding the visit and dispensing rows. The persistent repository
+runs the operation inside one Database transaction and saves the aggregate only
+when it completes. A database exception rolls back the unit. The service method
+currently accepts only a boolean allergy confirmation; it cannot preserve a
+written override reason. A separate sequence of `recordVisit` then
+`dispenseMedicine` calls would lose that atomic boundary and visit linkage, so
+that route is not acceptable.
+
+Per-control baseline
+--------------------
+Legend: WORKS = source/test evidence supports the action; BROKEN = clear defect;
+NEEDS DECISION = behavior is absent or needs a product/contract decision.
+No DEAD control was found in this source pass. “Source” evidence means wired in
+code, not a completed native click.
+
+A. Login, first-run administrator setup, sign out, lockout
+- User ID field and Enter: submits sign-in; blank values show inline error.
+  WORKS (LoginPanel action listeners; AuthenticationAuditChecks).
+- Password field and Enter: submits, field is masked and cleared while request
+  runs. WORKS (LoginPanel; AuthenticationAuditChecks).
+- Sign in button: uses async login; success routes by role, failure counts and
+  shows a lockout message after three failures. WORKS (LoginPanel; login checks).
+- Create first administrator button: opens required ID/name/password form and
+  creates only once; Save enables sign-in. WORKS (LoginPanel/FormPopup; domain
+  and authentication checks).
+- Setup Save/Cancel/Escape and sign-in failure message: source wired; native
+  click/Escape coverage not separately established for every path. WORKS by
+  source; manual desktop verification remains.
+- Sign out navigation item: logs out, clears session, returns to login. WORKS
+  (Router/Navigator; DesktopChecks signs out/in).
+
+B. Nurse workspace
+- Nurse dashboard: Refresh reloads patient, today's visit, low-stock and expiry
+  KPIs asynchronously; Recent visits has search, clear, period selector, Refresh,
+  row actions, page controls, and + New Consultation. WORKS by source and the
+  existing desktop workflow. Medicine prediction table pages/searches. WORKS by
+  source; no dedicated click test for every control.
+- AI Nurse Assistant: input, privacy confirmation, Send button, Enter sends,
+  Shift+Enter inserts a line, Cancel cancels; request is session-guarded and
+  privacy consent gates sending. WORKS (AiChecks/AiConfigChecks and source).
+  Live provider response is not exercised.
+- Patients: Register patient, ID availability lookup, required-field Save,
+  Cancel/Escape; row View details, Edit patient, Add allergy; allergy chips can
+  be removed. WORKS (PatientLookupFieldChecks, PatientEditChecks, DesktopChecks).
+- Consultations: page/search/clear/refresh and row View details/View patient
+  history; + New Consultation. WORKS by source and DesktopChecks.
+- New Consultation medicine field: editable search, quantity spinner, Add
+  medicine, Remove, Save/Cancel/Escape. BROKEN: row layout lacks full compact
+  width evidence and qty-over-stock validation is not inline; medicine list is
+  capped at 50 rather than the requested 25 and omits expiry. The selector drops
+  quantity-zero items instead of showing a disabled “Out of stock” item.
+- New Consultation empty medicine row: the current `FormValueComponent` path
+  rejects typed-but-unselected/edited rows inline and untouched rows are ignored;
+  it does not intentionally throw the old message during field validation.
+  PARTIAL: first invalid row is scrolled into view but not focused. A native
+  reproduction of the screenshot modal remains to be performed.
+- Allergy behavior on medicine selection: BROKEN. No row-level `checkSafety`
+  request/result exists, and recorded allergies are not shown once above the
+  medicine section. Save only opens a generic recorded-allergy checkbox popup
+  when the patient has any allergy; it does not check per medicine or collect a
+  written override reason.
+- Medication history: paging, search, date selector, Refresh, row “View entry”;
+  no + New Consultation button. WORKS by source and history/desktop checks.
+- Standalone “Dispense medicine” screen: no separate navigation item or panel is
+  present; dispensing is available in consultation medicine rows. NEEDS DECISION
+  before adding a screen or changing navigation/permissions.
+- Inventory: search/clear/page/refresh; Add medicine, Merge duplicates; row
+  Restock, View batches, Stock and forecast; batch-dialog Close/Restock selected
+  batch. WORKS by source and inventory checks. Zero quantity is represented as
+  numeric 0 in Inventory; change requested for the medicine chooser is explicit.
+- Notifications: Create notification; row selection, View message; where allowed,
+  Mark sent, Send, Retry (enabled only for failed), Emergency notify; channel
+  selection, emergency confirmation, Cancel, Send now. WORKS by source and
+  notification workflow checks. Live email/SMS is not exercised. Alerts tab is
+  present only with RECORDS permission.
+- Reports: paged records and Generate selected report, with Copy ID in detail.
+  WORKS for users with RECORDS; report text is generated by MedicalRecord and
+  includes its medicine string. BROKEN/NEEDS DECISION for doctor-only
+  VIEW_REPORTS: the screen unconditionally says “No reports are assigned” because
+  no assignment query exists. Do not invent an assignment policy.
+- Settings: no Settings screen or navigation control exists in the inspected
+  nurse shell. NEEDS DECISION; no settings action was added.
+
+C. Superadmin workspace
+- Dashboard: Refresh KPIs; searchable/paged campus catalog. WORKS by source and
+  campus/admin checks.
+- Users: Add user, table search/page/refresh; row View account details, Edit
+  user/role, Activate/Deactivate, Account status. Reset password for nurse,
+  doctor, assistant is present from the preceding authorized task and verified
+  by AdminPasswordResetChecks. WORKS.
+- Campuses: Add campus, row Edit campus, search/page/refresh. WORKS by source and
+  CampusQueryChecks/DesktopChecks.
+- Audit log: quick search, four typed filters (user/campus/action/date), Clear
+  filters, page/refresh. WORKS by source and AuditRepositoryChecks.
+- Settings: no Settings screen or navigation control exists in SuperadminShell.
+  NEEDS DECISION.
+
+D. Shared components
+- PagedTablePanel: debounced search, clear, Previous/Next, Refresh/Retry, empty,
+  loading/error states; row action button/menu, double-click, Shift+F10 and
+  Context Menu key. WORKS by source plus UiChecks/RowActionUiChecks.
+- SearchBar: text debounce and clear. WORKS by UiChecks/source.
+- FormPopup: custom field validation, Save/Cancel, Enter via default button,
+  Escape close, async loading, preserved values on service error. WORKS by source
+  and PopupSubmissionChecks; the specific empty-medicine focus requirement is
+  partial as listed above.
+- MessagePopup: info/warning/error/confirm, copy-ID detail controls. WORKS by
+  source and DesktopChecks.
+- `WarningOverridePopup`: the named class does not exist in src or tests. The
+  current substitute is AllergyConfirmPopup, with Cancel as default and a
+  checkbox, but no written reason. NEEDS DECISION/implementation; do not claim an
+  existing WarningOverridePopup was reused.
+- Keyboard actions: login Enter, popup Enter/Escape, menu context keys,
+  AI Enter/Shift+Enter and picker behavior are wired. Focus traversal across every
+  custom popup still needs manual native verification.
+
+E. Service and persistence
+- Patient, allergy, visit, inventory, dispense, notification, report, alert and
+  admin operations have repository/domain boundary tests. WORKS for covered
+  methods (Domain/Feature/Persistence/Dispense/Notifier/Inventory/Audit checks).
+- Dispensing rejects expired or insufficient stock; Inventory allocation sorts
+  by expiry and decrements batches without an apparent negative path. WORKS by
+  source and existing dispense tests; required printed two-batch sequence remains
+  to be run in the follow-up.
+- Inventory history stores per-transaction batch allocations; Medication history
+  reads those allocations. WORKS by source and history checks; requested sequence
+  output remains to be run.
+- Persistent consultation save is one transaction, as described above. WORKS by
+  source; two-item report + restart evidence is outstanding.
+- Database signatures/permissions should remain unchanged. No ClinicSystem
+  signature change is authorized.
+
+F. Roles
+- Nurse: NurseShell checks SchoolNurse and required RECORD_TRANSACTION, DISPENSE,
+  VIEW_STOCK, REPORTS; feature permissions are also enforced by
+  SecuredClinicSystem. WORKS by source and nurse/authorization checks.
+- Nurse Assistant: MainShell enables Dashboard/Patients/Consultations,
+  Medication history, Inventory and Notifications according to canAccess; no
+  Reports tab. Clinic methods enforce permissions. WORKS by source/permission
+  tests; the full native click matrix has not been run as assistant.
+- Doctor: MainShell exposes report navigation under VIEW_REPORTS; the current
+  ReportsPanel renders an unassigned empty state. NEEDS DECISION as listed.
+  Full native click matrix has not been run as doctor.
+- Administrator: SuperadminShell validates USER_MANAGEMENT and AUDIT_LOG and
+  exposes Dashboard/Users/Campuses/Audit log; clinic data is not exposed there.
+  WORKS by source and admin checks. Full native click matrix has not been run in
+  this pass.
+
+Phase 0 baseline outcome
+------------------------
+Clear defects: consultation medicine row/result/stock and allergy workflow. One
+report-access behavior needs a product decision. Two requested Settings screens
+and one standalone Dispense screen are absent and need product decisions. The
+shared action infrastructure appears wired; tests cover representative paths.
+The visual modal error in the supplied screenshot has not yet been reproduced
+against this build. The attached screenshot appears consistent with a layout or
+stale-build issue because current FormPopup validation returns before submit for
+an invalid FormValueComponent.
+
+Post-fix verification
+---------------------
+The checks below ran after the consultation, stock and allergy fixes. No
+ClinicSystem signature, role or permission was changed.
+
+- MedicinePicker results are bounded to 25, include earliest expiry, and show
+  expired-only/zero-usable-stock medicines as disabled “Out of stock” results.
+  Selected text renders the full medicine name instead of the Java object value.
+- The medicine field, ATC field, quantity, stock label and full Remove label fit
+  at the normal 1000x700 layout and at the tested compact 312x300 layout.
+- An unselected/empty row shows “Choose a medicine or remove this row.” under the
+  row, keeps its search text, scrolls that message into view and focuses the
+  medicine field. Quantity above usable stock reports “Only N left in stock”.
+- Each selected medicine gets an asynchronous allergy status. Patient allergies
+  are shown once above the rows. The existing AllergyConfirmPopup now requires a
+  written override reason; cancellation saves nothing, and confirmation retains
+  the reason on the dispensing record. Audit records contain no reason/allergy
+  text. The attachment named WarningOverridePopup, but that class was absent;
+  AllergyConfirmPopup was enhanced instead, without creating a dialog class.
+- Save still uses one transactional combined consultation workflow. A failed
+  second medicine leaves both inventory and visit count unchanged. The internal
+  ConsultationWorkflow carries the reason without changing ClinicSystem API.
+- Inventory labels zero usable stock as “Out of stock”. Cross-batch depletion
+  remains FEFO, rejects another dispense at zero, creates no transaction on that
+  failure, and updates low-stock alerts. Medication history and reports contain
+  the saved consultation administrations.
+
+Final command and real output
+----------------------------
+Command: `env -u SCMS_DB_URL -u SCMS_DB_USER -u SCMS_DB_PASSWORD sh tools/verify.sh`
+Exit code: 0. It compiled all `src`, `tests` and `demo` Java files. Selected real
+output:
+
+```
+PASS: 56 domain, authentication, authorization, and integrity checks.
+PASS: 53 feature checks.
+PASS: 54 paging, background loading, stale-result, and role-navigation checks.
+PASS: 23 consultation administration checks.
+PASS: saved consultation appears in Consultations and Reports
+PASS: saved consultation appears in Recent visits
+PASS: each consultation dispense appears in Medication history
+PASS: 16 consultation enhancement checks.
+PASS: 17 consultation medicine UI checks.
+PASS: 6 async session ownership checks.
+VERIFY_EXIT_CODE=0
+```
+
+Printed two-batch stock evidence:
+
+```
+STOCK_STEP part first batch | batches=[1@2026-11-02, 3@2026-11-27] | total=4
+STOCK_STEP crossed both batches; first batch emptied | batches=[0@2026-11-02, 2@2026-11-27] | total=2
+STOCK_STEP all batches depleted | batches=[0@2026-11-02, 0@2026-11-27] | total=0
+PASS: cross-batch dispense consumes earliest expiry first
+PASS: cross-batch dispense empties the earliest batch before using the next
+PASS: one more dispense is clearly rejected at zero stock
+PASS: failed final dispense records no transaction
+```
+
+The cross-batch dispense takes the last unit from the earlier batch and one from
+the later batch in the same transaction; that transition is where the first
+batch reaches zero. The test then prints the final depletion state and confirms
+that one more dispense is rejected without recording a transaction.
+
+Printed report text from the synthetic test record:
+
+```
+========================================
+SCHOOL CLINIC REPORT
+Generated: 2026-10-28 23:12
+========================================
+b861b5de-5839-48a2-a8dc-e36db29e9d0b | qa-clean | 2026-10-28 23:12
+Campus: uic-bajada
+Symptoms: Fever
+Concern: Two medicines recorded
+Medicines administered: Consultation medicine A x 1, Consultation medicine B x 2
+Remarks:
+========================================
+End of report
+========================================
+```
+
+The two form screenshots are `verification/consultation-medicine-row.png` and
+`verification/consultation-empty-row-error.png`. They were rendered offscreen
+from the Swing components at 468x320; the selected-name image shows the full
+name, ATC code, quantity, stock, Remove and Add medicine controls. The error
+image shows the retained “Amox” search and the scrolled inline row message.
+
+Role control audit
+------------------
+`ScreenControlAudit` ran once each as Nurse, Nurse Assistant, Doctor and
+Administrator against isolated in-memory records. It exercised each accessible
+control on the constructed screens on the EDT, waited for paged tables, auto-
+closed dialogs where headless Swing allowed, and installed an uncaught EDT
+exception handler. Exact per-control output is in
+`verification/control-audit-output.txt`.
+
+```
+CONTROL_AUDIT_COUNTS WORKS=221 MANUAL=28 DECISION=1 ERROR=0
+NURSE | summary | attempted=122 manual=15 | uncaught=none
+ASSISTANT | summary | attempted=81 manual=10 | uncaught=none
+DOCTOR | summary | attempted=1 manual=1 | uncaught=none
+ADMIN | summary | attempted=46 manual=3 | uncaught=none
+```
+
+The 28 manual controls are:
+
+- Nurse: Dashboard + New Consultation; AI Send; Patients Register and patient
+  row actions/Shift+F10; Consultations + New Consultation and row actions;
+  Medication history row actions; Inventory Add medicine and row actions;
+  Notifications Create, Send, Emergency notify, View message and Mark sent;
+  Reports Generate selected report.
+- Nurse Assistant: Dashboard + New Consultation; Patients Register and patient
+  row actions; Consultations + New Consultation; Inventory row actions;
+  Notifications Create, Send, Emergency notify, View message and Mark sent.
+- Administrator: Users row actions; Campuses Add campus and row actions.
+
+The native desktop was unavailable in this environment. Dialog workflows and
+row-action menus are marked manual rather than passed. AI, email and SMS sends
+were not invoked. The Doctor Reports screen is empty because no report
+assignment query/policy exists. Native keyboard focus and every Enter/Escape path
+also need desktop verification. The allergy-specific native sequence (penicillin
+warning chip, AllergyConfirmPopup Cancel, reason validation, then confirmed Save)
+is also still a manual desktop check; its safety and service persistence paths
+were covered by headless tests. Login/first-run administrator setup, sign-out,
+and native Enter/Escape focus flows are covered by existing source/domain/UI
+checks but were not instantiated by the per-role workspace click harness; verify
+those in a desktop session too.
+
+Summary counts
+--------------
+- WORKS: 221 control actions/state checks completed without exceptions.
+- BROKEN fixed: 9 defect groups: selected-name rendering; row control layout;
+  bounded results/expiry detail; disabled zero-stock selection; quantity cap
+  validation; empty-row message/retained input/focus/scroll; asynchronous allergy
+  checks; one-time recorded-allergy notice; written allergy override reason.
+- DEAD fixed: 0. No dead controls were found.
+- NEEDS DECISION: 4: doctor report assignment policy, Nurse Settings screen,
+  Administrator Settings screen, and a separate Dispense screen.
+
+Files added or changed for this audit
+-------------------------------------
+Source:
+- `src/clinic/app/ClinicChangePublisher.java`
+- `src/clinic/app/ClinicSession.java`
+- `src/clinic/app/ui/common/MedicinePicker.java`
+- `src/clinic/app/ui/common/MedicinePickerEditor.java`
+- `src/clinic/app/ui/common/MedicinePickerFeedback.java`
+- `src/clinic/app/ui/common/MedicinePickerPageLoader.java`
+- `src/clinic/app/ui/common/MedicinePickerPageOption.java`
+- `src/clinic/app/ui/common/MedicinePickerRenderer.java`
+- `src/clinic/app/ui/common/MedicinePickerStatus.java`
+- `src/clinic/app/ui/common/popup/AllergyConfirmPopup.java`
+- `src/clinic/app/ui/consultations/NewConsultationForm.java`
+- `src/clinic/app/ui/dispense/DispenseItemRow.java`
+- `src/clinic/app/ui/dispense/DispenseItemsPanel.java`
+- `src/clinic/app/ui/dispense/MedicineRowControls.java`
+- `src/clinic/app/ui/dispense/MedicineRowFeedback.java`
+- `src/clinic/app/ui/dispense/MedicineSafetyStatus.java`
+- `src/clinic/app/ui/inventory/InventoryTableModel.java`
+- `src/clinic/persistence/ClinicRepository.java`
+- `src/clinic/persistence/DispenseRepository.java`
+- `src/clinic/service/ClinicData.java`
+- `src/clinic/service/ConsultationWorkflow.java`
+- `src/clinic/service/DispenseQueries.java`
+- `src/clinic/service/InMemoryClinicSystem.java`
+- `src/clinic/service/SecuredClinicSystem.java`
+
+Tests and tooling:
+- `tests/ConsultationEnhancementChecks.java`
+- `tests/ConsultationMedicineUiChecks.java`
+- `tests/DesktopChecks.java`
+- `tests/DispenseChecks.java`
+- `tests/PersistentDispenseChecks.java`
+- `tests/ScreenAuditFixtures.java`
+- `tests/ScreenControlAudit.java`
+- `tools/verify.sh`
+
+Verification artifacts:
+- `verification/consultation-empty-row-error.png`
+- `verification/consultation-medicine-row.png`
+- `verification/control-audit-output.txt`
+- `verification/feature-matrix.txt`

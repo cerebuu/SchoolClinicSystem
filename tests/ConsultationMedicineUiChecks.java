@@ -3,16 +3,23 @@ package clinic.app.ui.consultations;
 import clinic.app.ApplicationContext;
 import clinic.app.Theme;
 import clinic.app.ui.dispense.DispenseItemsPanel;
+import clinic.app.ui.common.MedicinePicker;
 import clinic.model.Medicine;
 import clinic.model.MedicineProduct;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Rectangle;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 import javax.swing.JButton;
+import javax.swing.JTextField;
 import javax.swing.JComboBox;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -29,17 +36,20 @@ public final class ConsultationMedicineUiChecks {
             app.login.login("N001", "nurse123").orElseThrow();
             MedicineProduct product = new MedicineProduct("Paracetamol","N02BE01","");
             app.clinic().addMedicine(product, 118, LocalDate.now().plusDays(90), "");
-            JPanel root = new JPanel() { @Override public boolean isShowing() { return true; } };
+            JPanel root = new JPanel();
             DispenseItemsPanel[] holder = new DispenseItemsPanel[1];
             SwingUtilities.invokeAndWait(() -> {
                 holder[0] = new DispenseItemsPanel(app, true);
                 root.add(holder[0]);
-                root.addNotify();
             });
             DispenseItemsPanel panel = holder[0];
-            JComboBox<?> choices = find(panel, JComboBox.class);
-            waitFor(() -> containsMedicine(choices, product));
-            Medicine medicine = findMedicine(choices, product);
+            MedicinePicker picker=find(panel,MedicinePicker.class);
+            @SuppressWarnings("unchecked") JComboBox<Object> choices=(JComboBox<Object>)find(panel,JComboBox.class);
+            Medicine medicine = new Medicine(product,118,LocalDate.now().plusDays(90),LocalDate.now(),"");
+            SwingUtilities.invokeAndWait(()->{
+                DefaultComboBoxModel<Object> model=new DefaultComboBoxModel<>();
+                model.addElement(medicine);model.setSelectedItem(null);choices.setModel(model);
+            });
 
             SwingUtilities.invokeAndWait(() -> {
                 check(panel.validateForm() && panel.items().isEmpty(),
@@ -56,8 +66,16 @@ public final class ConsultationMedicineUiChecks {
                 check(choiceText.contains(medicine.getName()) && choiceText.contains("118 in stock"),
                     "dropdown shows full medicine name and current stock");
 
-                sizeAndCheck(panel, 468, 220, "1000x700 window");
-                sizeAndCheck(panel, 312, 240, "small window");
+                sizeAndCheck(panel, 468, 320, "1000x700 window");
+                sizeAndCheck(panel, 312, 300, "small window");
+                choices.setSelectedItem(medicine);
+                JTextField selectedName=(JTextField)choices.getEditor().getEditorComponent();
+                check(medicine.getDisplayName().equals(selectedName.getText()),
+                    "selected picker field displays the full medicine name");
+                check(picker.selected()!=null&&picker.selected().getName().equals(medicine.getName()),
+                    "choosing a catalog result creates a medicine selection");
+                sizeAndCheck(panel, 468, 320, "selected medicine at normal width");
+                writeSnapshot(panel,"consultation-medicine-row.png");
                 System.out.println("INFO medicine selection and quantity entry are exercised by native DesktopChecks.");
 
                 DispenseItemsPanel quantityOnly = new DispenseItemsPanel(app, true);
@@ -70,6 +88,38 @@ public final class ConsultationMedicineUiChecks {
                     + quantityOnly.validationErrors() + " | Save permitted=" + quantityOnly.validateForm());
                 root.remove(quantityOnly);
                 root.removeNotify();
+                DispenseItemsPanel explicitEmpty=new DispenseItemsPanel(app,true);
+                root.add(explicitEmpty);
+                descendants(explicitEmpty).stream().filter(c->c instanceof JButton button
+                    &&"+ Add medicine".equals(button.getText())).map(c->(JButton)c).findFirst().orElseThrow().doClick();
+                List<JComboBox<?>> selectors=new java.util.ArrayList<>();
+                for(Component component:descendants(explicitEmpty))
+                    if(component instanceof JComboBox<?> combo)selectors.add(combo);
+                JTextField typed=(JTextField)selectors.get(1).getEditor().getEditorComponent();
+                typed.setText("Amox");
+                explicitEmpty.setSize(new Dimension(468,320));layoutTree(explicitEmpty);
+                check(!explicitEmpty.validateForm()
+                    &&explicitEmpty.validationErrors().contains("Choose a medicine or remove this row.")
+                    &&"Amox".equals(typed.getText()),
+                    "an added empty row shows inline validation and keeps its search text");
+                layoutTree(explicitEmpty);
+                JScrollPane emptyScroll=find(explicitEmpty,JScrollPane.class);
+                JLabel inlineError=descendants(explicitEmpty).stream().filter(c->c instanceof JLabel label
+                    &&"Choose a medicine or remove this row.".equals(label.getText()))
+                    .map(JLabel.class::cast).findFirst().orElseThrow();
+                JPanel medicineList=(JPanel)emptyScroll.getViewport().getView();
+                Rectangle errorInList=SwingUtilities.convertRectangle(inlineError.getParent(),inlineError.getBounds(),medicineList);
+                check(emptyScroll.getViewport().getViewRect().contains(errorInList),
+                    "empty-row message is visible after the form scrolls to it");
+                writeSnapshot(explicitEmpty,"consultation-empty-row-error.png");
+                root.remove(explicitEmpty);
+                DispenseItemsPanel tooMany=new DispenseItemsPanel(app,true);
+                root.add(tooMany);
+                find(tooMany,JComboBox.class).setSelectedItem(medicine);
+                find(tooMany,JSpinner.class).setValue(119);
+                check(!tooMany.validateForm()&&tooMany.validationErrors().contains("Only 118 left in stock"),
+                    "quantity above usable stock is rejected inline with the available count");
+                root.remove(tooMany);
                 panel.removeNotify();
             });
         }
@@ -86,12 +136,20 @@ public final class ConsultationMedicineUiChecks {
             .map(JButton.class::cast).filter(button -> "Remove".equals(button.getText()))
             .findFirst().orElseThrow();
         boolean removeVisible = visibleIn(scroll, remove, panel);
+        boolean removeTextFits=remove.getFontMetrics(remove.getFont()).stringWidth(remove.getText())
+            +remove.getInsets().left+remove.getInsets().right<=remove.getWidth();
+        MedicinePicker picker=find(panel,MedicinePicker.class);
+        JPanel rowLayout=(JPanel)picker.getParent();
+        boolean rowChildrenDoNotOverlap=!picker.getBounds().intersects(rowLayout.getComponent(1).getBounds());
         System.out.println("LAYOUT " + label + " | panel=" + width + "x" + height
             + " | dropdown=" + find(panel, JComboBox.class).getBounds()
             + " quantity=" + find(panel, JSpinner.class).getBounds()
             + " Remove=" + remove.getBounds() + " | all visible="
-            + (dropdown && quantity && removeVisible));
+            + (dropdown && quantity && removeVisible) + " | picker and row controls overlap="
+            + !rowChildrenDoNotOverlap + " | Remove text fits="+removeTextFits);
         check(dropdown && quantity && removeVisible, label + " keeps dropdown, quantity, and Remove visible");
+        check(rowChildrenDoNotOverlap,label+" keeps picker and row controls in separate space");
+        check(removeTextFits,label+" displays the complete Remove label");
     }
 
     private static boolean visibleIn(JScrollPane scroll, Component component, Container coordinateParent) {
@@ -106,26 +164,14 @@ public final class ConsultationMedicineUiChecks {
         for (Component child : parent.getComponents()) if (child instanceof Container container) layoutTree(container);
     }
 
-    private static boolean containsMedicine(JComboBox<?> choices, MedicineProduct product) {
-        for (int index = 0; index < choices.getItemCount(); index++) {
-            Object value = choices.getItemAt(index);
-            if (value instanceof Medicine medicine && medicine.getProduct().key().equals(product.key())) return true;
-        }
-        return false;
-    }
-
-    private static Medicine findMedicine(JComboBox<?> choices, MedicineProduct product) {
-        for (int index = 0; index < choices.getItemCount(); index++) {
-            Object value = choices.getItemAt(index);
-            if (value instanceof Medicine medicine && medicine.getProduct().key().equals(product.key())) return medicine;
-        }
-        throw new AssertionError("Test medicine is not in the picker.");
-    }
-
-    private static void waitFor(java.util.function.BooleanSupplier condition) throws Exception {
-        long deadline = System.currentTimeMillis() + 4000;
-        while (!condition.getAsBoolean() && System.currentTimeMillis() < deadline) Thread.sleep(20);
-        if (!condition.getAsBoolean()) throw new AssertionError("Timed out waiting for medicine choices.");
+    private static void writeSnapshot(JPanel panel,String name) {
+        try {
+            Files.createDirectories(Path.of("verification"));
+            BufferedImage image=new BufferedImage(panel.getWidth(),panel.getHeight(),BufferedImage.TYPE_INT_RGB);
+            Graphics2D graphics=image.createGraphics();panel.printAll(graphics);graphics.dispose();
+            javax.imageio.ImageIO.write(image,"png",Path.of("verification",name).toFile());
+            System.out.println("SCREENSHOT verification/"+name+" | size="+panel.getWidth()+"x"+panel.getHeight());
+        } catch(Exception failure) { throw new IllegalStateException("Unable to write screenshot.",failure); }
     }
 
     private static java.util.List<Component> descendants(Container parent) {

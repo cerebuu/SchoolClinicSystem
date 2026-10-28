@@ -18,7 +18,8 @@ final class ClinicSession {
                 throw new SecurityException("Your account needs an approved UIC campus assignment. Ask a Super Admin to update it.");
             long version=login.getSessionVersion();
             var secured=new SecuredClinicSystem(store,owner,audit);
-            return (ClinicSystem)Proxy.newProxyInstance(ClinicSystem.class.getClassLoader(),new Class<?>[]{ClinicSystem.class},(p,m,a)->{
+            return (ClinicSystem)Proxy.newProxyInstance(ClinicSystem.class.getClassLoader(),
+                new Class<?>[]{ClinicSystem.class,ConsultationWorkflow.class},(p,m,a)->{
                 synchronized(login) {
                     if(login.getCurrentUser().orElse(null)!=owner||login.getSessionVersion()!=version)throw new SecurityException("Session expired.");
                     try {

@@ -25,13 +25,25 @@ public final class UserManagementPanel extends BasePanel {
 
     private List<RowAction> userActions(User user) {
         boolean active=app.login.isActive(user.getUserId());
-        return List.of(
+        List<RowAction> actions=new ArrayList<>(List.of(
             new RowAction("View account details",()->showDetails(user,active)),
             new RowAction("Edit user / role",()->editUser(user)),
             new RowAction(active?"Deactivate":"Activate",()->setUserActive(user,active)),
             new RowAction("Account status",()->Actions.run(this,
                 ()->app.login.isActive(user.getUserId()),
-                current->MessagePopup.info(this,current?"Account is active.":"Account is inactive."))));
+                current->MessagePopup.info(this,current?"Account is active.":"Account is inactive.")))));
+        if(Set.of(User.NURSE,User.DOCTOR,User.ASSISTANT).contains(user.getRole()))
+            actions.add(new RowAction("Reset password",()->resetPassword(user)));
+        return List.copyOf(actions);
+    }
+
+    private void resetPassword(User user) {
+        FormPopup.show(this,"Reset password for "+user.getUserId(),List.of(
+            FormField.password(),new FormField("Confirm password","",true,true,null)),values->{
+                if(!values.get("Password").equals(values.get("Confirm password")))
+                    throw new IllegalArgumentException("Passwords do not match.");
+                app.admin.resetStaffPassword(user.getUserId(),values.get("Password"));
+            },()->MessagePopup.info(this,"Password reset for "+user.getUserId()+"."));
     }
 
     private void showDetails(User user,boolean active) {

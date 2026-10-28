@@ -19,15 +19,19 @@ public final class DispenseQueries {
     }
     public static PageResult<Medicine> medicines(List<Medicine> batches,int page,int size,String query) {
         String q=query(query);
+        LocalDate today=LocalDate.now();
         Map<String,Medicine> grouped=new TreeMap<>();
-        for(Medicine m:batches)if(!m.isExpired()&&(m.getName()+" "+m.getProduct().atcLabel()).toLowerCase(Locale.ROOT).contains(q)) {
+        for(Medicine m:batches)if((m.getName()+" "+m.getProduct().atcLabel()).toLowerCase(Locale.ROOT).contains(q)) {
             String key=m.getProduct().key();
             Medicine old=grouped.get(key);
-            boolean earlier=old==null||m.getQuantity()>0&&old.getQuantity()==0
-                ||old!=null&&(m.getQuantity()>0)==(old.getQuantity()>0)
-                    &&m.getExpirationDate().isBefore(old.getExpirationDate());
+            int usable=m.isExpired()?0:m.getQuantity();
+            int oldUsable=old==null?0:old.getQuantity();
+            boolean hasUsable=usable>0,oldHasUsable=oldUsable>0;
+            boolean earlier=old==null||hasUsable&&!oldHasUsable
+                ||hasUsable==oldHasUsable&&m.getExpirationDate().isBefore(old.getExpirationDate());
+            int total=Math.addExact(oldUsable,usable);
             grouped.put(key,new Medicine(old!=null&&!old.getProduct().atcPrimary().isBlank()?old.getProduct():m.getProduct(),
-                Math.addExact(old==null?0:old.getQuantity(),m.getQuantity()),
+                total,
                 earlier?m.getExpirationDate():old.getExpirationDate(),
                 m.getBatchDate(),"Available unexpired stock"));
         }

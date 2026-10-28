@@ -13,19 +13,20 @@ final class DispenseRepository {
     }
     static PageResult<Medicine> medicines(Connection c,int page,int requested,String query)throws SQLException {
         int size=DispenseQueries.size(requested);
-        String filter=" WHERE expiry>=? AND LOCATE(?,LOWER("+"name || ' ' || atc_primary || ' ' || atc_secondary"+"))>0";
+        String filter=" WHERE LOCATE(?,LOWER(CONCAT(name,' ',atc_primary,' ',atc_secondary)))>0";
         String grouped=" FROM medicine_batches"+filter+" GROUP BY LOWER(TRIM(name))";
         String q=DispenseQueries.query(query);
-        Object[] args={LocalDate.now(),q};
+        Object[] args={q};
         int total=Sql.query(c,"SELECT COUNT(*) FROM (SELECT LOWER(TRIM(name))"+grouped+") g",r->r.getInt(1),args).get(0);
         if(page<0||(long)page*size>=total)return new PageResult<>(List.of(),total,page,size);
         List<Medicine> rows=Sql.query(c,"SELECT MIN(name) name,MAX(atc_primary) atc_primary,MAX(atc_secondary) atc_secondary,"
-            +"SUM(CAST(quantity AS BIGINT)) qty,COALESCE(MIN(CASE WHEN quantity>0 THEN expiry END),MIN(expiry)) expiry,MIN(batch_date) batch_date"
+            +"SUM(CASE WHEN expiry>=? THEN quantity ELSE 0 END) qty,"
+            +"COALESCE(MIN(CASE WHEN expiry>=? AND quantity>0 THEN expiry END),MIN(expiry)) expiry,MIN(batch_date) batch_date"
             +grouped+" ORDER BY LOWER(TRIM(name)) LIMIT ? OFFSET ?",r->new Medicine(
                 new MedicineProduct(r.getString("name"),r.getString("atc_primary"),r.getString("atc_secondary")),
                 Math.toIntExact(r.getLong("qty")),r.getObject("expiry",LocalDate.class),
                 r.getObject("batch_date",LocalDate.class),"Available unexpired stock"),
-            args[0],args[1],size,(long)page*size);
+            LocalDate.now(),LocalDate.now(),args[0],size,(long)page*size);
         return new PageResult<>(rows,total,page,size);
     }
     static PageResult<MedicineTransaction> transactions(Connection c,int page,int requested,String query,

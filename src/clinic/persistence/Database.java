@@ -7,7 +7,7 @@ import java.security.SecureRandom;
 import java.sql.*;
 import java.util.*;
 
-/** Single-process embedded database. All units of work commit or roll back together. */
+/** JDBC storage. All units of work commit or roll back together. */
 public final class Database implements AutoCloseable {
     @FunctionalInterface public interface Work<T> { T run(Connection connection) throws Exception; }
     private Connection connection;
@@ -51,6 +51,42 @@ public final class Database implements AutoCloseable {
         }
     }
 
+    /** Only production uses environment settings; explicit Path fixtures remain isolated H2. */
+    public static Database fromEnvironment(Path fallback) {
+        return configured(fallback, System.getenv());
+    }
+
+    static Database configured(Path fallback, Map<String,String> environment) {
+        String url=environment.get("SCMS_DB_URL");
+        if(url==null||url.isBlank())return new Database(fallback);
+        return new Database(url.trim(),environment.get("SCMS_DB_USER"),environment.get("SCMS_DB_PASSWORD"));
+    }
+
+    private Database(String url,String user,String password) {
+        file=null;
+        if(!url.startsWith("jdbc:mysql://")&&!url.startsWith("jdbc:mariadb://"))
+            throw new IllegalArgumentException("SCMS_DB_URL must use jdbc:mysql:// or jdbc:mariadb://.");
+        if(user==null||password==null)
+            throw new IllegalArgumentException("Set SCMS_DB_USER and SCMS_DB_PASSWORD (an empty password is allowed).");
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            // Connector/J speaks the same JDBC protocol to MySQL and MariaDB servers.
+            String jdbcUrl=url.startsWith("jdbc:mariadb://")?"jdbc:mysql://"+url.substring(15):url;
+            Properties properties=new Properties();
+            properties.setProperty("user",user);
+            properties.setProperty("password",password);
+            properties.setProperty("connectionTimeZone","LOCAL");
+            properties.setProperty("preserveInstants","false");
+            connection=DriverManager.getConnection(jdbcUrl,properties);
+            Schema.migrate(connection);
+            connection.setAutoCommit(false);
+        } catch (Exception failure) {
+            release();
+            String detail=failure instanceof SchemaException?" "+failure.getMessage():"";
+            throw new StorageException("Unable to open configured MySQL/MariaDB storage. Check SCMS_DB_URL, SCMS_DB_USER, SCMS_DB_PASSWORD, the pinned driver, and server availability."+detail,failure);
+        }
+    }
+
     private static void restrict(Path path) throws Exception {
         AclFileAttributeView acl = Files.getFileAttributeView(path, AclFileAttributeView.class);
         if (acl != null) {
@@ -89,7 +125,8 @@ public final class Database implements AutoCloseable {
         }
     }
 
-    public String location() { return file + ".mv.db"; }
+    public String location() { return file==null?"Configured MySQL/MariaDB database":file+".mv.db"; }
+    public boolean isRemote() { return file==null; }
     @Override public synchronized void close() {
         try {
             if (connection != null) connection.close();

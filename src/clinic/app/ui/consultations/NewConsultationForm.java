@@ -12,9 +12,12 @@ import clinic.app.ui.dispense.DispenseItemsPanel;
 import clinic.service.DispenseItem;
 import clinic.service.DispenseWorkflow;
 import clinic.service.FeatureRules;
+import clinic.service.SafetyChecker;
+import clinic.service.ConsultationWorkflow;
 import java.util.Map;
 import clinic.core.ClinicSystem;
 import clinic.model.User;
+import clinic.model.Patient;
 import java.awt.Component;
 import java.util.List;
 
@@ -52,6 +55,8 @@ public final class NewConsultationForm {
         PatientLookupField patientLookup=new PatientLookupField(app,PatientLookupField.Mode.EXISTING,"Patient ID");
         components.put("Patient ID",patientLookup);
         if(medicines!=null) {
+            patientLookup.addPropertyChangeListener(PatientLookupField.PATIENT_PROPERTY,event->
+                medicines.setPatient((Patient)event.getNewValue()));
             fields.add(FormField.optional("Medicines administered (optional)"));
             components.put("Medicines administered (optional)",medicines);
         }
@@ -59,22 +64,36 @@ public final class NewConsultationForm {
             String patientId=values.get("Patient ID");
             try {
                 List<clinic.service.DispenseItem> requested=medicines==null?List.of():medicines.items();
-                controller.prepareAsync(()->clinic.findPatient(patientId).orElseThrow(()->
-                    new IllegalArgumentException("Patient ID was not found. Enter a registered patient's ID.")),profile->{
+                controller.prepareAsync(()->{
+                    Patient profile=clinic.findPatient(patientId).orElseThrow(()->
+                        new IllegalArgumentException("Patient ID was not found. Enter a registered patient's ID."));
+                    boolean warning=false;
+                    for(DispenseItem item:requested) {
+                        List<String> safety=clinic.checkSafety(patientId,item.medicine());
+                        List<String> hard=safety.stream()
+                            .filter(value->!value.equals(SafetyChecker.ALLERGY_CONFIRMATION)).toList();
+                        if(!hard.isEmpty())throw new IllegalStateException(String.join("; ",hard));
+                        warning|=safety.contains(SafetyChecker.ALLERGY_CONFIRMATION);
+                    }
+                    verifyStock(clinic,requested);
+                    return new PreparedConsultation(profile,warning);
+                },prepared->{
                     if(!owner.isShowing()||!Actions.isCurrentSession(app.login,sessionVersion,sessionUser)) {
                         controller.abort();
                         return;
                     }
-                    boolean confirmed=false;
-                    if(!requested.isEmpty()&&!profile.getAllergies().isEmpty()) {
-                        confirmed=AllergyConfirmPopup.show(owner,profile,requested);
-                        if(!confirmed) return;
+                    String overrideReason="";
+                    if(!requested.isEmpty()&&prepared.allergyWarning()) {
+                        var confirmation=AllergyConfirmPopup.show(owner,prepared.patient(),requested);
+                        if(confirmation.isEmpty())return;
+                        overrideReason=confirmation.get();
                     }
-                    boolean allergyConfirmed=confirmed;
+                    String finalOverrideReason=overrideReason;
                     controller.saveAsync(()->{
                         verifyStock(clinic,requested);
-                        clinic.recordVisitAndAdminister(patientId,symptoms.get("Symptoms"),values.get("Concern"),
-                            values.get("Remarks"),staffId,requested,allergyConfirmed);
+                        ((ConsultationWorkflow)clinic).recordVisitAndAdministerWithReason(patientId,
+                            symptoms.get("Symptoms"),values.get("Concern"),values.get("Remarks"),staffId,
+                            requested,finalOverrideReason);
                         return true;
                     });
                 });
@@ -92,9 +111,10 @@ public final class NewConsultationForm {
         List<DispenseItem> items=requested==null||requested.isEmpty()?List.of():DispenseWorkflow.merge(requested);
         for(DispenseItem item:items) {
             int available=clinic.getStock(item.product());
-            if(item.quantity()>available)throw new IllegalStateException(item.product().displayName()
-                +": requested "+item.quantity()+", available "+available
-                +" unexpired units. Nothing was recorded or dispensed.");
+            if(item.quantity()>available)throw new IllegalStateException("Only "+available+" left in stock for "
+                +item.product().displayName()+". Nothing was recorded or dispensed.");
         }
     }
+
+    private record PreparedConsultation(Patient patient,boolean allergyWarning) {}
 }

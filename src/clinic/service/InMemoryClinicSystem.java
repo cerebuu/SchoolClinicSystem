@@ -77,25 +77,37 @@ public final class InMemoryClinicSystem implements ClinicData {
     @Override
     public synchronized MedicalRecord recordVisitAndAdministerWithCampus(String patientId,List<String> symptoms,
             String reason,String remarks,String staff,List<DispenseItem> requested,boolean allergyConfirmed,String campusId) {
+        return recordVisitAndAdministerWithReason(patientId,symptoms,reason,remarks,staff,requested,
+            allergyConfirmed?"Allergies reviewed by staff":"",campusId);
+    }
+    @Override
+    public synchronized MedicalRecord recordVisitAndAdministerWithReason(String patientId,List<String> symptoms,
+            String reason,String remarks,String staff,List<DispenseItem> requested,String overrideReason,String campusId) {
         Patient profile=patient(patientId);
         clinic.util.Validation.required(staff,"Staff");
+        String writtenReason=overrideReason==null?"":overrideReason.trim();
         List<DispenseItem> items=requested==null||requested.isEmpty()?List.of():DispenseWorkflow.merge(requested);
         Map<String,Integer> totals=new LinkedHashMap<>();
         for(DispenseItem item:items) {
             List<String> safetyWarnings=checkSafety(patientId,item.medicine());
             if(safetyWarnings.stream().anyMatch(w->!w.equals(SafetyChecker.ALLERGY_CONFIRMATION)))
                 throw new IllegalStateException(String.join("; ",safetyWarnings));
-            if(safetyWarnings.contains(SafetyChecker.ALLERGY_CONFIRMATION)&&!allergyConfirmed)
+            if(safetyWarnings.contains(SafetyChecker.ALLERGY_CONFIRMATION)&&writtenReason.length()<10)
                 throw new IllegalStateException(SafetyChecker.ALLERGY_CONFIRMATION);
             MedicineProduct product=item.product();
             totals.merge(product.key(),item.quantity(),Math::addExact);
-            if(item.quantity()>inventory.getStock(product))
-                throw new IllegalStateException("Insufficient unexpired stock for "+product.displayName()+". Nothing was recorded.");
+            int available=inventory.getStock(product);
+            if(item.quantity()>available)
+                throw new IllegalStateException("Only "+available+" left in stock for "+product.displayName()
+                    +". Nothing was recorded or dispensed.");
         }
         for(DispenseItem item:items) {
-            if(totals.get(item.product().key())>inventory.getStock(item.product()))
-                throw new IllegalStateException("Insufficient unexpired stock for "+item.product().displayName()+". Nothing was recorded.");
+            int available=inventory.getStock(item.product());
+            if(totals.get(item.product().key())>available)
+                throw new IllegalStateException("Only "+available+" left in stock for "+item.product().displayName()
+                    +". Nothing was recorded or dispensed.");
         }
+        if(campusId!=null&&!campusId.isBlank())clinic.util.Validation.required(campusId,"Campus ID");
         String visitId=id();
         String medication=items.stream().map(DispenseItem::toString).collect(java.util.stream.Collectors.joining(", "));
         MedicalRecord visit=new MedicalRecord(visitId,patientId,symptoms,reason,remarks,medication,staff,
@@ -103,7 +115,7 @@ public final class InMemoryClinicSystem implements ClinicData {
         records.add(visit);
         for(DispenseItem item:items)
             DispensingService.dispense(this,inventory,transactions,patientId,item.product(),item.quantity(),
-                staff,allergyConfirmed?"Allergies reviewed by staff":"",visitId,campusId);
+                staff,writtenReason,visitId,campusId);
         return visit;
     }
     public synchronized List<MedicalRecord> getVisitHistory(String patient) {

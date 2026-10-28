@@ -24,11 +24,11 @@ public final class DispenseChecks {
         SchoolNurse nurse=new SchoolNurse("nurse-id","Synthetic nurse");nurse.setCampusId("uic-bajada");
         AuditLog audit=new AuditLog();InMemoryClinicSystem db=store();
         PageResult<Medicine> medicines=db.dispensableMedicinePage(0,1000,null);
-        check("dropdown source includes live names and zero stock",List.of("Ibuprofen:12","Paracetamol:20","Zero:0"),medicines.rows().stream().map(m->m.getName()+":"+m.getQuantity()).toList());
-        check("expired medicine hidden",false,medicines.rows().stream().anyMatch(m->m.getName().equals("Expired")));
+        check("dropdown source includes live, zero-stock, and expired-only choices",List.of("Expired:0","Ibuprofen:12","Paracetamol:20","Zero:0"),medicines.rows().stream().map(m->m.getName()+":"+m.getQuantity()).toList());
+        check("expired-only medicine appears as no usable stock",0,medicines.rows().stream().filter(m->m.getName().equals("Expired")).findFirst().orElseThrow().getQuantity());
         check("out-of-stock item is present for disabled choice",0,medicines.rows().stream().filter(m->m.getName().equals("Zero")).findFirst().orElseThrow().getQuantity());
         check("page size capped",100,db.dispensableMedicinePage(0,1000,null).size());
-        check("page metadata and count",List.of(0,100,3),List.of(medicines.page(),medicines.size(),medicines.total()));
+        check("page metadata and count",List.of(0,100,4),List.of(medicines.page(),medicines.size(),medicines.total()));
         check("case-insensitive partial query",List.of("Paracetamol"),db.dispensableMedicinePage(0,25,"para").rows().stream().map(Medicine::getName).toList());
         DispenseWorkflow wf=workflow(db,nurse,audit);
         check("merge same medicine rows",List.of(new DispenseItem("Paracetamol",5)),DispenseWorkflow.merge(List.of(new DispenseItem("Paracetamol",2),new DispenseItem("paracetamol",3))));

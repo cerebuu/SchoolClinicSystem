@@ -26,7 +26,10 @@ public final class ApplicationContext implements AutoCloseable {
     }
     /** Normal launch uses this durable composition; boolean constructor is an isolated fixture. */
     public ApplicationContext(java.nio.file.Path databaseFile) {
-        database=new clinic.persistence.Database(databaseFile);
+        this(new clinic.persistence.Database(databaseFile));
+    }
+    private ApplicationContext(clinic.persistence.Database configuredDatabase) {
+        database=configuredDatabase;
         try {
             var repository=new clinic.persistence.AdminRepository(database);
             audit=new AuditLog(repository);
@@ -40,7 +43,8 @@ public final class ApplicationContext implements AutoCloseable {
         }
     }
     public static ApplicationContext production() {
-        return new ApplicationContext(java.nio.file.Path.of(System.getProperty("clinic.database", "data/scms")));
+        return new ApplicationContext(clinic.persistence.Database.fromEnvironment(
+            java.nio.file.Path.of(System.getProperty("clinic.database", "data/scms"))));
     }
     private void connectChanges() {
         login.onSessionChanged(changes::clearSession);
@@ -49,7 +53,8 @@ public final class ApplicationContext implements AutoCloseable {
     }
     public boolean isPersistent() { return database!=null; }
     public String storageDescription() {
-        return isPersistent()?"Changes are saved to the local database.":"Demo/test data lasts only for this session.";
+        return isPersistent()?(database.isRemote()?"Changes are saved to the configured MySQL/MariaDB database.":
+            "Changes are saved to the local database."):"Demo/test data lasts only for this session.";
     }
     public String databaseLocation() { return isPersistent()?database.location():"In-memory fixture"; }
     @Override public void close() {

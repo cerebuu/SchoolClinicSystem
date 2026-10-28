@@ -3,10 +3,11 @@ package clinic.persistence;
 import java.sql.*;
 import java.util.List;
 
-/** Version 1 is additive and retryable: never drops, resets, or seeds application data. */
+/** Embedded migrations; existing MySQL schemas are validated and upgraded through a separate path. */
 final class Schema {
     private Schema() {}
     static void migrate(Connection connection) throws SQLException {
+        if(Sql.mysql(connection)) { MySqlSchema.migrate(connection); return; }
         try (Statement s = connection.createStatement()) {
             s.execute("CREATE TABLE IF NOT EXISTS schema_version (id INT PRIMARY KEY CHECK(id=1), version INT NOT NULL)");
             int version=0;

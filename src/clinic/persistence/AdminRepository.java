@@ -19,6 +19,10 @@ public final class AdminRepository {
     public List<Campus> campuses() {
         return database.transaction(c -> Sql.query(c,"SELECT * FROM campuses ORDER BY id", r -> new Campus(r.getString("id"),r.getString("name"))));
     }
+    /** Approved UI choices stay available without seeding an existing remote database. */
+    public void installDefaultCampus(Campus campus) {
+        if(!database.isRemote())save(campus,false);
+    }
     public void save(Campus campus, boolean edit) {
         database.transaction(c -> {
             if(edit) {
@@ -54,9 +58,9 @@ public final class AdminRepository {
                         case "user"->"user_id";
                         case "campus"->"COALESCE(campus_id,'null')";
                         case "action"->"action";
-                        case "date"->"REPLACE(CAST(event_time AS VARCHAR),' ','T')";
-                        default->"user_id || ' ' || COALESCE(campus_id,'null') || ' ' || "
-                            +"REPLACE(CAST(event_time AS VARCHAR),' ','T') || ' ' || action";
+                        case "date"->"REPLACE("+Sql.text(c,"event_time")+",' ','T')";
+                        default->"CONCAT(user_id,' ',COALESCE(campus_id,'null'),' ',REPLACE("
+                            +Sql.text(c,"event_time")+",' ','T'),' ',action)";
                     };
                     where.append("POSITION(? IN LOWER(").append(searchable).append("))>0");
                     parameters.add(token.value());
@@ -64,9 +68,9 @@ public final class AdminRepository {
             }
             String filter=where.toString();
             long count=Sql.query(c,"SELECT COUNT(*) FROM audit_entries"+filter,r->r.getLong(1),parameters.toArray()).get(0);
-            parameters.add(offset);
             parameters.add(size);
-            List<AuditEntry> rows=Sql.query(c,"SELECT * FROM audit_entries"+filter+" ORDER BY seq OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",
+            parameters.add(offset);
+            List<AuditEntry> rows=Sql.query(c,"SELECT * FROM audit_entries"+filter+" ORDER BY seq LIMIT ? OFFSET ?",
                 r->new AuditEntry(r.getObject("event_time",LocalDateTime.class),r.getString("user_id"),
                     r.getString("user_name"),r.getString("role"),r.getString("action"),
                     r.getString("details"),r.getBoolean("allowed"),r.getString("campus_id")),parameters.toArray());
