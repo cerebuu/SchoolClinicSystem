@@ -12,16 +12,7 @@ public final class VisitSearch {
         if (to == null || from != null && from.isAfter(to))
             throw new IllegalArgumentException("A valid visit date range is required.");
         String needle = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
-        // Stored records are appended in visit order; traversing backwards avoids sorting/copying the repository.
-        Iterable<MedicalRecord> newest = () -> new Iterator<>() {
-            private int index = records.size() - 1;
-            public boolean hasNext() { return index >= 0; }
-            public MedicalRecord next() {
-                if (!hasNext()) throw new NoSuchElementException();
-                return records.get(index--);
-            }
-        };
-        return PageResult.select(newest, page, size, visit -> {
+        List<MedicalRecord> matches = records.stream().filter(visit -> {
             if (staffId != null && !staffId.equals(visit.getStaffId())) return false;
             LocalDateTime date = visit.getVisitDateTime();
             if (date == null || date.isAfter(to) || from != null && date.isBefore(from)) return false;
@@ -29,6 +20,8 @@ public final class VisitSearch {
             return needle.isEmpty() || visit.getPatientId().toLowerCase(Locale.ROOT).contains(needle)
                 || patient != null && patient.getName() != null
                     && patient.getName().toLowerCase(Locale.ROOT).contains(needle);
-        });
+        }).toList();
+        return PageResult.select(TimeOrder.newestFirst(matches, MedicalRecord::getVisitDateTime),
+            page, size, ignored -> true);
     }
 }

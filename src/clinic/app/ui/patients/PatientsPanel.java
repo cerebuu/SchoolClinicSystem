@@ -49,7 +49,7 @@ public final class PatientsPanel extends BasePanel {
 
     private void showDetails(Patient patient) {
         Actions.runInSession(this,app.login,()->app.clinic().findPatient(patient.getId()).orElseThrow(),found->
-            MessagePopup.info(this,found.getId()+" | "+found.getName()+"\nContact: "+found.getContactInfo()
+            MessagePopup.infoWithCopy(this,"Patient details",found.getId()+" | "+found.getName()+"\nContact: "+found.getContactInfo()
                 +"\nSection / Position: "+clinic.util.PatientDisplay.getSectionOrPosition(found)
                 +"\nEmployee department: "+clinic.util.PatientDisplay.getEmployeeDepartment(found)
                 +"\nAllergies: "+String.join(", ",found.getAllergies())));

@@ -19,7 +19,7 @@ final class ClinicSession {
             long version=login.getSessionVersion();
             var secured=new SecuredClinicSystem(store,owner,audit);
             return (ClinicSystem)Proxy.newProxyInstance(ClinicSystem.class.getClassLoader(),
-                new Class<?>[]{ClinicSystem.class,ConsultationWorkflow.class},(p,m,a)->{
+                new Class<?>[]{ClinicSystem.class,ConsultationWorkflow.class,RecipientNotificationWorkflow.class},(p,m,a)->{
                 synchronized(login) {
                     if(login.getCurrentUser().orElse(null)!=owner||login.getSessionVersion()!=version)throw new SecurityException("Session expired.");
                     try {

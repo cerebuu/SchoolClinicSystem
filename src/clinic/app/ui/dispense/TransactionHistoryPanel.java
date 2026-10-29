@@ -23,7 +23,8 @@ public final class TransactionHistoryPanel extends JPanel {
             return app.medicationHistory(page,size,query,from,selected.equals("All")?null:today.plusDays(1).atStartOfDay());
         },"Medicine / patient / actor / batch");
         table.setRowActions(entry->java.util.List.of(new RowAction("View entry",
-            ()->MessagePopup.infoWithCopies(this,entry.toReport(),copyIds(entry)))));
+            ()->MessagePopup.infoWithCopies(this,"Medication history entry",entry.toReport(),
+                copyIds(entry),"Copy",false))));
         table.refreshOn(app.changes, clinic.app.DataTopic.TRANSACTIONS,clinic.app.DataTopic.INVENTORY);
         table.setEmptyText("No medication or stock events yet");
         table.setDashboardViewport(DispenseLayout.HISTORY_VISIBLE_ROWS, DispenseLayout.ROW_HEIGHT);

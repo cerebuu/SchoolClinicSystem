@@ -18,11 +18,12 @@ public final class ClinicRepository {
         "dispenseMedicine", "addMedicine", "restockMedicine", "mergeMedicineBatch", "mergeDuplicateMedicineBatches", "refillBatch",
         "saveInventoryBatch","refillInventoryBatch",
         "dispenseMedicineWithCampus",
-        "createGuardianNotification", "createGuardianNotificationWithCampus",
+        "createGuardianNotification", "createGuardianNotificationWithCampus","createGuardianNotificationWithRecipient",
         "createEmergencyNotification", "createEmergencyNotificationWithCampus",
         "updateNotificationStatus", "updateNotificationStatusForCampus",
         "beginNotificationAttempt", "beginNotificationAttemptForCampus",
-        "completeNotificationAttempt", "completeNotificationAttemptForCampus");
+        "completeNotificationAttempt", "completeNotificationAttemptForCampus",
+        "alertPage", "unseenAlertCount", "markAlertsSeen");
     private ClinicRepository() {}
 
     public static ClinicData create(Database database) {
@@ -65,13 +66,15 @@ public final class ClinicRepository {
                 // Frequent dashboard lookups must not materialize unrelated clinical history.
                 if(method.getName().equals("patientCount")) return count(connection,"SELECT COUNT(*) FROM patients");
                 if(method.getName().equals("recordCount")) return count(connection,"SELECT COUNT(*) FROM visits");
-                if(method.getName().equals("findPatient")) return Sql.query(connection,"SELECT * FROM patients WHERE id=?",
+                if(method.getName().equals("findPatient")) return Sql.query(connection,
+                    "SELECT * FROM patients WHERE LOWER(TRIM(id))=LOWER(TRIM(?))",
                     row -> patient(connection,row),args[0]).stream().findFirst();
                 if(method.getName().equals("getVisitHistory")&&args.length==2) {
                     String campusId=(String)args[1];
                     if(Sql.query(connection,"SELECT COUNT(*) FROM patients WHERE id=?",r->r.getInt(1),args[0]).get(0)==0)
                         throw new IllegalArgumentException("Patient not found.");
-                    String sql="SELECT * FROM visits WHERE patient_id=?"+(campusId==null?"":" AND campus_id=?")+" ORDER BY seq";
+                    String sql="SELECT * FROM visits WHERE patient_id=?"+(campusId==null?"":" AND campus_id=?")
+                        +" ORDER BY visit_time DESC,seq DESC";
                     return campusId==null?Sql.query(connection,sql,r->visit(connection,r),args[0])
                         :Sql.query(connection,sql,r->visit(connection,r),args[0],campusId);
                 }
@@ -159,7 +162,14 @@ public final class ClinicRepository {
                     r.getObject("last_attempt_at",LocalDateTime.class));
                 return n;
             });
-        return new InMemoryClinicSystem.State(patients,visits,transactions,notifications,batches,movements);
+        List<AlertTracker.Entry> alertStates=Sql.query(c,
+            "SELECT alert_key,scope_key,fingerprint,active,generation FROM alert_states ORDER BY alert_key",
+            r->new AlertTracker.Entry(r.getString(1),r.getString(2),r.getString(3),r.getBoolean(4),r.getLong(5)));
+        List<AlertTracker.Seen> alertSeen=Sql.query(c,
+            "SELECT user_id,alert_key,generation FROM alert_seen ORDER BY user_id,alert_key",
+            r->new AlertTracker.Seen(r.getString(1),r.getString(2),r.getLong(3)));
+        return new InMemoryClinicSystem.State(patients,visits,transactions,notifications,batches,movements,
+            alertStates,alertSeen);
     }
 
     private static void saveChanges(Connection c, InMemoryClinicSystem.State before, InMemoryClinicSystem.State after) throws SQLException {
@@ -246,6 +256,27 @@ public final class ClinicRepository {
                     n.getStatus().name(),n.getChannel()==null?null:n.getChannel().name(),n.getAttemptCount(),
                     n.getLastAttemptTime(),n.getNotificationId());
         }
+        Map<String,AlertTracker.Entry> previousAlertStates=new HashMap<>();
+        before.alertStates().forEach(entry->previousAlertStates.put(entry.alertKey(),entry));
+        for(AlertTracker.Entry entry:after.alertStates()) {
+            AlertTracker.Entry old=previousAlertStates.get(entry.alertKey());
+            if(old==null)Sql.update(c,"INSERT INTO alert_states(alert_key,scope_key,fingerprint,active,generation) VALUES(?,?,?,?,?)",
+                entry.alertKey(),entry.scopeKey(),entry.fingerprint(),entry.active(),entry.generation());
+            else if(!old.equals(entry))Sql.update(c,
+                "UPDATE alert_states SET scope_key=?,fingerprint=?,active=?,generation=? WHERE alert_key=?",
+                entry.scopeKey(),entry.fingerprint(),entry.active(),entry.generation(),entry.alertKey());
+        }
+        Map<String,AlertTracker.Seen> previousSeen=new HashMap<>();
+        before.alertSeen().forEach(item->previousSeen.put(item.userId()+"\u0000"+item.alertKey(),item));
+        for(AlertTracker.Seen item:after.alertSeen()) {
+            String key=item.userId()+"\u0000"+item.alertKey();
+            AlertTracker.Seen old=previousSeen.get(key);
+            if(old==null)Sql.update(c,"INSERT INTO alert_seen(user_id,alert_key,generation) VALUES(?,?,?)",
+                item.userId(),item.alertKey(),item.generation());
+            else if(!old.equals(item))Sql.update(c,
+                "UPDATE alert_seen SET generation=? WHERE user_id=? AND alert_key=?",
+                item.generation(),item.userId(),item.alertKey());
+        }
     }
     private static List<MedicalRecord> searchRecords(Connection c,String patient,String symptom,String medicine,
             LocalDate date,String section,String department,String campusId) throws SQLException {
@@ -275,7 +306,7 @@ public final class ClinicRepository {
             where.append(" AND LOCATE(?,LOWER(d.medicine))>0)");
             args.add(medicine.trim().toLowerCase(Locale.ROOT));
         }
-        return Sql.query(c,"SELECT v.*"+where+" ORDER BY v.seq",r->visit(c,r),args.toArray());
+        return Sql.query(c,"SELECT v.*"+where+" ORDER BY v.visit_time DESC,v.seq DESC",r->visit(c,r),args.toArray());
     }
 
     private static PageResult<MedicalRecord> recordPage(Connection c,int page,int requestedSize,String query,
@@ -289,7 +320,7 @@ public final class ClinicRepository {
         int total=Sql.query(c,"SELECT COUNT(*)"+where,r->r.getInt(1),args.toArray()).get(0);
         if((long)page*size>=total)return new PageResult<>(List.of(),total,page,size);
         args.add(size);args.add((long)page*size);
-        List<MedicalRecord> rows=Sql.query(c,"SELECT *"+where+" ORDER BY seq LIMIT ? OFFSET ?",
+        List<MedicalRecord> rows=Sql.query(c,"SELECT *"+where+" ORDER BY visit_time DESC,seq DESC LIMIT ? OFFSET ?",
             r->visit(c,r),args.toArray());
         return new PageResult<>(rows,total,page,size);
     }
@@ -341,8 +372,8 @@ public final class ClinicRepository {
         int size=DispenseQueries.size(requestedSize);
         if(page<0)throw new IllegalArgumentException("Invalid page.");
         String normalized=DispenseQueries.query(query);
-        String base=" FROM (SELECT id,dispensed_at AS event_time,'DISPENSE' AS event_type,medicine,atc_primary,atc_secondary,quantity,staff_id AS actor_id,campus_id,patient_id,visit_id,expiry,NULL AS batch_id,remarks FROM dispensing"
-            +" UNION ALL SELECT id,event_time,event_type,medicine,atc_primary,atc_secondary,quantity,actor_id,campus_id,NULL AS patient_id,NULL AS visit_id,expiry,batch_id,'' AS remarks FROM inventory_movements) h WHERE 1=1";
+        String base=" FROM (SELECT id,seq AS event_sequence,dispensed_at AS event_time,'DISPENSE' AS event_type,medicine,atc_primary,atc_secondary,quantity,staff_id AS actor_id,campus_id,patient_id,visit_id,expiry,NULL AS batch_id,remarks FROM dispensing"
+            +" UNION ALL SELECT id,seq AS event_sequence,event_time,event_type,medicine,atc_primary,atc_secondary,quantity,actor_id,campus_id,NULL AS patient_id,NULL AS visit_id,expiry,batch_id,'' AS remarks FROM inventory_movements) h WHERE 1=1";
         String where=base;
         List<Object> args=new ArrayList<>();
         if(!normalized.isEmpty()) {
@@ -355,7 +386,8 @@ public final class ClinicRepository {
         int total=Sql.query(c,"SELECT COUNT(*)"+where,r->r.getInt(1),args.toArray()).get(0);
         if((long)page*size>=total)return new PageResult<>(List.of(),total,page,size);
         args.add(size);args.add((long)page*size);
-        List<MedicationHistoryEntry> rows=Sql.query(c,"SELECT *"+where+" ORDER BY event_time DESC,id DESC LIMIT ? OFFSET ?",r->{
+        List<MedicationHistoryEntry> rows=Sql.query(c,"SELECT *"+where
+            +" ORDER BY event_time DESC,event_sequence DESC,event_type DESC,id DESC LIMIT ? OFFSET ?",r->{
             MedicationHistoryEntry.Type type=MedicationHistoryEntry.Type.valueOf(r.getString("event_type"));
             List<BatchAllocation> allocations=type==MedicationHistoryEntry.Type.DISPENSE
                 ?Sql.query(c,"SELECT batch_id,quantity,expiry FROM dispensing_batch_allocations WHERE transaction_id=? ORDER BY expiry,batch_id",

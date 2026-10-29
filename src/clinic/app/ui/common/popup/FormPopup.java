@@ -2,6 +2,7 @@ package clinic.app.ui.common.popup;
 import clinic.app.Theme;
 import clinic.app.ui.common.AsyncLoader;
 import clinic.app.ui.common.Card;
+import clinic.app.ui.dashboard.WheelForwarder;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -70,6 +71,11 @@ public final class FormPopup {
             int componentHeight=input instanceof MultiSelectField?290:input instanceof AllergyField?220:
                 input instanceof LimitedTextArea?150:input instanceof FormValueComponent?input.getPreferredSize().height+48:90;
             group.setMaximumSize(new Dimension(Integer.MAX_VALUE,componentHeight));
+            if(input instanceof FormValueComponent)input.addPropertyChangeListener("preferredSize",event->{
+                group.setMaximumSize(new Dimension(Integer.MAX_VALUE,input.getPreferredSize().height+48));
+                group.revalidate();
+                form.revalidate();
+            });
             form.add(group);
             form.add(Box.createVerticalStrut(Theme.SPACE_2));
             inputs.put(f.label(), input);
@@ -164,6 +170,7 @@ public final class FormPopup {
         JScrollPane content=new JScrollPane(form);
         content.setBorder(javax.swing.BorderFactory.createEmptyBorder());
         content.getVerticalScrollBar().setUnitIncrement(16);
+        WheelForwarder.install(content);
         content.setPreferredSize(new Dimension(520, Math.min(520,
             Math.max(240, fields.size() * 86+selections.size()*200
                 +(int)fields.stream().filter(f -> f.rows()>0).count()*60))));

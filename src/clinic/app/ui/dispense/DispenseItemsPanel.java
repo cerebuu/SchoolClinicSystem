@@ -1,17 +1,13 @@
 package clinic.app.ui.dispense;
 
-import clinic.app.ApplicationContext;
-import clinic.app.Theme;
-import clinic.app.ui.common.popup.MessagePopup;
-import clinic.app.ui.common.popup.FormValueComponent;
-import clinic.model.Patient;
-import clinic.service.DispenseItem;
-import clinic.service.DispenseWorkflow;
 import java.awt.BorderLayout;
-import java.awt.Dimension;
 import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.GraphicsEnvironment;
+import java.awt.Toolkit;
 import java.util.ArrayList;
 import java.util.List;
+
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -19,6 +15,15 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.ScrollPaneConstants;
+
+import clinic.app.ApplicationContext;
+import clinic.app.Theme;
+import clinic.app.ui.common.popup.FormValueComponent;
+import clinic.app.ui.common.popup.MessagePopup;
+import clinic.app.ui.dashboard.WheelForwarder;
+import clinic.model.Patient;
+import clinic.service.DispenseItem;
+import clinic.service.DispenseWorkflow;
 
 public final class DispenseItemsPanel extends JPanel implements FormValueComponent {
     private final List<DispenseItemRow> rows = new ArrayList<>();
@@ -69,6 +74,12 @@ public final class DispenseItemsPanel extends JPanel implements FormValueCompone
         rows.add(holder[0]);
         list.add(holder[0]);
         updateListHeight();
+        if(!initialRow)javax.swing.SwingUtilities.invokeLater(()->{
+            list.doLayout();
+            java.awt.Rectangle bounds=holder[0].getBounds();
+            list.scrollRectToVisible(bounds);
+            holder[0].medicine.focusSearch();
+        });
     }
 
     private void remove(DispenseItemRow row) {
@@ -81,11 +92,11 @@ public final class DispenseItemsPanel extends JPanel implements FormValueCompone
         int contentHeight = rows.stream().mapToInt(DispenseItemRow::rowHeight).sum();
         list.setPreferredSize(new Dimension(0, contentHeight));
         list.setMinimumSize(new Dimension(0, contentHeight));
-        int visibleHeight = rows.stream().limit(DispenseLayout.MAX_VISIBLE_ITEMS)
-            .mapToInt(DispenseItemRow::rowHeight).sum();
-        int viewportHeight = Math.max(DispenseLayout.ITEM_ROW_HEIGHT, visibleHeight - 1);
+        int viewportHeight=Math.max(DispenseLayout.ITEM_ROW_HEIGHT,
+            Math.min(contentHeight,maxRowsViewportHeight()));
         scroll.setPreferredSize(new Dimension(0, viewportHeight));
         scroll.setMinimumSize(new Dimension(0, DispenseLayout.ITEM_ROW_HEIGHT));
+        scroll.setMaximumSize(new Dimension(Integer.MAX_VALUE,viewportHeight));
         int noticeHeight=allergyNotice.getPreferredSize().height+Theme.GAP;
         int sectionHeight = viewportHeight + Theme.CONTROL_HEIGHT + Theme.GAP + Theme.SPACE_1+noticeHeight;
         setMinimumSize(new Dimension(0, sectionHeight));
@@ -94,6 +105,21 @@ public final class DispenseItemsPanel extends JPanel implements FormValueCompone
         list.revalidate();
         revalidate();
         repaint();
+    }
+
+    private static int maxRowsViewportHeight() {
+        int screenHeight=900;
+        if(!GraphicsEnvironment.isHeadless())screenHeight=Toolkit.getDefaultToolkit().getScreenSize().height;
+        return Math.max(DispenseLayout.ITEM_ROW_HEIGHT,Math.min(480,(int)(screenHeight*.4)));
+    }
+
+    @Override public void addNotify() {
+        super.addNotify();
+        javax.swing.SwingUtilities.invokeLater(()->{
+            if(!isDisplayable())return;
+            Component ancestor=javax.swing.SwingUtilities.getAncestorOfClass(JScrollPane.class,this);
+            if(ancestor instanceof JScrollPane page)WheelForwarder.install(page);
+        });
     }
 
     private void merge(DispenseItemRow changed) {
@@ -177,6 +203,9 @@ public final class DispenseItemsPanel extends JPanel implements FormValueCompone
     public int itemCount() {
         return rows.size();
     }
+
+    JScrollPane rowsScrollPane() { return scroll; }
+    int rowsContentHeight() { return list.getPreferredSize().height; }
 
     public int itemViewportHeight() {
         return scroll.getViewport().getExtentSize().height;

@@ -27,7 +27,7 @@ public final class ReportsPanel extends BasePanel {
                 }
                 java.util.Map<String,String> ids=java.util.Map.of("Record ID",r.getRecordId(),"Patient ID",r.getPatientId());
                 Actions.runInSession(this,app.login,()->app.clinic().generateReport(r),
-                    report->MessagePopup.infoWithCopies(this,report,ids));
+                    report->MessagePopup.infoWithCopies(this,"Clinic report",report,ids,"Copy report",false));
             });
     }
 }

@@ -3,24 +3,29 @@ import clinic.app.ApplicationContext;
 import clinic.app.Theme;
 import clinic.app.ui.common.*;
 import clinic.app.ui.common.popup.*;
+import clinic.app.nav.PageActivationListener;
 import clinic.model.*;
 import clinic.notify.*;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.util.Map;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.*;
-public final class NotificationsPanel extends BasePanel {
+public final class NotificationsPanel extends BasePanel implements PageActivationListener {
     public static final String CREATE_POPUP_TITLE="Create notification";
     public static final String EMERGENCY_POPUP_TITLE="Create emergency notification";
     public static final String SEND_POPUP_TITLE="Send notification";
     public static List<String> popupTitles() {
-        return List.of(CREATE_POPUP_TITLE,EMERGENCY_POPUP_TITLE,SEND_POPUP_TITLE,"School clinic");
+        return List.of(CREATE_POPUP_TITLE,EMERGENCY_POPUP_TITLE,SEND_POPUP_TITLE,
+            clinic.app.ui.common.popup.MessagePopup.CONSULTATION_RECORD_TITLE);
     }
     private final ApplicationContext app;
     private final NotifierService notifier;
     private final PagedTablePanel<NotificationLog> table;
+    private PagedTablePanel<Alert> alertsTable;
+    private clinic.app.DataChangeBus.Subscription alertSubscription;
+    private volatile boolean pageActive;
+    private volatile long pageGeneration;
     public NotificationsPanel(ApplicationContext app) {
         super("Notifications", app);
         this.app=app;
@@ -29,7 +34,9 @@ public final class NotificationsPanel extends BasePanel {
         table.refreshOn(app.changes, clinic.app.DataTopic.NOTIFICATIONS);
         if(app.current().canAccess(User.RECORDS)) {
             PagedTablePanel<Alert> alerts=new PagedTablePanel<>(new AlertsTableModel(),app::alerts,"Alert / message");
-            alerts.refreshOn(app.changes, clinic.app.DataTopic.ALERTS);
+            alertsTable=alerts;
+            alerts.onPageLoaded(this::markVisibleAlertsSeen);
+            alerts.setRowActions(alert->List.of(new RowAction("View details",()->openAlertDetails(alert))));
             JTabbedPane views=new JTabbedPane();views.addTab("Messages",table);views.addTab("Alerts",alerts);
             add(views,BorderLayout.CENTER);
         } else add(table,BorderLayout.CENTER);
@@ -44,7 +51,7 @@ public final class NotificationsPanel extends BasePanel {
             java.util.Map<String,String> ids=new java.util.LinkedHashMap<>();
             ids.put("Notification ID",n.getNotificationId());ids.put("Patient ID",n.getPatientId());
             ids.put("Transaction ID",n.getTransactionId());
-            MessagePopup.infoWithCopies(this,n.messageBody(),ids);
+            MessagePopup.infoWithCopies(this,"Notification details",n.messageBody(),ids,"Copy message",false);
         });
         if(app.current().canAccess(User.SEND_NOTIFICATIONS))action("Mark sent (manual)", ()-> {
             NotificationLog n=table.selected();
@@ -57,6 +64,41 @@ public final class NotificationsPanel extends BasePanel {
                 return true;
             }, ok->{});
         });
+    }
+
+    @Override public void pageActivated() {
+        pageActive=true;
+        pageGeneration++;
+        if(alertSubscription!=null)alertSubscription.close();
+        if(alertsTable!=null) {
+            alertSubscription=app.changes.subscribe(alertsTable::reload,clinic.app.DataTopic.ALERTS);
+            alertsTable.reload();
+        }
+    }
+
+    @Override public void pageDeactivated() {
+        pageActive=false;
+        pageGeneration++;
+        if(alertSubscription!=null)alertSubscription.close();
+        alertSubscription=null;
+    }
+
+    private void markVisibleAlertsSeen(List<Alert> visible) {
+        if(!pageActive||visible.isEmpty())return;
+        long viewingGeneration=pageGeneration;
+        List<Alert> rows=List.copyOf(visible);
+        Actions.run(this,()->{
+            if(!pageActive||pageGeneration!=viewingGeneration)return false;
+            app.markAlertsSeen(rows);
+            return true;
+        },ignored->{});
+    }
+
+    private void openAlertDetails(Alert alert) {
+        Actions.run(this,()->{
+            app.markAlertSeen(alert);
+            return true;
+        },ignored->MessagePopup.infoWithCopy(this,"Alert details",alert.getType()+"\n"+alert.getMessage()));
     }
 
     private void addSendActions() {
@@ -77,14 +119,7 @@ public final class NotificationsPanel extends BasePanel {
     }
 
     private void createEmergency() {
-        AtomicReference<NotificationLog> created=new AtomicReference<>();
-        PatientLookupField patientId=new PatientLookupField(app,PatientLookupField.Mode.EXISTING_WITH_CONTACT,"Patient ID");
-        FormPopup.showWithComponents(this,EMERGENCY_POPUP_TITLE,List.of(FormField.text("Patient ID")),
-            Map.of("Patient ID",patientId),(values,selections,controller)->controller.saveAsync(()->{
-                created.set(app.clinic().createEmergencyNotification(values.get("Patient ID")));
-                return true;
-            }),
-            ()->{if(created.get()!=null)openSendPopup(created.get());});
+        CreateNotificationPopup.openEmergency(this,app,this::openSendPopup);
     }
 
     private void openSendPopup(NotificationLog notification) {

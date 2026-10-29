@@ -14,7 +14,7 @@ final class Schema {
             try (ResultSet r = s.executeQuery("SELECT version FROM schema_version WHERE id=1")) {
                 if (r.next()) {
                     version=r.getInt(1);
-                    if (version < 1 || version > 12) throw new SQLException("Unsupported database schema version.");
+                    if (version < 1 || version > 14) throw new SQLException("Unsupported database schema version.");
                 }
             }
             if(version==0) {
@@ -122,7 +122,35 @@ final class Schema {
                     s.execute("ALTER TABLE "+table+" ADD COLUMN IF NOT EXISTS atc_secondary VARCHAR(500) NOT NULL DEFAULT ''");
                 }
                 s.executeUpdate("UPDATE schema_version SET version=12 WHERE id=1");
+                version=12;
             }
+            if(version==12) {
+                s.execute("CREATE TABLE IF NOT EXISTS alert_states (alert_key VARCHAR(64) PRIMARY KEY, scope_key VARCHAR(500) NOT NULL, fingerprint VARCHAR(64) NOT NULL, active BOOLEAN NOT NULL, generation BIGINT NOT NULL)");
+                s.execute("CREATE TABLE IF NOT EXISTS alert_seen (user_id VARCHAR(500) NOT NULL, alert_key VARCHAR(64) NOT NULL, generation BIGINT NOT NULL, PRIMARY KEY(user_id,alert_key))");
+                s.executeUpdate("UPDATE schema_version SET version=13 WHERE id=1");
+                version=13;
+            }
+            if(version==13) {
+                for(String table:List.of("medicine_batches","dispensing","inventory_movements")) {
+                    s.execute("ALTER TABLE "+table+" ADD COLUMN IF NOT EXISTS atc_primary VARCHAR(500) NOT NULL DEFAULT ''");
+                    s.execute("ALTER TABLE "+table+" ADD COLUMN IF NOT EXISTS atc_secondary VARCHAR(500) NOT NULL DEFAULT ''");
+                    for(String column:List.of("strength","formulation")) {
+                        if(hasColumn(connection,table,column))
+                            s.execute("ALTER TABLE "+table+" ALTER COLUMN "+column+" SET DEFAULT ''");
+                    }
+                }
+                s.executeUpdate("UPDATE schema_version SET version=14 WHERE id=1");
+            }
+        }
+    }
+    private static boolean hasColumn(Connection connection,String table,String column) throws SQLException {
+        try(PreparedStatement query=connection.prepareStatement("""
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='PUBLIC' AND table_name=? AND column_name=?
+            """)) {
+            query.setString(1,table.toUpperCase(java.util.Locale.ROOT));
+            query.setString(2,column.toUpperCase(java.util.Locale.ROOT));
+            try(ResultSet result=query.executeQuery()) { return result.next(); }
         }
     }
     private static void dropNotificationCheck(Connection connection,String column) throws SQLException {

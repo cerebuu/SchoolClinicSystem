@@ -13,8 +13,7 @@ final class AlertCollector {
             if(recurring!=null)alerts.add(recurring);
         });
         inventory.collectAlerts(alerts::add);
-        alerts.sort(Comparator.comparing(Alert::getCreatedAt).reversed());
-        return List.copyOf(alerts);
+        return TimeOrder.newestFirst(alerts,Alert::getCreatedAt);
     }
     static PageResult<Alert> page(List<Alert> alerts,int page,int size,String query) {
         return PageResult.select(alerts,page,size,a->query==null||query.isBlank()

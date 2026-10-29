@@ -22,16 +22,17 @@ public final class AdminService {
         repository.campuses().forEach(c -> campuses.put(c.id(),c));
         seedNurseCampuses();
     }
-    /** Installs the approved choices additively; existing campus and account records are preserved. */
+    /** Installs local defaults into the campus catalog; remote choices must already be stored. */
     private void seedNurseCampuses() {
         for(NurseCampus approved:NurseCampus.choices()) {
             Campus expected=approved.campus();
-            Campus existing=campuses.get(approved.id());
-            if(existing==null) {
-                if(repository!=null)repository.installDefaultCampus(expected);
-                campuses.put(expected.id(),expected);
-            } else if(!expected.name().equals(existing.name())) {
-                throw new IllegalStateException("Campus ID "+approved.id()+" is reserved for "+expected.name()+".");
+            if(!campuses.containsKey(approved.id())) {
+                if(repository==null)campuses.put(expected.id(),expected);
+                else {
+                    repository.installDefaultCampus(expected);
+                    repository.campuses().stream().filter(campus->campus.id().equals(expected.id()))
+                        .findFirst().ifPresent(campus->campuses.put(campus.id(),campus));
+                }
             }
         }
     }
@@ -46,7 +47,8 @@ public final class AdminService {
         return u;
     }
     private static boolean isMutation(String action) {
-        return action.equals("addUser")||action.equals("updateUser")||action.equals("saveCampus")||action.equals("resetStaffPassword");
+        return action.equals("addUser")||action.equals("updateUser")||action.equals("saveCampus")
+            ||action.equals("deleteCampus")||action.equals("resetStaffPassword");
     }
     private void completed(User actor,String action) {
         audit.record(LocalDateTime.now(),actor.getUserId(),actor.getName(),actor.getRole(),
@@ -86,11 +88,8 @@ public final class AdminService {
     }
     private String campusDescription(String id) {
         if(id==null)return "Unassigned";
-        return NurseCampus.forId(id).map(NurseCampus::displayName)
-            .orElseGet(()->{
-                Campus legacy=campuses.get(id);
-                return legacy==null?"Unknown campus ("+id+")":legacy.name()+" ["+id+"]";
-            });
+        Campus campus=campuses.get(id);
+        return campus==null?"Unknown campus ("+id+")":campus.name()+" ["+id+"]";
     }
     private void recordNurseAssignment(User actor,String nurseId,String previousId,String newId) {
         String details="nurseId="+nurseId+"; previousCampus="+campusDescription(previousId)
@@ -116,9 +115,6 @@ public final class AdminService {
     public synchronized void saveCampus(Campus campus, boolean edit) {
         synchronized (login) {
             User actor=authorize("saveCampus");
-            NurseCampus approved=NurseCampus.forId(campus.id()).orElse(null);
-            if(approved!=null&&!approved.displayName().equals(campus.name()))
-                throw new IllegalArgumentException("Approved nurse campus names cannot be changed.");
             if(edit&&!campuses.containsKey(campus.id()))throw new IllegalArgumentException("Campus not found.");
             if(!edit&&campuses.containsKey(campus.id()))throw new IllegalArgumentException("Campus ID already exists.");
             audit.unitOfWork(()->{
@@ -130,6 +126,22 @@ public final class AdminService {
             changed.accept("campuses");
         }
     }
+    public synchronized void deleteCampus(String campusId) {
+        synchronized(login) {
+            User actor=authorize("deleteCampus");
+            Campus existing=campuses.get(clinic.util.Validation.required(campusId,"Campus ID"));
+            if(existing==null)throw new IllegalArgumentException("Campus not found.");
+            if(NurseCampus.forId(existing.id()).isPresent())
+                throw new IllegalArgumentException("Approved nurse campuses cannot be removed.");
+            audit.unitOfWork(()->{
+                if(repository!=null)repository.deleteCampus(existing.id());
+                completed(actor,"deleteCampus");
+                return null;
+            });
+            campuses.remove(existing.id());
+            changed.accept("campuses");
+        }
+    }
     public synchronized PageResult<Campus> campuses(int page, int size, String filter) {
         synchronized (login) {
             authorize("listCampuses");
@@ -138,10 +150,6 @@ public final class AdminService {
         }
     }
     public synchronized String campusName(String campusId) {
-        if(campusId!=null) {
-            var approved=NurseCampus.forId(campusId);
-            if(approved.isPresent())return approved.get().displayName();
-        }
         Campus campus=campusId==null?null:campuses.get(campusId);
         return campus==null?null:campus.name();
     }

@@ -19,7 +19,7 @@ public final class AdminRepository {
     public List<Campus> campuses() {
         return database.transaction(c -> Sql.query(c,"SELECT * FROM campuses ORDER BY id", r -> new Campus(r.getString("id"),r.getString("name"))));
     }
-    /** Approved UI choices stay available without seeding an existing remote database. */
+    /** Local development databases receive defaults; remote campus catalogs remain authoritative. */
     public void installDefaultCampus(Campus campus) {
         if(!database.isRemote())save(campus,false);
     }
@@ -29,6 +29,13 @@ public final class AdminRepository {
                 if(Sql.update(c,"UPDATE campuses SET name=? WHERE id=?",campus.name(),campus.id())!=1)
                     throw new IllegalArgumentException("Campus not found.");
             } else Sql.update(c,"INSERT INTO campuses VALUES(?,?)",campus.id(),campus.name());
+            return null;
+        });
+    }
+    public void deleteCampus(String campusId) {
+        database.transaction(c->{
+            if(Sql.update(c,"DELETE FROM campuses WHERE id=?",campusId)!=1)
+                throw new IllegalArgumentException("Campus not found.");
             return null;
         });
     }
@@ -70,7 +77,7 @@ public final class AdminRepository {
             long count=Sql.query(c,"SELECT COUNT(*) FROM audit_entries"+filter,r->r.getLong(1),parameters.toArray()).get(0);
             parameters.add(size);
             parameters.add(offset);
-            List<AuditEntry> rows=Sql.query(c,"SELECT * FROM audit_entries"+filter+" ORDER BY seq LIMIT ? OFFSET ?",
+            List<AuditEntry> rows=Sql.query(c,"SELECT * FROM audit_entries"+filter+" ORDER BY event_time DESC,seq DESC LIMIT ? OFFSET ?",
                 r->new AuditEntry(r.getObject("event_time",LocalDateTime.class),r.getString("user_id"),
                     r.getString("user_name"),r.getString("role"),r.getString("action"),
                     r.getString("details"),r.getBoolean("allowed"),r.getString("campus_id")),parameters.toArray());

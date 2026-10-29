@@ -17,16 +17,20 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Consumer;
 import javax.swing.*;
 
 /** Patient-safe creation form with asynchronous profile and transaction lookup. */
 public final class CreateNotificationPopup {
     private final ApplicationContext app;
     private final Runnable saved;
+    private final Consumer<clinic.model.NotificationLog> emergencySaved;
+    private final boolean emergency;
     private final User sessionUser;
     private final long sessionVersion;
     private final JDialog dialog;
     private final PatientLookupField patientField;
+    private final RecipientSelector recipientSelector;
     private final JComboBox<GuardianMessageTemplates.MessageType> typeBox=new JComboBox<>(GuardianMessageTemplates.MessageType.values());
     private final JComboBox<NotificationTransactionChoice> transactionBox=new JComboBox<>();
     private final JTextField transactionId=new JTextField(28);
@@ -41,19 +45,32 @@ public final class CreateNotificationPopup {
     private java.awt.Color transactionColor=Theme.MUTED;
 
     public static void open(java.awt.Component owner,ApplicationContext app,Runnable saved) {
-        CreateNotificationPopup popup=new CreateNotificationPopup(owner,app,saved);
+        CreateNotificationPopup popup=new CreateNotificationPopup(owner,app,saved,null,false);
         PopupDialog.show(owner,popup.dialog);
     }
 
-    private CreateNotificationPopup(java.awt.Component owner,ApplicationContext app,Runnable saved) {
-        this.app=app;this.saved=saved;
+    static void openEmergency(java.awt.Component owner,ApplicationContext app,
+            Consumer<clinic.model.NotificationLog> saved) {
+        CreateNotificationPopup popup=new CreateNotificationPopup(owner,app,()->{},saved,true);
+        PopupDialog.show(owner,popup.dialog);
+    }
+
+    private CreateNotificationPopup(java.awt.Component owner,ApplicationContext app,Runnable saved,
+            Consumer<clinic.model.NotificationLog> emergencySaved,boolean emergency) {
+        this.app=app;this.saved=saved;this.emergencySaved=emergencySaved;this.emergency=emergency;
         synchronized(app.login) { sessionUser=app.current();sessionVersion=app.login.getSessionVersion(); }
-        dialog=PopupDialog.create(owner,NotificationsPanel.CREATE_POPUP_TITLE);
-        patientField=new PatientLookupField(app,PatientLookupField.Mode.EXISTING_WITH_CONTACT,"Patient ID");
+        dialog=PopupDialog.create(owner,emergency?NotificationsPanel.EMERGENCY_POPUP_TITLE:
+            NotificationsPanel.CREATE_POPUP_TITLE);
+        patientField=new PatientLookupField(app,PatientLookupField.Mode.EXISTING,"Patient ID");
+        recipientSelector=new RecipientSelector(valid->refreshState());
+        if(emergency)typeBox.setSelectedItem(GuardianMessageTemplates.MessageType.EMERGENCY);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         build();
-        patientField.addPropertyChangeListener(PatientLookupField.PATIENT_PROPERTY,event->
-            loadTransactions((Patient)event.getNewValue()));
+        patientField.addPropertyChangeListener(PatientLookupField.PATIENT_PROPERTY,event->{
+            Patient patient=(Patient)event.getNewValue();
+            recipientSelector.setPatient(patient);
+            loadTransactions(patient);
+        });
         patientField.addPropertyChangeListener(clinic.app.ui.common.popup.FormValueComponent.READY_PROPERTY,event->refreshState());
         typeBox.addActionListener(event->refreshState());
         transactionBox.addActionListener(event->refreshState());
@@ -72,6 +89,9 @@ public final class CreateNotificationPopup {
         content.setBorder(BorderFactory.createEmptyBorder(Theme.SPACE_4,Theme.SPACE_6,Theme.SPACE_4,Theme.SPACE_6));
         content.setLayout(new BoxLayout(content,BoxLayout.Y_AXIS));
         addField(content,"Patient ID",patientField);
+        recipientSelector.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        content.add(recipientSelector);
+        content.add(Box.createVerticalStrut(Theme.SPACE_3));
         typeBox.setName("Notification type");Theme.field(typeBox);typeBox.setRenderer(new DefaultListCellRenderer() {
             @Override public java.awt.Component getListCellRendererComponent(JList<?> list,Object value,int index,
                     boolean selected,boolean focus) {
@@ -80,19 +100,23 @@ public final class CreateNotificationPopup {
                     index,selected,focus);
             }
         });
-        addField(content,"Notification type",typeBox);
+        if(!emergency)addField(content,"Notification type",typeBox);
         preview.setEditable(false);preview.setLineWrap(true);preview.setWrapStyleWord(true);
         preview.setName("Message preview");preview.setBackground(Theme.SUBTLE);
         preview.setFont(Theme.font(Theme.TYPE_BODY,java.awt.Font.PLAIN));
         addField(content,"Message preview",new JScrollPane(preview));
-        transactionBox.setName("Notification transaction");Theme.field(transactionBox);
-        transactionBox.addItem(NotificationTransactionChoice.none());
-        transactionBox.setEnabled(false);
-        addField(content,"Pick a transaction (optional)",transactionBox);
-        transactionStatus.setForeground(Theme.MUTED);transactionStatus.setFont(Theme.font(Theme.TYPE_CAPTION,java.awt.Font.PLAIN));
-        transactionStatus.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);content.add(transactionStatus);
-        transactionId.setName("Transaction ID");transactionId.setEditable(false);Theme.field(transactionId);
-        addField(content,"Transaction ID",transactionId);
+        if(!emergency) {
+            transactionBox.setName("Notification transaction");Theme.field(transactionBox);
+            transactionBox.addItem(NotificationTransactionChoice.none());
+            transactionBox.setEnabled(false);
+            addField(content,"Pick a transaction (optional)",transactionBox);
+            transactionStatus.setForeground(Theme.MUTED);
+            transactionStatus.setFont(Theme.font(Theme.TYPE_CAPTION,java.awt.Font.PLAIN));
+            transactionStatus.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);content.add(transactionStatus);
+            content.add(Box.createVerticalStrut(Theme.SPACE_2));
+            transactionId.setName("Transaction ID");transactionId.setEditable(false);Theme.field(transactionId);
+            addField(content,"Transaction ID",transactionId);
+        }
         JScrollPane scroll=new JScrollPane(content);scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.getVerticalScrollBar().setUnitIncrement(16);scroll.setPreferredSize(new Dimension(560,470));
         JPanel buttons=new JPanel(new FlowLayout(FlowLayout.RIGHT,Theme.SPACE_2,Theme.SPACE_2));
@@ -103,6 +127,7 @@ public final class CreateNotificationPopup {
     }
 
     private void loadTransactions(Patient patient) {
+        if(emergency)return;
         int request=++transactionGeneration;
         if(transactionWorker!=null)transactionWorker.cancel(true);
         transactionBox.removeAllItems();transactionBox.addItem(NotificationTransactionChoice.none());
@@ -137,7 +162,7 @@ public final class CreateNotificationPopup {
 
     private void refreshState() {
         Patient patient=patientField.foundPatient().orElse(null);
-        GuardianMessageTemplates.MessageType type=(GuardianMessageTemplates.MessageType)typeBox.getSelectedItem();
+        GuardianMessageTemplates.MessageType type=selectedType();
         NotificationTransactionChoice choice=(NotificationTransactionChoice)transactionBox.getSelectedItem();
         MedicineTransaction tx=choice==null?null:choice.transaction();
         transactionId.setText(tx==null?"":tx.getTransactionId());
@@ -145,7 +170,7 @@ public final class CreateNotificationPopup {
         if(medicine&&patient!=null&&tx==null) {
             transactionStatus.setText("Select a transaction for medicine given.");transactionStatus.setForeground(Theme.DANGER);
         } else {transactionStatus.setText(transactionMessage);transactionStatus.setForeground(transactionColor);}
-        saveButton.setEnabled(!saving&&patientField.isFormReady()&&type!=null&&(!medicine||tx!=null));
+        saveButton.setEnabled(canSave(saving,patientField.isFormReady(),recipientSelector.isValidRecipient(),type,tx!=null));
         if(patient==null||type==null)preview.setText("Select a patient and notification type to preview the message.");
         else if(medicine&&tx==null)preview.setText("Select a transaction to preview the medicine message.");
         else preview.setText(clinic.service.GuardianMessageTemplates.create(type,patient.getName(),type.name(),
@@ -156,23 +181,28 @@ public final class CreateNotificationPopup {
     private void save() {
         if(saving||!saveButton.isEnabled())return;
         Patient patient=patientField.foundPatient().orElse(null);
-        GuardianMessageTemplates.MessageType type=(GuardianMessageTemplates.MessageType)typeBox.getSelectedItem();
+        GuardianMessageTemplates.MessageType type=selectedType();
         NotificationTransactionChoice choice=(NotificationTransactionChoice)transactionBox.getSelectedItem();
         if(patient==null||type==null)return;
         String transactionId=choice==null||choice.transaction()==null?null:choice.transaction().getTransactionId();
+        String recipientLabel=recipientSelector.recipientLabel();
+        String recipientContact=recipientSelector.recipientContact();
         saving=true;saveButton.setEnabled(false);cancelButton.setEnabled(false);
         dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
         saveWorker=new SwingWorker<>() {
             @Override protected clinic.model.NotificationLog doInBackground() {
                 if(!sessionCurrent())throw new SecurityException("Session expired. Sign in again.");
-                return app.clinic().createGuardianNotification(patient.getId(),transactionId,type.name());
+                return app.createNotificationForRecipient(patient.getId(),transactionId,type.name(),
+                    recipientLabel,recipientContact);
             }
             @Override protected void done() {
                 if(closed)return;
                 try {
-                    get();
+                    clinic.model.NotificationLog created=get();
                     if(!sessionCurrent()){dialog.dispose();return;}
-                    dialog.dispose();saved.run();
+                    dialog.dispose();
+                    if(emergency)emergencySaved.accept(created);
+                    else saved.run();
                 } catch(Exception failure) {
                     saving=false;cancelButton.setEnabled(true);dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
                     refreshState();MessagePopup.error(dialog,NotificationTransactions.cause(failure));
@@ -180,6 +210,17 @@ public final class CreateNotificationPopup {
             }
         };
         saveWorker.execute();
+    }
+
+    private GuardianMessageTemplates.MessageType selectedType() {
+        return emergency?GuardianMessageTemplates.MessageType.EMERGENCY:
+            (GuardianMessageTemplates.MessageType)typeBox.getSelectedItem();
+    }
+
+    static boolean canSave(boolean saving,boolean patientReady,boolean recipientValid,
+            GuardianMessageTemplates.MessageType type,boolean transactionSelected) {
+        return !saving&&patientReady&&recipientValid&&type!=null
+            &&(type!=GuardianMessageTemplates.MessageType.MEDICINE_GIVEN||transactionSelected);
     }
 
     private void cancel() { if(!saving&&!closed)dialog.dispose(); }

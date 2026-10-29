@@ -45,6 +45,12 @@ public final class SecurityMutationChecks {
         ClinicSystem denied=new SecuredClinicSystem(store,doctor,audit);
         rejects(SecurityException.class,()->denied.registerPatient(patient));
         check(events(audit,"registerPatient",false)==1,"denied patient mutation remains auditable");
+        RecipientNotificationWorkflow restrictedRecipients=(RecipientNotificationWorkflow)denied;
+        rejects(SecurityException.class,()->restrictedRecipients.createGuardianNotificationWithRecipient(
+            "p",null,"CLINIC_VISIT","Entered manually","+639171234567"));
+        check(events(audit,"createGuardianNotification",false)==1
+            &&!audit.getAll().toString().contains("+639171234567"),
+            "recipient-aware notification creation enforces role access without auditing the contact");
         NotificationLog otherCampus=store.createEmergencyNotificationWithCampus("p","C2");
         rejects(SecurityException.class,()->clinic.updateNotificationStatus(otherCampus.getNotificationId(),NotificationStatus.SENT));
         check(events(audit,"updateNotificationStatus",false)==1,"domain campus denial remains auditable");

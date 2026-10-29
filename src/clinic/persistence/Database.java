@@ -6,9 +6,12 @@ import java.nio.file.attribute.*;
 import java.security.SecureRandom;
 import java.sql.*;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /** JDBC storage. All units of work commit or roll back together. */
 public final class Database implements AutoCloseable {
+    private static final Logger LOGGER=Logger.getLogger(Database.class.getName());
     @FunctionalInterface public interface Work<T> { T run(Connection connection) throws Exception; }
     private Connection connection;
     private FileChannel lockChannel;
@@ -47,7 +50,7 @@ public final class Database implements AutoCloseable {
             connection.setAutoCommit(false);
         } catch (Exception failure) {
             release();
-            throw new StorageException("Unable to open clinic storage. Check the driver, folder permissions, and that no other clinic window is using this database. Keep the database and key files together.", failure);
+            throw storageFailure("Unable to open clinic storage. Check the driver, folder permissions, and that no other clinic window is using this database. Keep the database and key files together.",failure);
         }
     }
 
@@ -83,7 +86,7 @@ public final class Database implements AutoCloseable {
         } catch (Exception failure) {
             release();
             String detail=failure instanceof SchemaException?" "+failure.getMessage():"";
-            throw new StorageException("Unable to open configured MySQL/MariaDB storage. Check SCMS_DB_URL, SCMS_DB_USER, SCMS_DB_PASSWORD, the pinned driver, and server availability."+detail,failure);
+            throw storageFailure("Unable to open configured MySQL/MariaDB storage. Check SCMS_DB_URL, SCMS_DB_USER, SCMS_DB_PASSWORD, the pinned driver, and server availability."+detail,failure);
         }
     }
 
@@ -115,6 +118,8 @@ public final class Database implements AutoCloseable {
             if(rollbackCause==null)rollbackCause=failure;
             if(outermost) {
                 try { connection.rollback(); } catch (SQLException rollback) { failure.addSuppressed(rollback); }
+                if(failure instanceof StorageException||containsSqlException(failure))
+                    LOGGER.log(Level.SEVERE,"Database operation failed; the transaction was rolled back.",failure);
             }
             if (failure instanceof RuntimeException runtime) throw runtime;
             if (failure instanceof Error error) throw error;
@@ -131,8 +136,25 @@ public final class Database implements AutoCloseable {
         try {
             if (connection != null) connection.close();
         } catch (SQLException failure) {
-            throw new StorageException("Unable to close clinic storage cleanly. Please retry.", failure);
+            throw storageFailure("Unable to close clinic storage cleanly. Please retry.",failure);
         } finally { release(); }
+    }
+    private static StorageException storageFailure(String message,Throwable cause) {
+        LOGGER.log(Level.SEVERE,"Clinic storage failure. See the chained exception for diagnostics.",cause);
+        return new StorageException(message,cause);
+    }
+    private static boolean containsSqlException(Throwable failure) {
+        Set<Throwable> inspected=Collections.newSetFromMap(new IdentityHashMap<>());
+        Deque<Throwable> pending=new ArrayDeque<>();
+        if(failure!=null)pending.add(failure);
+        while(!pending.isEmpty()) {
+            Throwable current=pending.removeFirst();
+            if(!inspected.add(current))continue;
+            if(current instanceof SQLException)return true;
+            if(current.getCause()!=null)pending.addLast(current.getCause());
+            Collections.addAll(pending,current.getSuppressed());
+        }
+        return false;
     }
     private void release() {
         try { if (connection != null) connection.close(); } catch (SQLException ignored) { /* Original error is reported by caller. */ }

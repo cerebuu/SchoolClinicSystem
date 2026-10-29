@@ -151,11 +151,13 @@ public class Inventory {
     }
     public synchronized void collectAlerts(java.util.function.Consumer<clinic.model.Alert> consumer) {
         getLowStock(FeatureRules.LOW_STOCK_THRESHOLD).forEach(m->consumer.accept(new clinic.model.Alert("LOW_STOCK",
-            m.getName()+": "+m.getQuantity()+" usable units; threshold <= "+FeatureRules.LOW_STOCK_THRESHOLD)));
+            m.getName()+": "+m.getQuantity()+" usable units; threshold <= "+FeatureRules.LOW_STOCK_THRESHOLD,
+            "low-stock:"+m.getProduct().key())));
         getExpiringWithin(FeatureRules.EXPIRY_DAYS).forEach(m->consumer.accept(new clinic.model.Alert("EXPIRING",
-            m.getName()+": "+m.getQuantity()+" units expire "+m.getExpirationDate()+"; within "+FeatureRules.EXPIRY_DAYS+" days")));
+            m.getName()+": "+m.getQuantity()+" units expire "+m.getExpirationDate()+"; within "+FeatureRules.EXPIRY_DAYS+" days",
+            "expiring:"+m.getBatchId())));
         batches.stream().filter(m->m.isExpired()&&m.getQuantity()>0).forEach(m->consumer.accept(new clinic.model.Alert("EXPIRED",
-            m.getName()+": "+m.getQuantity()+" unusable units expired "+m.getExpirationDate())));
+            m.getName()+": "+m.getQuantity()+" unusable units expired "+m.getExpirationDate(),"expired:"+m.getBatchId())));
     }
     public synchronized List<Medicine> batches() {
         return batches.stream().map(this::copy).toList();

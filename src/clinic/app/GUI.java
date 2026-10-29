@@ -1,6 +1,7 @@
 package clinic.app;
 
 import java.awt.Dimension;
+import clinic.app.ui.common.ClipboardSupport;
 import clinic.model.Administrator;
 import clinic.model.SchoolNurse;
 import clinic.model.User;
@@ -56,6 +57,7 @@ public class GUI extends JFrame {
         }
         SwingUtilities.invokeLater(() -> {
             Theme.install();
+            ClipboardSupport.install();
             new GUI(context, demo, requiredRole).setVisible(true);
         });
     }

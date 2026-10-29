@@ -209,6 +209,7 @@ public final class UiChecks {
         onEdt(() -> retry.get().reload());
         waitFor(() -> retry.get().totalCount() == 1);
         onEdt(() -> check(retryModel.row(0) == 7, "failed table load can be retried"));
+        checkRefreshKeepsPageAndSelection();
         ApplicationContext app=new ApplicationContext(true);
         AtomicReference<JPanel> screen=new AtomicReference<>();
         onEdt(()->screen.set(new clinic.app.ui.auth.LoginPanel(app, ()-> {
@@ -305,5 +306,39 @@ public final class UiChecks {
         snapshot(screen.get(), "doctor");
         System.out.println("PASS: "+checks+" paging, background loading, stale-result, and role-navigation checks.");
         System.out.println("Rendered offscreen snapshots: login, nurse, doctor, patients, inventory, admin, users, paged-10000. No interactive desktop/dialog test performed.");
+    }
+
+    private static void checkRefreshKeepsPageAndSelection() throws Exception {
+        AtomicReference<List<Integer>> values=new AtomicReference<>(
+            java.util.stream.IntStream.rangeClosed(1,30).boxed().toList());
+        AtomicReference<PagedTablePanel<Integer>> panel=new AtomicReference<>();
+        DummyTableModel model=new DummyTableModel();
+        onEdt(()->panel.set(new PagedTablePanel<>(model,(page,size,query)->{
+            List<Integer> current=values.get();
+            int start=page*size;
+            int end=Math.min(start+size,current.size());
+            return new PageResult<>(start>=end?List.of():current.subList(start,end),current.size(),page,size);
+        })));
+        onEdt(()->panel.get().reload());
+        waitFor(()->panel.get().totalCount()==30&&model.getRowCount()==25);
+        onEdt(()->panel.get().setPage(1));
+        waitFor(()->panel.get().currentPage()==1&&model.getRowCount()==5&&model.row(0)==26);
+        onEdt(()->selectRow(panel.get(),1));
+        onEdt(()->check(panel.get().selected().equals(27),"current row can be selected before live refresh"));
+        values.set(java.util.stream.IntStream.rangeClosed(0,30).boxed().toList());
+        onEdt(()->panel.get().reload());
+        waitFor(()->model.getRowCount()==6&&model.row(0)==25&&model.row(2)==27);
+        onEdt(()->check(panel.get().currentPage()==1&&panel.get().selected().equals(27),
+            "live refresh keeps page and selection when the selected row remains visible"));
+    }
+
+    private static void selectRow(PagedTablePanel<Integer> panel,int row) {
+        try {
+            var field=PagedTablePanel.class.getDeclaredField("table");
+            field.setAccessible(true);
+            ((JTable)field.get(panel)).setRowSelectionInterval(row,row);
+        } catch(ReflectiveOperationException error) {
+            throw new AssertionError("Could not select the test row.",error);
+        }
     }
 }

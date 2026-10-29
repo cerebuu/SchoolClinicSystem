@@ -45,11 +45,11 @@ public final class DispenseQueries {
             String query,LocalDateTime from,LocalDateTime to,String campusId) {
         if(page<0)throw new IllegalArgumentException("Invalid page.");
         String q=query(query);
-        return page(records.stream().filter(t->(t.getPatientId().toLowerCase(Locale.ROOT).contains(q)
+        List<MedicineTransaction> filtered=records.stream().filter(t->(t.getPatientId().toLowerCase(Locale.ROOT).contains(q)
             ||t.getMedicineDisplayName().toLowerCase(Locale.ROOT).contains(q))
             &&(campusId==null||campusId.equals(t.getCampusId()))
             &&(from==null||!t.getDateTime().isBefore(from))&&(to==null||t.getDateTime().isBefore(to)))
-            .sorted(Comparator.comparing(MedicineTransaction::getDateTime).reversed()
-                .thenComparing(MedicineTransaction::getTransactionId)).toList(),page,size);
+            .toList();
+        return page(TimeOrder.newestFirst(filtered, MedicineTransaction::getDateTime),page,size);
     }
 }

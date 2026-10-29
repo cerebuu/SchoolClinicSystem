@@ -6,7 +6,6 @@ import clinic.model.Employee;
 import clinic.model.Patient;
 import clinic.model.Student;
 import clinic.model.User;
-import clinic.notify.NotificationRecipient;
 import clinic.core.ClinicSystem;
 import clinic.app.ui.common.popup.FormValueComponent;
 import java.awt.BorderLayout;
@@ -24,7 +23,7 @@ import javax.swing.event.DocumentListener;
 
 /** Debounced, session-safe patient ID lookup shared by clinic forms. */
 public final class PatientLookupField extends JPanel implements FormValueComponent, AutoCloseable {
-    public enum Mode { EXISTING, EXISTING_WITH_CONTACT, NEW_ID }
+    public enum Mode { EXISTING, NEW_ID }
     public static final String PATIENT_PROPERTY="patient";
 
     private final ApplicationContext app;
@@ -136,20 +135,7 @@ public final class PatientLookupField extends JPanel implements FormValueCompone
             setPatient(null);setReady(false);setStatus("No patient with this ID",Theme.DANGER);return;
         }
         setPatient(found);
-        if(mode==Mode.EXISTING_WITH_CONTACT) {
-            String contact=found instanceof Employee?found.getContactInfo():found.getGuardianContact();
-            java.util.List<String> masked=NotificationRecipient.maskedAddresses(contact);
-            if(contact==null||contact.isBlank()) {
-                setReady(false);
-                setStatus("No contact on file. Add one in the patient profile first.",Theme.DANGER);
-                return;
-            }
-            if(masked.isEmpty()) {
-                setReady(false);setStatus("The saved contact is not a valid email or phone number.",Theme.DANGER);return;
-            }
-            String recipient=found instanceof Employee?"Employee contact (own)":"Guardian contact";
-            setStatus(identity(found)+" · "+recipient+": "+String.join(", ",masked),Theme.INK);
-        } else setStatus(identity(found),Theme.INK);
+        setStatus(identity(found),Theme.INK);
         setReady(true);
     }
 

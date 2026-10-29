@@ -23,6 +23,11 @@ public final class MedicineCatalog {
     }
     public static MedicineCatalog read(Path path)throws IOException{return CatalogWorkbook.read(path);}
     public List<Entry> entries(){return entries;}
+    public Optional<Entry> findByName(String name) {
+        String key=normalizedName(name);
+        if(key.isBlank())return Optional.empty();
+        return entries.stream().filter(entry->normalizedName(entry.name()).equals(key)).findFirst();
+    }
     public List<Entry> search(String query) {
         String q=query==null?"":query.trim().toLowerCase(Locale.ROOT);
         return entries.stream().filter(e->rank(e,q)<2)
@@ -34,5 +39,10 @@ public final class MedicineCatalog {
         List<String> values=List.of(e.name(),e.atcPrimary(),e.atcSecondary());
         if(values.stream().anyMatch(s->s.toLowerCase(Locale.ROOT).startsWith(q)))return 0;
         return values.stream().anyMatch(s->s.toLowerCase(Locale.ROOT).contains(q))?1:2;
+    }
+    private static String normalizedName(String name) {
+        if(name==null)return "";
+        return name.trim().replaceFirst("(?i)\\s+\\d+(?:\\.\\d+)?\\s*(?:mcg|mg|ml|g|%)\\s*$","")
+            .trim().replaceAll("\\s+"," ").toLowerCase(Locale.ROOT);
     }
 }

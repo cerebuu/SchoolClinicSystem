@@ -26,6 +26,19 @@ public final class AiChecks {
         rejects(AiServiceException.class,()->GeminiAiService.responseText(OK.replace("STOP","MAX_TOKENS")));
         rejects(AiServiceException.class,()->GeminiAiService.responseText("{\"promptFeedback\":{\"blockReason\":\"SAFETY\"}}"));
         rejects(AiServiceException.class,()->GeminiAiService.responseText("[".repeat(40)));
+        String blockedKey = GeminiAiService.configurationFailure(403,
+            "{\"error\":{\"code\":403,\"message\":\"key reported as leaked: synthetic-secret\",\"status\":\"PERMISSION_DENIED\","
+                + "\"details\":[{\"reason\":\"API_KEY_SERVICE_BLOCKED\"}]}}");
+        check(blockedKey.contains("blocked this API key") && !blockedKey.contains("synthetic-secret"));
+        String invalidKey = GeminiAiService.configurationFailure(400,
+            "{\"error\":{\"status\":\"INVALID_ARGUMENT\",\"details\":[{\"reason\":\"API_KEY_INVALID\"}],"
+                + "\"message\":\"synthetic credential text\"}}");
+        check(invalidKey.contains("rejected GEMINI_API_KEY")
+            && invalidKey.contains("config.local.properties")
+            && !invalidKey.contains("synthetic credential text"));
+        String permissionDenied = GeminiAiService.configurationFailure(403,
+            "{\"error\":{\"status\":\"PERMISSION_DENIED\",\"message\":\"private fixture data\"}}");
+        check(permissionDenied.contains("project access") && !permissionDenied.contains("private fixture data"));
         String controls="quote\" slash\\\n\t\b\f\r\u0001";
         check(Json.parse(Json.quote(controls)).equals(controls));
         rejects(IllegalArgumentException.class,()->Json.parse("{\"x\":1,\"x\":2}"));

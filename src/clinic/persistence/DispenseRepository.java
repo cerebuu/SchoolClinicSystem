@@ -45,7 +45,7 @@ final class DispenseRepository {
         int total=Sql.query(c,"SELECT COUNT(*)"+where,r->r.getInt(1),args.toArray()).get(0);
         if(page<0||(long)page*size>=total)return new PageResult<>(List.of(),total,page,size);
         args.add(size);args.add((long)page*size);
-        List<MedicineTransaction> rows=Sql.query(c,"SELECT *"+where+" ORDER BY dispensed_at DESC,id LIMIT ? OFFSET ?",
+        List<MedicineTransaction> rows=Sql.query(c,"SELECT *"+where+" ORDER BY dispensed_at DESC,seq DESC LIMIT ? OFFSET ?",
             r->new MedicineTransaction(r.getString("id"),
                 new MedicineProduct(r.getString("medicine"),r.getString("atc_primary"),r.getString("atc_secondary")),
                 r.getString("patient_id"),r.getString("staff_id"),r.getInt("quantity"),

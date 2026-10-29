@@ -35,12 +35,15 @@ public final class PatientLookupFieldChecks {
         type(field,"S-1");waitFor(field::isFormReady);
         String student=field.statusText();state("valid student",field);
         check(student.contains("Student")&&student.contains("Section: CS-2A"),"student summary includes type and section: "+student);
-        check(student.contains("+63 9** *** **67")&&!student.contains("09171234567"),"student recipient is masked");
-        type(field,"S-2");waitFor(()->field.statusText().contains("No contact on file"));state("student without guardian",field);
-        check(!field.isFormReady()&&!field.statusText().contains("09171112222"),"student contact is never used as guardian fallback");
+        check(!student.contains("09171234567"),
+            "patient lookup status does not expose contact values");
+        type(field," s-1 ");waitFor(field::isFormReady);state("trimmed lowercase ID",field);
+        type(field,"S-2");waitFor(field::isFormReady);state("student without guardian",field);
+        check(field.foundPatient().orElseThrow().getContactInfo().equals("09171112222"),
+            "patient lookup accepts a found profile without requiring a guardian contact");
         type(field,"E-1");waitFor(field::isFormReady);state("employee contact",field);
-        check(field.statusText().contains("Employee contact (own)")&&field.statusText().contains("j***@gmail.com"),
-            "employee's own contact is labeled and masked");
+        check(field.statusText().contains("Position: Nurse")&&!field.statusText().contains("jane.doe@gmail.com"),
+            "patient lookup status does not expose employee contact values");
         field.close();
     }
 
@@ -70,8 +73,8 @@ public final class PatientLookupFieldChecks {
             java.util.function.Function<String,Optional<Patient>> finder) throws Exception {
         AtomicReference<PatientLookupField> result=new AtomicReference<>();
         SwingUtilities.invokeAndWait(()->result.set(finder==null?new PatientLookupField(app,
-            PatientLookupField.Mode.EXISTING_WITH_CONTACT,"Patient ID"):
-            new PatientLookupField(app,PatientLookupField.Mode.EXISTING_WITH_CONTACT,"Patient ID",finder)));
+            PatientLookupField.Mode.EXISTING,"Patient ID"):
+            new PatientLookupField(app,PatientLookupField.Mode.EXISTING,"Patient ID",finder)));
         return result.get();
     }
 

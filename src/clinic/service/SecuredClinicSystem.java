@@ -9,7 +9,7 @@ import java.util.function.Supplier;
 import clinic.notify.Channel;
 
 /** Permission and privacy-safe audit boundary around the clinic domain. */
-public final class SecuredClinicSystem implements ClinicSystem,ConsultationWorkflow {
+public final class SecuredClinicSystem implements ClinicSystem,ConsultationWorkflow,RecipientNotificationWorkflow {
     private final ClinicSystem delegate;
     private final User user;
     private final AuditLog log;
@@ -224,6 +224,16 @@ public final class SecuredClinicSystem implements ClinicSystem,ConsultationWorkf
         return clinicalMutation("createGuardianNotification", () -> delegate instanceof ClinicData data
             ?data.createGuardianNotificationWithCampus(patientId,transactionId,reason,user.getCampusId())
             :delegate.createGuardianNotification(patientId,transactionId,reason),
+            notification->"notificationId="+notification.getNotificationId());
+    }
+
+    @Override
+    public NotificationLog createGuardianNotificationWithRecipient(String patientId,String transactionId,
+            String reason,String recipientLabel,String recipientContact) {
+        if(!(delegate instanceof ClinicData data))
+            throw new IllegalStateException("Recipient-aware notifications are unavailable for this clinic store.");
+        return clinicalMutation("createGuardianNotification",()->data.createGuardianNotificationWithRecipient(
+                patientId,transactionId,reason,recipientLabel,recipientContact,campusScope()),
             notification->"notificationId="+notification.getNotificationId());
     }
 

@@ -34,7 +34,7 @@ public class AuditLog {
     }
 
     public synchronized List<AuditEntry> getAll() {
-        return repository == null ? new ArrayList<AuditEntry>(entries) : repository.audit();
+        return repository == null ? new ArrayList<>(entries) : repository.audit();
     }
 
     public synchronized List<AuditEntry> getForUser(String userId) {
@@ -69,7 +69,7 @@ public class AuditLog {
     public synchronized PageResult<AuditEntry> page(int page, int size, String query) {
         String[] tokens = query.toLowerCase(java.util.Locale.ROOT).trim().split("\\s+");
         if(repository!=null)return repository.auditPage(page,size,tokens);
-        return PageResult.select(getAll(), page, size, e -> {
+        List<AuditEntry> filtered=getAll().stream().filter(e -> {
             for (String raw : tokens) {
                 FilterToken token=FilterToken.parse(raw);
                 if (token.field().isEmpty()&&token.value().equals("denied")) {
@@ -86,7 +86,9 @@ public class AuditLog {
                 if(!searchable.toLowerCase(java.util.Locale.ROOT).contains(token.value()))return false;
             }
             return true;
-        });
+        }).toList();
+        return PageResult.select(TimeOrder.newestFirst(filtered,AuditEntry::getTimestamp),
+            page,size,ignored->true);
     }
 
     public synchronized AuditSummary summary(LocalDate date) {

@@ -84,6 +84,10 @@ public final class DesktopChecks {
             button.doClick();
         });
     }
+    private static void clickCopy(Container parent,String name) throws Exception {
+        edt(()->components(parent).stream().filter(c->c instanceof JButton button
+            &&name.equals(button.getName())).map(c->(JButton)c).findFirst().orElseThrow().doClick());
+    }
     private static int column(JTable table,String name) {
         for(int c=0;c<table.getColumnCount();c++)if(name.equals(table.getColumnName(c)))return c;
         throw new AssertionError("Missing column: "+name);
@@ -146,12 +150,38 @@ public final class DesktopChecks {
         SwingUtilities.invokeLater(()->findMenuItem("Copy ID").doClick());
         waitFor(()->id.equals(clipboardTextUnchecked()));
         check(id.equals(clipboardText()),"right-click Copy ID copies the full ID");
-        rowAction("View details");JDialog detail=awaitCopyDialog("School clinic","Record ID");
+        rowAction("View details");JDialog detail=awaitCopyDialog("Consultation record","Record ID");
+        JTextArea reportText=components(detail).stream().filter(c->c instanceof JTextArea area
+            &&"report-text".equals(area.getName())).map(c->(JTextArea)c).findFirst().orElseThrow();
+        String report=reportText.getText();
+        check(report.startsWith("========================================\nSCHOOL CLINIC REPORT\n")
+            &&report.contains("\nCampus: ")&&report.endsWith("End of report\n========================================"),
+            "consultation detail includes the complete formatted clinic report");
+        clickCopy(detail,"copy:report");
+        waitFor(()->report.equals(clipboardTextUnchecked()));
+        check(report.equals(clipboardText()),"Copy report copies all displayed report text exactly");
+        check("Copied".equals(button(detail,"Copied").getText()),"Copy report gives button feedback");
+        AtomicBoolean shortcutCopied=new AtomicBoolean();
+        edt(()->{
+            reportText.selectAll();
+            KeyStroke shortcut=KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_C,
+                Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+            Object action=reportText.getInputMap(JComponent.WHEN_FOCUSED).get(shortcut);
+            if(action!=null)reportText.getActionMap().get(action).actionPerformed(
+                new java.awt.event.ActionEvent(reportText,0,"copy"));
+            shortcutCopied.set(report.equals(clipboardTextUnchecked()));
+        });
+        check(shortcutCopied.get(),"Cmd+C copies selected text from the read-only report");
+        var allExpected="Patient ID: "+visits.getValueAt(row,column(visits,"Patient ID"))
+            +"\nRecord ID: "+id+"\n\n"+report;
+        clickCopy(detail,"copy:all");
+        waitFor(()->allExpected.equals(clipboardTextUnchecked()));
+        check(allExpected.equals(clipboardText()),"Copy all includes both IDs and the entire report");
         setClipboardText("clipboard-marker");
         clickCopyForId(detail,"Record ID");
         waitFor(()->id.equals(clipboardTextUnchecked()));
         check(id.equals(clipboardText()),"consultation detail Copy button copies only the Record ID");
-        click(detail,"OK");waitFor(()->!detail.isShowing());
+        click(detail,"Close");waitFor(()->!detail.isShowing());
         var page=components(frame).stream().filter(c->c instanceof clinic.app.ui.common.PagedTablePanel<?> p
             &&"ConsultationsTableModel".equals(p.modelType())&&p.isShowing())
             .map(c->(clinic.app.ui.common.PagedTablePanel<?>)c).findFirst().orElseThrow();
@@ -508,6 +538,9 @@ public final class DesktopChecks {
             waitFor(() -> table() != null);
             click(frame, "Add user");
             JDialog addUser=awaitDialog("Add user");
+            waitFor(()->components(addUser).stream().anyMatch(c->c instanceof JComboBox<?> combo
+                &&"Assigned School / Campus".equals(combo.getAccessibleContext().getAccessibleName())
+                &&combo.getItemCount()>0));
             edt(() -> {
                 JComboBox<?> campus=components(addUser).stream().filter(c -> c instanceof JComboBox<?> combo
                     && "Assigned School / Campus".equals(combo.getAccessibleContext().getAccessibleName()))
@@ -516,11 +549,12 @@ public final class DesktopChecks {
                 for(int i=0;i<campus.getItemCount();i++)
                     if("Unassigned".equals(campus.getItemAt(i)))offersUnassigned=true;
                 check(!offersUnassigned,"clinical user form requires a campus assignment");
-                check(campus.getItemCount()==3&&"UIC - Bajada".equals(campus.getItemAt(0))
-                    &&"UIC - Annex".equals(campus.getItemAt(1))&&"UIC - Main".equals(campus.getItemAt(2)),
-                    "nurse campus dropdown contains exactly the three approved schools");
+                check(campus.getItemCount()==3&&"uic-bajada | UIC - Bajada".equals(campus.getItemAt(0))
+                    &&"uic-annex | UIC - Annex".equals(campus.getItemAt(1))
+                    &&"uic-main | UIC - Main".equals(campus.getItemAt(2)),
+                    "nurse dropdown shows stored approved campuses with IDs");
                 Map.of("ID", "nurse", "Name", "Test Nurse", "Role", User.NURSE,
-                    "Assigned School / Campus", "UIC - Main", "Password", "test-password")
+                    "Assigned School / Campus", "uic-main | UIC - Main", "Password", "test-password")
                     .forEach((name,value)->fill(addUser,name,value));
             });
             click(addUser,"Save");
@@ -539,11 +573,14 @@ public final class DesktopChecks {
             rowWithValue(0,"nurse");
             rowAction("Edit user / role");
             JDialog editUser=awaitDialog("Edit user nurse");
+            waitFor(()->components(editUser).stream().anyMatch(c->c instanceof JComboBox<?> combo
+                &&"Assigned School / Campus".equals(combo.getAccessibleContext().getAccessibleName())
+                &&combo.getItemCount()>0));
             edt(() -> {
                 JComboBox<?> campus=components(editUser).stream().filter(c -> c instanceof JComboBox<?> combo
                     && "Assigned School / Campus".equals(combo.getAccessibleContext().getAccessibleName()))
                     .map(c -> (JComboBox<?>)c).findFirst().orElseThrow();
-                check(campus.getItemCount()==3&&"UIC - Main".equals(campus.getSelectedItem()),
+                check(campus.getItemCount()==3&&"uic-main | UIC - Main".equals(campus.getSelectedItem()),
                     "nurse edit selects the current approved campus");
             });
             click(editUser,"Cancel");
@@ -614,7 +651,7 @@ public final class DesktopChecks {
             check(app.clinic().getVisitHistory("p1").size() == 1, "consultation saved via form");
             consultationCopyDemo();
             rowAction("View patient history");
-            JDialog visitHistory=awaitDialogContaining("School clinic","Test visit");
+            JDialog visitHistory=awaitDialogContaining("Consultation history","Test visit");
             edt(() -> check(components(visitHistory).stream().anyMatch(c -> c instanceof JTextArea area
                 && area.getText().contains("Test visit")),"patient history menu shows the saved consultation"));
             click(visitHistory,"OK");
@@ -647,7 +684,7 @@ public final class DesktopChecks {
             String transactionId=String.valueOf(table().getValueAt(table().getSelectedRow(),column(table(),"Event ID")));
             String copyIdName="DISPENSE".equals(String.valueOf(table().getValueAt(table().getSelectedRow(),column(table(),"Event"))))
                 ?"Copy Transaction ID":"Copy Event ID";
-            JDialog transaction=awaitCopyDialog("School clinic",copyIdName.substring("Copy ".length()));
+            JDialog transaction=awaitCopyDialog("Medication history entry",copyIdName.substring("Copy ".length()));
             setClipboardText("clipboard-marker");
             clickCopyForId(transaction,copyIdName.substring("Copy ".length()));
             waitFor(()->transactionId.equals(clipboardTextUnchecked()));
@@ -709,12 +746,12 @@ public final class DesktopChecks {
             click(frame, "View message");
             JTable notificationTable=table();
             String notificationId=String.valueOf(notificationTable.getValueAt(notificationTable.getSelectedRow(),column(notificationTable,"ID")));
-            JDialog message=awaitCopyDialog("School clinic","Notification ID");
+            JDialog message=awaitCopyDialog("Notification details","Notification ID");
             setClipboardText("clipboard-marker");
             clickCopyForId(message,"Notification ID");
             waitFor(()->notificationId.equals(clipboardTextUnchecked()));
             check(notificationId.equals(clipboardText()),"View message Copy button copies only the notification ID");
-            click(message,"OK");waitFor(()->!message.isShowing());
+            click(message,"Close");waitFor(()->!message.isShowing());
             click(frame, "Mark sent (manual)");
             click(awaitDialog("Confirm"), "OK");
             waitFor(() -> app.clinic().getNotifications("p1").get(0).getStatus() == NotificationStatus.SENT);
@@ -770,12 +807,12 @@ public final class DesktopChecks {
             JTable reportTable=table();
             String reportRecordId=String.valueOf(reportTable.getValueAt(reportTable.getSelectedRow(),column(reportTable,"Record ID")));
             click(frame, "Generate selected report");
-            JDialog report=awaitCopyDialog("School clinic","Record ID");
+            JDialog report=awaitCopyDialog("Clinic report","Record ID");
             setClipboardText("clipboard-marker");
             clickCopyForId(report,"Record ID");
             waitFor(()->reportRecordId.equals(clipboardTextUnchecked()));
             check(reportRecordId.equals(clipboardText()),"report detail Copy button copies only the Record ID");
-            click(report,"OK");waitFor(()->!report.isShowing());
+            click(report,"Close");waitFor(()->!report.isShowing());
             check(true, "report dialog opens and closes");
             click(frame, "Nurse dashboard");
             waitFor(()->showingTableModel("RecentVisitsTableModel"));

@@ -20,7 +20,8 @@ public class PatternDetector {
             if(group!=null)for(String symptom:symptoms(r))groups.merge(group+" / "+symptom,1,Integer::sum);
         }
         return groups.entrySet().stream().filter(e->e.getValue()>=threshold).map(e->new Alert("OUTBREAK",
-            e.getKey()+": "+e.getValue()+" visits; rule >= "+threshold+" same-symptom visits in "+(days*24L)+" hours"));
+            e.getKey()+": "+e.getValue()+" visits; rule >= "+threshold+" same-symptom visits in "+(days*24L)+" hours",
+            "outbreak:"+e.getKey()));
     }
     public Alert detectRecurringVisit(List<MedicalRecord> records, String patient, int days, int threshold) {
         if(records==null||patient==null||patient.isBlank()||days<1||threshold<1)return null;
@@ -33,7 +34,7 @@ public class PatternDetector {
         }
         int n=counts.values().stream().mapToInt(Integer::intValue).max().orElse(0);
         return n>=threshold?new Alert("RECURRING_VISIT", "Single-patient group: "+n+" visits; rule >= "+threshold
-            +" visits with the same symptom or concern in "+days+" days"):null;
+            +" visits with the same symptom or concern in "+days+" days","recurring:"+patient):null;
     }
     private boolean inWindow(MedicalRecord r,LocalDateTime now,int days) {
         return r!=null&&!r.getVisitDateTime().isBefore(now.minusDays(days))&&!r.getVisitDateTime().isAfter(now);

@@ -210,6 +210,11 @@ public final class ApplicationContext implements AutoCloseable {
             return store.notificationPageForCampus(page,size,q,current().getCampusId());
         }
     }
+    public NotificationLog createNotificationForRecipient(String patientId,String transactionId,String reason,
+            String recipientLabel,String recipientContact) {
+        return ((RecipientNotificationWorkflow)clinic()).createGuardianNotificationWithRecipient(
+            patientId,transactionId,reason,recipientLabel,recipientContact);
+    }
     public PageResult<Alert> alerts(int page, int size, String q) {
         synchronized (login) {
             require(User.RECORDS);
@@ -217,6 +222,27 @@ public final class ApplicationContext implements AutoCloseable {
             String campusId=User.ADMIN.equals(user.getRole())?null:user.getCampusId();
             return store.alertPage(page,size,q,campusId);
         }
+    }
+    public int unseenAlertCount() {
+        synchronized(login) {
+            User user=alertViewer();
+            return store.unseenAlertCount(user.getUserId(),user.getCampusId());
+        }
+    }
+    public void markAlertsSeen(List<Alert> alerts) {
+        synchronized(login) {
+            User user=alertViewer();
+            store.markAlertsSeen(user.getUserId(),alerts==null?List.of():alerts);
+            changes.publish(DataTopic.ALERTS_SEEN);
+        }
+    }
+    public void markAlertSeen(Alert alert) {
+        if(alert!=null)markAlertsSeen(List.of(alert));
+    }
+    private User alertViewer() {
+        require(User.RECORDS);
+        User user=current();
+        return user;
     }
     public int patientCount() {
         synchronized (login) {

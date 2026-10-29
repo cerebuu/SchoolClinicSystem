@@ -7,6 +7,7 @@ import java.awt.event.MouseEvent;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Consumer;
 import javax.swing.*;
 import javax.swing.event.*;
 import javax.swing.table.AbstractTableModel;
@@ -32,6 +33,7 @@ public final class PagedTablePanel<T> extends Card {
     private String emptyText = "No matching records";
     private java.util.function.Function<String, String> emptyMessage;
     private Function<T, List<RowAction>> rowActionProvider = ignored -> List.of();
+    private Consumer<List<T>> pageLoaded=ignored->{};
     public PagedTablePanel(PagedTableModel<T> model, PageSource<T> source) {
         this(model, source, "Search / filter");
     }
@@ -44,12 +46,21 @@ public final class PagedTablePanel<T> extends Card {
         this.model=model;
         this.source=source;
         displayModel=new RowActionTableModel();
-        table=new JTable(displayModel);
+        table=new JTable(displayModel) {
+            @Override public String getToolTipText(MouseEvent event) {
+                int row=rowAtPoint(event.getPoint()),column=columnAtPoint(event.getPoint());
+                if(row<0||column<0)return null;
+                int modelColumn=convertColumnIndexToModel(column);
+                return modelColumn<model.getColumnCount()
+                    ?model.toolTipAt(convertRowIndexToModel(row),modelColumn):null;
+            }
+        };
         Theme.table(table);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setDefaultRenderer(Object.class, new TableRowRenderer());
         table.setDefaultRenderer(Number.class, new TableRowRenderer());
         CopyableIdCell.install(table);
+        TableClipboardSupport.install(table);
         table.getAccessibleContext().setAccessibleDescription(
             "Use Shift+F10 or the context menu key on a row to open row actions.");
         JPanel controls=new JPanel(new BorderLayout(Theme.GAP, Theme.GAP));
@@ -219,6 +230,10 @@ public final class PagedTablePanel<T> extends Card {
     }
     public int refreshCount(){return refreshCount;}
     public String modelType(){return model.getClass().getSimpleName();}
+    public PagedTablePanel<T> onPageLoaded(Consumer<List<T>> listener) {
+        pageLoaded=Objects.requireNonNull(listener);
+        return this;
+    }
     public void setDashboardViewport(int visibleRows,int rowHeight) {
         table.setRowHeight(rowHeight);
         int height=table.getTableHeader().getPreferredSize().height+visibleRows*rowHeight;
@@ -283,6 +298,7 @@ public final class PagedTablePanel<T> extends Card {
                 return;
             }
             model.replace(result);
+            table.clearSelection();
             for(int i=0;i<model.getRowCount();i++)if(selectedKey!=null&&selectedKey.equals(model.key(i))){table.setRowSelectionInterval(i,i);break;}
             table.setEnabled(true);
             if (total == 0) {
@@ -303,6 +319,7 @@ public final class PagedTablePanel<T> extends Card {
             next.setEnabled(page<last);
             updated.setText("Updated just now");updated.setToolTipText(java.time.LocalTime.now().withNano(0).toString());
                 refreshButton.setText("Refresh");
+            pageLoaded.accept(model.rows());
             SwingUtilities.invokeLater(()->{if(version==generation&&total>0)scroll.getViewport().setViewPosition(position);});
         }, err-> {
             if(version==generation&&(live==null||live.active())) {

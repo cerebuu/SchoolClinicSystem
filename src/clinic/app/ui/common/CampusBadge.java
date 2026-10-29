@@ -18,10 +18,6 @@ public final class CampusBadge extends JLabel {
         getAccessibleContext().setAccessibleName(campus);
     }
 
-    public static CampusBadge sample() {
-        return new CampusBadge("Clinic records");
-    }
-
     @Override
     protected void paintComponent(Graphics graphics) {
         Graphics2D g = (Graphics2D) graphics.create();

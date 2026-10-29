@@ -3,6 +3,7 @@ package clinic.notify;
 import clinic.model.NotificationLog;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 public final class NotificationRecipient {
@@ -21,19 +22,32 @@ public final class NotificationRecipient {
         return optionsForContact(contact).stream().map(Option::maskedAddress).distinct().toList();
     }
 
-    private static List<Option> optionsForContact(String contact) {
+    public static List<Option> optionsForContact(String contact) {
         if(contact==null||contact.isBlank())return List.of();
         List<Option> options=new ArrayList<>();
         for(String candidate:contact.split("[,;\\n]")) {
             String value=candidate.trim();
             if(EMAIL.matcher(value).matches())
                 options.add(new Option(Channel.EMAIL,new Recipient(value),maskEmail(value)));
-            else if(PHONE.matcher(value).matches()) {
-                String normalized=normalizePhone(value);
+            else {
+                String phone=value.replaceAll("[\\s()-]", "");
+                if(!PHONE.matcher(phone).matches())continue;
+                String normalized=normalizePhone(phone);
                 options.add(new Option(Channel.SMS,new Recipient(normalized),maskPhone(normalized)));
             }
         }
         return List.copyOf(options);
+    }
+
+    public static Optional<Option> manual(String input) {
+        if(input==null||input.isBlank())return Optional.empty();
+        String value=input.trim();
+        if(EMAIL.matcher(value).matches())
+            return Optional.of(new Option(Channel.EMAIL,new Recipient(value),maskEmail(value)));
+        String phone=value.replaceAll("[\\s()-]", "");
+        if(phone.matches("09\\d{9}"))phone="+63"+phone.substring(1);
+        else if(!phone.matches("\\+639\\d{9}"))return Optional.empty();
+        return Optional.of(new Option(Channel.SMS,new Recipient(phone),maskPhone(phone)));
     }
 
     public static Option select(NotificationLog notification,Channel channel) {
