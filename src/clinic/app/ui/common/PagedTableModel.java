@@ -20,9 +20,11 @@ public abstract class PagedTableModel<T> extends AbstractTableModel {
     public T row(int index) {
         return rows.get(index);
     }
+    public List<T> rows() { return rows; }
     public Object getValueAt(int r, int c) {
         return value(row(r), c);
     }
+    public String toolTipAt(int r,int c) { return null; }
     protected abstract Object value(T row, int column);
     /** Stable row identity used to preserve selection across fresh detached page objects. */
     public Object key(int row){return getValueAt(row,0);}

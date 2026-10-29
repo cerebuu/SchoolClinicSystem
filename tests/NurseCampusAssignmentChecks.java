@@ -20,9 +20,10 @@ public final class NurseCampusAssignmentChecks {
                 check(app.admin.campusName(campus.id()).equals(campus.displayName()),
                     "campus name is consistent for "+campus.displayName());
 
-            rejects(IllegalArgumentException.class,()->app.admin.saveCampus(
-                new Campus(NurseCampus.BAJADA.id(),"Renamed school"),true),
-                "approved campus labels cannot be changed");
+            app.admin.saveCampus(new Campus(NurseCampus.BAJADA.id(),"Renamed school"),true);
+            check(app.admin.campusName(NurseCampus.BAJADA.id()).equals("Renamed school"),
+                "campus labels use the current stored campus name");
+            app.admin.saveCampus(NurseCampus.BAJADA.campus(),true);
             app.admin.saveCampus(new Campus("legacy-campus","Old school"),false);
             SchoolNurse invalid=new SchoolNurse("invalid","Invalid assignment");
             invalid.setCampusId("legacy-campus");
@@ -66,7 +67,7 @@ public final class NurseCampusAssignmentChecks {
 
     private static AuditEntry latestAssignment(ApplicationContext app) {
         return app.admin.audit(0,100,"action:nurse campus assignment changed").rows().stream()
-            .reduce((first,second)->second).orElseThrow();
+            .findFirst().orElseThrow();
     }
 
     private static void rejects(Class<? extends Throwable> type,Runnable action,String message) {

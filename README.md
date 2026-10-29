@@ -34,6 +34,11 @@ java -cp "out;lib/*" clinic.app.SuperadminGUI
 java -cp "out;lib/*" clinic.app.NurseGUI
 ```
 
+Text inputs throughout the app support right-click Cut, Copy, Paste, and Select
+All menus, along with Cmd shortcuts on macOS and Ctrl shortcuts on Windows/Linux.
+Single-line paste replaces line breaks with spaces; length-limited form areas
+keep their configured limit.
+
 Use a Java 17 or newer runtime to launch the application. Java 8 cannot run
 these classes.
 
@@ -240,6 +245,18 @@ Lookup precedence is environment, then the Java system property
 matching surrounding quotes are removed. Avoid putting real keys in command-line
 arguments or shared launch configurations; the local file is preferable. A copied
 example with its placeholder unchanged is treated as unconfigured.
+
+If the assistant reports that Gemini rejected the API key, replace the value in
+the selected configuration source with an active key from Google AI Studio, then
+restart the app. Check the environment variable first: it overrides the Java
+system property, which overrides `config.local.properties`. Do not paste keys
+into chat, source files, or logs. Google now
+rejects unrestricted standard keys; use an authorization key or restrict a
+standard key to the Gemini API. A project-level permission or billing restriction
+must be corrected in Google AI Studio/Google Cloud and cannot be fixed by changing
+the Java request. The app distinguishes invalid or blocked keys, desktop-app key
+restrictions, disabled API access, and billing errors without displaying Google's
+raw error body.
 
 If configuration is missing or unreadable, the panel shows a red setup message
 and disables Send. Sending also requires checking **I confirm this contains no

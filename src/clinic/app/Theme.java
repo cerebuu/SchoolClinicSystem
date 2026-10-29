@@ -59,8 +59,6 @@ public final class Theme {
     public static final int SPACE_8 = 32;
     public static final int RADIUS_CARD = 16;
     public static final int RADIUS_PILL = 999;
-    public static final String SAMPLE_CAMPUS = "Campus 1 (sample)";
-
     public static javax.swing.border.Border padding() { return BorderFactory.createEmptyBorder(20, 24, 20, 24); }
     public static java.awt.Insets fieldInsets() { return new java.awt.Insets(6, 8, 6, 8); }
     private Theme() {}

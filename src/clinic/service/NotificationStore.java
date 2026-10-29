@@ -1,8 +1,18 @@
 package clinic.service;
-import clinic.model.*;
-import java.util.*;
-import java.time.LocalDateTime;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+
+import clinic.model.Employee;
+import clinic.model.MedicineTransaction;
+import clinic.model.NotificationLog;
+import clinic.model.NotificationStatus;
+import clinic.model.Patient;
 import clinic.notify.Channel;
 
 /** Owns notification state and returns detached copies. No clinical free text is retained. */
@@ -35,6 +45,31 @@ public final class NotificationStore {
             displayName(type),LocalDateTime.now(),patient.getName(),transaction==null?null:transaction.getMedicineName(),
             type,"the school clinic",
             employee?"Employee contact (own)":"Guardian contact",contact,campusId);
+        logs.put(n.getNotificationId(),n);
+        return n.copy();
+    }
+    public NotificationLog create(Patient patient,MedicineTransaction transaction,String reason,String campusId,
+            String recipientLabel,String recipientContact) {
+        if(patient==null)throw new IllegalArgumentException("Patient not found.");
+        if(recipientLabel==null||recipientLabel.isBlank()||recipientContact==null||recipientContact.isBlank())
+            throw new IllegalArgumentException("A valid recipient is required.");
+        boolean valid="Entered manually".equals(recipientLabel)
+            ?clinic.notify.NotificationRecipient.manual(recipientContact).isPresent()
+            :clinic.notify.NotificationRecipient.optionsForContact(recipientContact).stream()
+                .anyMatch(option->option.recipient().value().equals(recipientContact.trim()));
+        if(!valid)throw new IllegalArgumentException("Enter a valid recipient contact.");
+        GuardianMessageTemplates.MessageType type=messageType(reason);
+        if(type==GuardianMessageTemplates.MessageType.MEDICINE_GIVEN&&transaction==null)
+            throw new IllegalArgumentException("Select a transaction for a medicine notification.");
+        if(transaction!=null&&!transaction.getPatientId().equals(patient.getId()))
+            throw new IllegalArgumentException("Transaction does not belong to patient.");
+        if(transaction!=null&&campusId!=null&&!campusId.equals(transaction.getCampusId()))
+            throw new SecurityException("Access denied.");
+        clinic.util.Validation.required(reason,"Reason");
+        NotificationLog n=new NotificationLog(nextId(),patient.getId(),
+            transaction==null?null:transaction.getTransactionId(),displayName(type),LocalDateTime.now(),
+            patient.getName(),transaction==null?null:transaction.getMedicineName(),type,"the school clinic",
+            recipientLabel,recipientContact.trim(),campusId);
         logs.put(n.getNotificationId(),n);
         return n.copy();
     }
@@ -131,10 +166,8 @@ public final class NotificationStore {
             &&campus.equals(n.getCampusId())).toList();
     }
     public List<NotificationLog> all() {
-        List<NotificationLog> newest=new ArrayList<>(logs.values());
-        Collections.reverse(newest);
-        newest.sort(Comparator.comparing(NotificationLog::getDateTime).reversed());
-        return newest.stream().map(NotificationLog::copy).toList();
+        return TimeOrder.newestFirst(logs.values(),NotificationLog::getDateTime)
+            .stream().map(NotificationLog::copy).toList();
     }
     public PageResult<NotificationLog> page(int page,int size,String filter) {
         return page(page,size,filter,null,false);

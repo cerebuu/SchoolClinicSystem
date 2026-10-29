@@ -1,7 +1,11 @@
 package clinic.app.nav;
 import clinic.app.ui.common.CampusBadge;
 import clinic.app.Theme;
+import clinic.app.ApplicationContext;
+import clinic.app.DataTopic;
 import clinic.app.ui.common.IconPainter;
+import clinic.app.ui.common.AsyncLoader;
+import clinic.app.ui.common.LiveRefresh;
 import clinic.app.ui.common.UicLogo;
 import clinic.model.User;
 import java.awt.*;
@@ -14,12 +18,23 @@ public final class Navigator extends JPanel {
     private final Map<String, JPanel> loaded=new HashMap<>();
     private final Map<String, NavItem> allowed=new LinkedHashMap<>();
     private final Map<String, SidebarItem> navigation = new LinkedHashMap<>();
+    private final ApplicationContext badgeApp;
+    private SidebarItem notificationsItem;
+    private final LiveRefresh badgeRefresh;
+    private String activePage;
+    private PageActivationListener activeLifecycle;
+    private long badgeRequest;
     public Navigator(List<NavItem> items, Runnable logout, User user, boolean superadmin) {
         this(items,logout,user,superadmin,superadmin?"Administration":
             user.getCampusId()==null?"Campus unassigned":"Campus "+user.getCampusId());
     }
     public Navigator(List<NavItem> items,Runnable logout,User user,boolean superadmin,String campusLabel) {
+        this(items,logout,user,superadmin,campusLabel,null);
+    }
+    public Navigator(List<NavItem> items,Runnable logout,User user,boolean superadmin,String campusLabel,
+            ApplicationContext app) {
         super(new BorderLayout());
+        badgeApp=app;
         JPanel sidebar=new JPanel();
         sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
         sidebar.setBackground(Theme.NAV);
@@ -68,6 +83,7 @@ public final class Navigator extends JPanel {
             SidebarItem button=new SidebarItem(item.label());
             button.setAlignmentX(Component.LEFT_ALIGNMENT);
             navigation.put(item.label(), button);
+            if(item.label().equals("Notifications"))notificationsItem=button;
             button.addActionListener(e->open(item.label()));
             sidebar.add(button);
             sidebar.add(Box.createVerticalStrut(Theme.SPACE_1));
@@ -107,6 +123,8 @@ public final class Navigator extends JPanel {
         pages.setBackground(Theme.SUBTLE);
         add(pages, BorderLayout.CENTER);
         if(!allowed.isEmpty())open(allowed.keySet().iterator().next());
+        badgeRefresh=app!=null&&notificationsItem!=null&&user.canAccess(User.RECORDS)
+            ?new LiveRefresh(this,app.changes,this::refreshNotificationBadge,DataTopic.ALERTS,DataTopic.ALERTS_SEEN):null;
     }
     public void open(String label) {
         NavItem item=allowed.get(label);
@@ -117,7 +135,27 @@ public final class Navigator extends JPanel {
             loaded.put(label, panel);
             pages.add(panel, label);
         }
+        if(!label.equals(activePage)&&activeLifecycle!=null)activeLifecycle.pageDeactivated();
         navigation.forEach((name, button) -> button.setActive(name.equals(label)));
         layout.show(pages, label);
+        activePage=label;
+        activeLifecycle=loaded.get(label) instanceof PageActivationListener lifecycle?lifecycle:null;
+        if(activeLifecycle!=null)activeLifecycle.pageActivated();
+    }
+
+    private void refreshNotificationBadge() {
+        if(badgeApp==null||notificationsItem==null)return;
+        long request=++badgeRequest;
+        AsyncLoader.load(badgeApp::unseenAlertCount,count->{
+            if(request==badgeRequest&&badgeRefresh!=null&&badgeRefresh.active()&&notificationsItem.badgeCount()!=count)
+                notificationsItem.setBadgeCount(count);
+        },error->{ });
+    }
+
+    @Override public void removeNotify() {
+        badgeRequest++;
+        if(activeLifecycle!=null)activeLifecycle.pageDeactivated();
+        activeLifecycle=null;
+        super.removeNotify();
     }
 }

@@ -36,6 +36,6 @@ public final class NurseShell extends JPanel {
             new NavItem("Inventory", true, () -> new InventoryPanel(app)),
             new NavItem("Notifications", true, () -> new NotificationsPanel(app)),
             new NavItem("Reports", true, () -> new ReportsPanel(app))
-        ), logout, user, false,app.campusLabel()), BorderLayout.CENTER);
+        ), logout, user, false,app.campusLabel(),app), BorderLayout.CENTER);
     }
 }

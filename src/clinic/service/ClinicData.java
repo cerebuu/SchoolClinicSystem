@@ -30,6 +30,8 @@ public interface ClinicData extends ClinicSystem {
         String actorId,String campusId);
     NotificationLog createGuardianNotificationWithCampus(String patientId,String transactionId,
         String reason,String campusId);
+    NotificationLog createGuardianNotificationWithRecipient(String patientId,String transactionId,String reason,
+        String recipientLabel,String recipientContact,String campusId);
     NotificationLog createEmergencyNotificationWithCampus(String patientId,String campusId);
     void updateNotificationStatusForCampus(String notificationId,NotificationStatus status,String campusId);
     List<NotificationLog> getNotificationsForCampus(String patientId,String campusId);
@@ -63,6 +65,8 @@ public interface ClinicData extends ClinicSystem {
     List<MedicalRecord> getVisitHistory(String patientId,String campusId);
     PageResult<Alert> alertPage(int page, int size, String query);
     PageResult<Alert> alertPage(int page,int size,String query,String campusId);
+    int unseenAlertCount(String userId,String campusId);
+    void markAlertsSeen(String userId,List<Alert> alerts);
     int patientCount();
     int recordCount();
     int recordCount(String campusId);

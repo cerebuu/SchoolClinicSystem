@@ -9,9 +9,12 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 
 public final class WheelForwarder {
+    private static final String INSTALLED=WheelForwarder.class.getName()+".installed";
     private WheelForwarder() {}
 
     public static void install(JScrollPane page) {
+        if(Boolean.TRUE.equals(page.getClientProperty(INSTALLED)))return;
+        page.putClientProperty(INSTALLED,Boolean.TRUE);
         installOnScrollPanes(page.getViewport().getView(), page);
     }
 

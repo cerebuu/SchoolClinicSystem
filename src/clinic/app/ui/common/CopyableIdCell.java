@@ -9,13 +9,10 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.datatransfer.StringSelection;
 import java.util.Set;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JMenuItem;
 import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -60,34 +57,18 @@ public final class CopyableIdCell extends JPanel implements TableCellRenderer {
             configure(table);
         });
         MouseAdapter interactions=new MouseAdapter() {
-            private long lastPopup;
             @Override public void mouseClicked(MouseEvent event) {
                 if(!SwingUtilities.isLeftMouseButton(event)||event.getClickCount()!=1)return;
                 int row=table.rowAtPoint(event.getPoint()),column=table.columnAtPoint(event.getPoint());
                 String id=idAt(table,row,column);
                 if(id!=null){table.setRowSelectionInterval(row,row);copy(table,row,column,id);}
             }
-            @Override public void mousePressed(MouseEvent event){popup(event);}
-            @Override public void mouseReleased(MouseEvent event){popup(event);}
             @Override public void mouseExited(MouseEvent event){table.setCursor(Cursor.getDefaultCursor());}
             @Override public void mouseMoved(MouseEvent event) {
                 int row=table.rowAtPoint(event.getPoint()),column=table.columnAtPoint(event.getPoint());
                 boolean overCopy=row>=0&&idAt(table,row,column)!=null
                     &&event.getX()>=table.getCellRect(row,column,true).x+table.getCellRect(row,column,true).width-ICON_WIDTH;
                 table.setCursor(Cursor.getPredefinedCursor(overCopy?Cursor.HAND_CURSOR:Cursor.DEFAULT_CURSOR));
-            }
-            private void popup(MouseEvent event) {
-                if(!event.isPopupTrigger()||System.currentTimeMillis()-lastPopup<250)return;
-                lastPopup=System.currentTimeMillis();
-                int row=table.rowAtPoint(event.getPoint()),column=table.columnAtPoint(event.getPoint());
-                String id=idAt(table,row,column);
-                if(id==null)return;
-                table.setRowSelectionInterval(row,row);
-                JPopupMenu menu=new JPopupMenu();menu.setBackground(Theme.WHITE);
-                JMenuItem item=new JMenuItem("Copy ID");item.setFont(Theme.font(Theme.TYPE_BODY,java.awt.Font.PLAIN));
-                item.setForeground(Theme.INK);item.setBackground(Theme.WHITE);
-                item.addActionListener(action->copy(table,row,column,id));menu.add(item);
-                menu.show(table,event.getX(),event.getY());
             }
         };
         table.addMouseListener(interactions);
@@ -96,7 +77,7 @@ public final class CopyableIdCell extends JPanel implements TableCellRenderer {
 
     public static void copyToClipboard(String id) {
         if(id==null||id.isBlank())return;
-        java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(id),null);
+        ClipboardSupport.copyText(id);
     }
 
     private static void configure(JTable table) {

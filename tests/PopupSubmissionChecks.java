@@ -1,6 +1,7 @@
 import clinic.app.Theme;
 import clinic.app.ui.common.popup.FormField;
 import clinic.app.ui.common.popup.FormPopup;
+import clinic.persistence.StorageException;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Window;
@@ -11,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.sql.SQLException;
 import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -26,6 +28,7 @@ public final class PopupSubmissionChecks {
     public static void main(String[] args) throws Exception {
         CountDownLatch started = new CountDownLatch(1), release = new CountDownLatch(1);
         AtomicReference<String> mode = new AtomicReference<>("sync failure");
+        AtomicReference<StorageException> storageFailure=new AtomicReference<>();
         AtomicInteger preparations = new AtomicInteger(), writes = new AtomicInteger(), saved = new AtomicInteger();
         SwingUtilities.invokeLater(() -> {
             Theme.install();
@@ -44,6 +47,12 @@ public final class PopupSubmissionChecks {
                         if (mode.get().equals("cancel")) return;
                         controller.saveAsync(() -> {
                             if (!"original".equals(prepared)) throw new AssertionError("Submission values changed.");
+                            if(mode.get().equals("storage failure")) {
+                                storageFailure.set(new StorageException(
+                                    "The database operation could not be completed. No changes were saved. Check storage availability and retry.",
+                                    new SQLException("Column ATC_PRIMARY not found in INSERT INTO medicine_batches","42S22",42122)));
+                                throw storageFailure.get();
+                            }
                             writes.incrementAndGet();
                             return true;
                         });
@@ -63,6 +72,20 @@ public final class PopupSubmissionChecks {
             edt(() -> check(button("Save").isEnabled() && button("Cancel").isEnabled()
                 && field().isEnabled() && field().getText().equals("original"),
                 "failed preparation restores inputs and preserves values for retry"));
+
+            mode.set("storage failure");
+            edt(() -> button("Save").doClick());
+            waitFor(() -> messages(dialog()).contains("The database operation could not be completed."));
+            edt(() -> {
+                String shown=messages(dialog());
+                check(button("Save").isEnabled()&&field().isEnabled()&&field().getText().equals("original"),
+                    "storage failure restores the form and keeps the typed values");
+                check(!shown.contains("ATC_PRIMARY")&&!shown.contains("42S22")&&!shown.contains("INSERT INTO"),
+                    "storage failure popup hides SQL details and keeps its friendly message");
+            });
+            check(storageFailure.get().getCause() instanceof SQLException
+                &&"42S22".equals(((SQLException)storageFailure.get().getCause()).getSQLState()),
+                "storage exception retains the underlying SQL exception for diagnostics");
 
             mode.set("cancel");
             edt(() -> button("Save").doClick());

@@ -17,11 +17,17 @@ public final class ConsultationsPanel extends BasePanel {
         table.refreshOn(app.changes, clinic.app.DataTopic.VISITS);
         table.setRowActions(record->{
             List<RowAction> actions=new ArrayList<>();
-            actions.add(new RowAction("View details",()->MessagePopup.infoWithCopies(this,record.toReport(),
-                java.util.Map.of("Record ID",record.getRecordId(),"Patient ID",record.getPatientId()))));
+            actions.add(new RowAction("View details",()->{
+                java.util.Map<String,String> ids=new java.util.LinkedHashMap<>();
+                ids.put("Patient ID",record.getPatientId());
+                ids.put("Record ID",record.getRecordId());
+                String report=new clinic.service.RecordFormatter().generateReport(record);
+                MessagePopup.infoWithCopies(this,MessagePopup.CONSULTATION_RECORD_TITLE,report,ids,true);
+            }));
             if(app.current().canAccess(User.RECORDS))
                 actions.add(new RowAction("View patient history",()->Actions.runInSession(this,app.login,
-                    ()->app.clinic().getVisitHistory(record.getPatientId()),visits->MessagePopup.info(this,
+                    ()->app.clinic().getVisitHistory(record.getPatientId()),visits->MessagePopup.infoWithCopy(this,
+                        "Consultation history",
                         visits.isEmpty()?"No visit history found."
                             :visits.stream().map(MedicalRecord::toReport)
                                 .collect(java.util.stream.Collectors.joining("\n\n"))))));

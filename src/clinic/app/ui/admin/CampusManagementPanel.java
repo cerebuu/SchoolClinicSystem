@@ -13,7 +13,9 @@ public final class CampusManagementPanel extends BasePanel {
         this.app=app;
         table=new PagedTablePanel<>(new CampusesTableModel(), app.admin::campuses);
         table.refreshOn(app.changes, clinic.app.DataTopic.CAMPUSES);
-        table.setRowActions(campus->List.of(new RowAction("Edit campus",()->form(campus))));
+        table.setRowActions(campus->List.of(
+            new RowAction("Edit campus",()->form(campus)),
+            new RowAction("Delete campus",()->delete(campus))));
         add(table, BorderLayout.CENTER);
         action("Add campus", true, ()->form(null));
     }
@@ -22,5 +24,9 @@ public final class CampusManagementPanel extends BasePanel {
         if(campus==null)fields.add(FormField.text("Campus ID"));
         fields.add(FormField.value("Name", campus==null?"":campus.name()));
         FormPopup.show(this, campus==null?"Add campus":"Edit campus", fields, v->app.admin.saveCampus(new Campus(campus==null?v.get("Campus ID"):campus.id(), v.get("Name")), campus!=null), ()->{});
+    }
+    private void delete(Campus campus) {
+        if(!MessagePopup.confirm(this,"Remove campus "+campus.name()+"? Existing account assignments will be marked invalid."))return;
+        Actions.run(this,()->{app.admin.deleteCampus(campus.id());return true;},removed->{});
     }
 }

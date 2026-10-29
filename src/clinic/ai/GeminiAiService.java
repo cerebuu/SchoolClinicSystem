@@ -82,7 +82,8 @@ public final class GeminiAiService {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             sessionGuard.run();
             int status = response.statusCode();
-            if (status == 401 || status == 403) throw new AiServiceException("The AI service rejected its configuration. Check the API key and its permissions.");
+            if (status == 401 || status == 403 || status == 400)
+                throw new AiServiceException(configurationFailure(status, response.body()));
             if (status == 429) throw new AiServiceException("The AI service is rate-limited or out of quota. Please try again later.");
             if (status == 404) {
                 throw new AiServiceException("Gemini returned 404 for model '" + model + "'. "
@@ -122,6 +123,64 @@ public final class GeminiAiService {
         } catch (IllegalArgumentException ex) {
             throw new AiServiceException("The provider returned an invalid or oversized response. Try again later.");
         }
+    }
+
+    /** Convert only documented provider codes to UI text; never surface the raw error body. */
+    static String configurationFailure(int httpStatus, String body) {
+        String reason = providerErrorReason(body);
+        if (reason.equals("API_KEY_INVALID") || reason.equals("UNAUTHENTICATED"))
+            return "Gemini rejected GEMINI_API_KEY. Check the environment first, then -DGEMINI_API_KEY, then config.local.properties; replace the active source with a valid Google AI Studio key and restart.";
+        if (reason.equals("API_KEY_SERVICE_BLOCKED"))
+            return "Gemini has blocked this API key. Create an active replacement key in Google AI Studio.";
+        if (reason.equals("API_KEY_IP_ADDRESS_BLOCKED") || reason.equals("API_KEY_HTTP_REFERRER_BLOCKED")
+                || reason.equals("API_KEY_ANDROID_APP_BLOCKED") || reason.equals("API_KEY_IOS_APP_BLOCKED"))
+            return "The API key's application restriction blocks this desktop app. Update the key restriction in Google AI Studio.";
+        if (reason.equals("API_KEY_API_TARGET_BLOCKED"))
+            return "The API key is not allowed to call Gemini. Restrict it to the Generative Language API in Google AI Studio.";
+        if (reason.equals("SERVICE_DISABLED") || reason.equals("SERVICE_NOT_ACTIVATED"))
+            return "The Generative Language API is disabled for this project. Enable it in Google AI Studio or Google Cloud.";
+        if (reason.equals("BILLING_DISABLED"))
+            return "Gemini project access is blocked by billing. Check the project's billing status in Google AI Studio.";
+        if (httpStatus == 401)
+            return "Gemini rejected the API key (HTTP 401). Check that GEMINI_API_KEY is active and belongs to a Gemini-enabled project.";
+        if (httpStatus == 403)
+            return "Gemini denied access to this key or project (HTTP 403). In Google AI Studio, check key status and restrictions, project access, and billing. Unrestricted standard keys are rejected; use an authorization key or restrict the key to Gemini API.";
+        return "Gemini rejected the request (HTTP " + httpStatus + "). Check the API key and project configuration.";
+    }
+
+    private static String providerErrorReason(String body) {
+        try {
+            if (!(Json.parse(body) instanceof java.util.Map<?,?> root)
+                    || !(root.get("error") instanceof java.util.Map<?,?> error)) return "";
+            if (error.get("details") instanceof java.util.List<?> details) {
+                for (Object detail : details) {
+                    if (detail instanceof java.util.Map<?,?> item && item.get("reason") instanceof String value
+                            && isKnownProviderReason(value)) return value;
+                }
+            }
+            if (error.get("status") instanceof String value && isKnownProviderReason(value)) return value;
+            // Check only for a few known conditions; never return or display provider prose.
+            if (error.get("message") instanceof String message) {
+                String lower = message.toLowerCase(java.util.Locale.ROOT);
+                if (lower.contains("reported as leaked") || lower.contains("key has been blocked"))
+                    return "API_KEY_SERVICE_BLOCKED";
+                if (lower.contains("unrestricted standard key") || lower.contains("unrestricted api key"))
+                    return "API_KEY_UNRESTRICTED";
+            }
+        } catch (RuntimeException ignored) {
+            // Provider error bodies are untrusted and diagnostics must fail closed.
+        }
+        return "";
+    }
+
+    private static boolean isKnownProviderReason(String value) {
+        return switch (value) {
+            case "API_KEY_INVALID", "API_KEY_SERVICE_BLOCKED", "API_KEY_IP_ADDRESS_BLOCKED",
+                    "API_KEY_HTTP_REFERRER_BLOCKED", "API_KEY_ANDROID_APP_BLOCKED", "API_KEY_IOS_APP_BLOCKED",
+                    "API_KEY_API_TARGET_BLOCKED", "SERVICE_DISABLED", "SERVICE_NOT_ACTIVATED",
+                    "BILLING_DISABLED", "UNAUTHENTICATED", "PERMISSION_DENIED" -> true;
+            default -> false;
+        };
     }
 
     private static String json(String value) {

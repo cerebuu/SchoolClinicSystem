@@ -1,18 +1,10 @@
 package clinic.app.ui.assistant;
 
-import clinic.ai.AiServiceException;
-import clinic.ai.AiConfig;
-import clinic.ai.GeminiAiService;
-import clinic.app.ApplicationContext;
-import clinic.app.Theme;
-import clinic.app.ui.common.AsyncLoader;
-import clinic.app.ui.common.BasePanel;
-import clinic.app.ui.common.Card;
-import clinic.model.SchoolNurse;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
+
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -23,6 +15,16 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.ScrollPaneConstants;
+
+import clinic.ai.AiConfig;
+import clinic.ai.AiServiceException;
+import clinic.ai.GeminiAiService;
+import clinic.app.ApplicationContext;
+import clinic.app.Theme;
+import clinic.app.ui.common.AsyncLoader;
+import clinic.app.ui.common.BasePanel;
+import clinic.app.ui.common.Card;
+import clinic.model.SchoolNurse;
 
 /** Nurse-only, session-local chat UI. It never reads clinic data or stores chat history. */
 public final class AiNurseAssistantPanel extends BasePanel {
@@ -89,18 +91,15 @@ public final class AiNurseAssistantPanel extends BasePanel {
         inputScroll.setBorder(BorderFactory.createLineBorder(Theme.LINE));
         inputScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         inputScroll.getVerticalScrollBar().setUnitIncrement(16);
-        JPanel entry = new JPanel(new BorderLayout(0, Theme.SPACE_2));
-        entry.setOpaque(false);
-        entry.add(prompt, BorderLayout.NORTH);
-        entry.add(inputScroll, BorderLayout.CENTER);
-        composer.add(entry, BorderLayout.CENTER);
+        JPanel inputRow = new JPanel(new BorderLayout(Theme.SPACE_2, 0));
+        inputRow.setOpaque(false);
+        inputRow.add(inputScroll, BorderLayout.CENTER);
         send = Theme.button("Send", true);
         send.getAccessibleContext().setAccessibleName("Send question to assistant");
         send.addActionListener(e -> submit());
-        JPanel sendArea = new JPanel(new java.awt.GridBagLayout());
-        sendArea.setOpaque(false);
-        sendArea.add(send);
-        composer.add(sendArea, BorderLayout.EAST);
+        inputRow.add(send, BorderLayout.EAST);
+        composer.add(prompt, BorderLayout.NORTH);
+        composer.add(inputRow, BorderLayout.CENTER);
         JPanel privacyLine = new JPanel();
         privacyLine.setLayout(new BoxLayout(privacyLine, BoxLayout.Y_AXIS));
         privacyLine.setOpaque(false);

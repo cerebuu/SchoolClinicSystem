@@ -36,6 +36,18 @@ public final class MedicineCatalogChecks {
             }finally{Files.deleteIfExists(invalid);}
             check(catalog.search("ALPHA AVAILABLE").get(0).whoEssential(),"WHO numeric flag mapped");
             check(!catalog.search("alpha absent").get(0).availableInPhilippines(),"Philippines zero mapped to false");
+            MedicineCatalog strengthCatalog=new MedicineCatalog(List.of(
+                new MedicineCatalog.Entry("Amoxicillin","J01CA04","",false,true),
+                new MedicineCatalog.Entry("Paracetamol","N02BE01","",false,true),
+                new MedicineCatalog.Entry("Antacid Liquid","A02AD01","",false,true)));
+            check(strengthCatalog.findByName("Amoxicillin 500mg").orElseThrow().atcPrimary().equals("J01CA04"),
+                "legacy amoxicillin strength matches the catalog entry");
+            check(strengthCatalog.findByName("paracetamol 500mg").isPresent(),
+                "legacy medicine strength matching is case-insensitive");
+            check(strengthCatalog.findByName("Antacid Liquid 120ml").isPresent(),
+                "legacy liquid volume matches the catalog entry");
+            check(strengthCatalog.findByName("Unknown 50%").isEmpty(),
+                "unmatched legacy name remains without a catalog result");
             List<MedicineCatalog.Entry> many=new ArrayList<>();
             for(int i=0;i<70;i++)many.add(new MedicineCatalog.Entry("Drug "+i,"","",false,false));
             check(new MedicineCatalog(many).search("").size()==50,"search capped at fifty");

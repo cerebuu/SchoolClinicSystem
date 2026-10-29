@@ -169,7 +169,7 @@ public final class MedicinePicker extends JPanel implements clinic.app.ui.common
         editor.setText(query);
         loading = false;
         choices.setEnabled(true);
-        feedback.setAtc(selected==null?"":selected.getProduct().atcLabel());
+        updateAtc();
         editor.setToolTipText(selected==null?"Type to filter medicines":selected.getName());
         MedicinePickerStatus.show(choices,result.total() + " medicines | page " + (requestedPage + 1));
         if (selectionInvalidated) {
@@ -185,9 +185,23 @@ public final class MedicinePicker extends JPanel implements clinic.app.ui.common
     @Override
     public void removeNotify() { generation++;debounce.stop();super.removeNotify(); }
     private void selectionChanged() {
-        feedback.setAtc(selected==null?"":selected.getProduct().atcLabel());
+        updateAtc();
         feedback.setError(selected==null&&hasSearchInput()?"Choose a medicine from the list.":" ");
         firePropertyChange(READY_PROPERTY,null,isFormReady());changed.run();
+    }
+    private void updateAtc() {
+        if(selected==null){feedback.setAtc("");return;}
+        Medicine choice=selected;
+        String direct=choice.getProduct().atcLabel();
+        feedback.setAtc(direct);
+        if(!direct.isBlank())return;
+        MedicineCatalogCache.load(catalog->{
+            if(selected==null||!selected.getProduct().key().equals(choice.getProduct().key()))return;
+            feedback.setAtc(catalog.findByName(choice.getName()).map(entry->entry.product().atcLabel()).orElse(""));
+        },problem->{
+            if(selected!=null&&selected.getProduct().key().equals(choice.getProduct().key()))
+                MedicinePickerStatus.show(choices,"ATC details could not be loaded.");
+        });
     }
     @Override public boolean isFormReady(){return selected!=null;}
     @Override public boolean validateForm(){selectionChanged();return isFormReady();}
